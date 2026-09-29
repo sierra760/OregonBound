@@ -1,0 +1,450 @@
+{
+  "metadata": {
+    "source": "Ghidra 12.1 pseudocode of Oregon Trail Color (MECC)",
+    "segments_analyzed": ["CODE_5_Display.bin (Display.c)", "CODE_11_Model.bin (Model.c)"],
+    "functions_analyzed": {"Display": 122, "Model": 51},
+    "generated_at": "2026-05-23",
+    "notes": "All values extracted from decompiled 68k pseudocode. Hex addresses are within each CODE segment."
+  },
+
+  "game_initialization": {
+    "starting_year": {
+      "value": 1848,
+      "hex": "0x0738",
+      "source_function": "FUN_00000564",
+      "address": "00000564",
+      "context": "Set at game state block offset +0 on new game init"
+    },
+    "trail_total_distance": {
+      "value": 3000,
+      "source_function": "FUN_0000309a",
+      "address": "0000309a",
+      "context": "Threshold for miles_traveled to trigger landmark arrival (offset +0x232 > 3000)"
+    },
+    "max_party_size": {
+      "value": 32,
+      "hex": "0x20",
+      "source_function": "FUN_00000084",
+      "address": "00000084",
+      "context": "Maximum party members clamped at game start. Player data array has 32 slots."
+    },
+    "player_record_size": {
+      "value": 110,
+      "hex": "0x6e",
+      "source_function": "multiple",
+      "address": "multiple",
+      "context": "Bytes per player data block. player_data[n] = game_state_base + 0x025E + n * 0x6E"
+    },
+    "player_data_base_offset": {
+      "value": 606,
+      "hex": "0x025e",
+      "source_function": "multiple",
+      "context": "Byte offset from game state block start to first player data block"
+    },
+    "doctor_headstart_max_miles": {
+      "value": 1200,
+      "hex": "0x4B0",
+      "source_function": "FUN_0000010a",
+      "address": "0000010a",
+      "context": "When profession == 3 (Doctor): miles_traveled += RNG(1200) as starting bonus"
+    },
+    "distance_start_formula": {
+      "description": "Miles to first landmark at game start",
+      "formula": "(8 - profession) * 100 + RNG(100)",
+      "range": "100 to 800",
+      "source_function": "FUN_0000010a",
+      "address": "0000010a",
+      "context": "Stored at game state +0x230 (distance_to_next). Higher profession = start closer to first landmark."
+    },
+    "save_file_signature": {
+      "value": "MECC",
+      "hex": "0x4D454343",
+      "source_function": "FUN_000000b0",
+      "address": "000000b0",
+      "context": "Magic bytes checked at save file header to validate save data"
+    },
+    "save_resource_id": {
+      "value": 3000,
+      "source_function": "FUN_000000b0",
+      "address": "000000b0",
+      "context": "Mac OS resource ID used to load/save game state via GetResource(3000, ...)"
+    }
+  },
+
+  "game_state_block_layout": {
+    "description": "Offsets within the game state block (dereferenced from A5-0x2706)",
+    "source_function": "multiple — FUN_00000564 (init), FUN_0000309a (event loop), FUN_00001f24 (weather), FUN_000028c2, FUN_000026b0 — CODE_5_Display.bin / CODE_11_Model.bin",
+    "fields": {
+      "starting_year": {"offset": "0x000", "size": 2, "description": "Year (1848 = 0x738)"},
+      "profession_class": {"offset": "0x002", "size": 1, "description": "Player profession 1-8"},
+      "game_state_flags": {
+        "offset": "0x005",
+        "size": 1,
+        "description": "Primary game state bitmask",
+        "bits": {
+          "0x01": "party has no food (starvation active)",
+          "0x02": "travel mode active (moving on trail)",
+          "0x04": "animal movement flag (oxen issue)",
+          "0x08": "time-advance flag (event countdown active)",
+          "0x10": "event lockout",
+          "0x20": "game over (all party dead)"
+        }
+      },
+      "event_countdown": {"offset": "0x006", "size": 1, "description": "Days until next event fires"},
+      "animal_countdown": {"offset": "0x007", "size": 1, "description": "Animal health countdown"},
+      "active_party_count": {"offset": "0x008", "size": 1, "description": "Living party members"},
+      "current_player_idx": {"offset": "0x009", "size": 1, "description": "0xFF = none selected"},
+      "player_slots": {"offset": "0x00A", "size": 8, "description": "Array of 8 slot indices; 0xFF = empty"},
+      "season_month": {"offset": "0x022C", "size": 1, "description": "Month 0-11 for weather table"},
+      "weather_direction": {
+        "offset": "0x022D",
+        "size": 1,
+        "description": "Wind direction code (see weather_direction_codes)",
+        "notes": "Bit 0x80 = weather locked for this tick"
+      },
+      "weather_severity": {"offset": "0x022E", "size": 1, "description": "0=clear, 1=light, 2=moderate, 3=heavy, 4=severe, 5+=extreme"},
+      "distance_to_next": {"offset": "0x0230", "size": 2, "description": "Miles to next waypoint/landmark"},
+      "miles_traveled": {"offset": "0x0232", "size": 2, "description": "Total miles traveled (checked > 3000 for arrival)"},
+      "wind_speed_east": {"offset": "0x0234", "size": 2, "description": "East wind speed value"},
+      "wind_speed_west": {"offset": "0x0236", "size": 2, "description": "West wind speed value"},
+      "trail_month": {"offset": "0x0238", "size": 1, "description": "Month for event frequency (>11=winter)"},
+      "orig_party_size": {"offset": "0x023F", "size": 1, "description": "Party size at game start (scoring)"},
+      "max_party_slots": {"offset": "0x0240", "size": 1, "description": "Max party slots (≤32)"},
+      "target_location_id": {"offset": "0x024A", "size": 1, "description": "Location type of destination"},
+      "target_location_pos": {"offset": "0x024C", "size": 2, "description": "Position ID of destination"},
+      "player_data_array": {"offset": "0x025E", "size": "32 * 110 = 3520", "description": "Array of player records"}
+    }
+  },
+
+  "player_data_layout": {
+    "description": "Per-player data block (110 bytes each). Access: game_state_base + 0x025E + slot_idx * 0x6E",
+    "fields": {
+      "status_flags": {
+        "offset": "0x00",
+        "size": 1,
+        "bits": {
+          "0x01": "out of food (starving)",
+          "0x02": "out of medicine",
+          "0x04": "out of clothing",
+          "0x08": "out of ammunition",
+          "0x10": "lost / separated from party",
+          "0x20": "sick (disease active)",
+          "0x40": "injured"
+        }
+      },
+      "supply": {
+        "offset": "0x46",
+        "size": "7 * 2 = 14",
+        "description": "Array of 7 supply quantities (shorts)",
+        "indices": {
+          "0": "Food",
+          "1": "Medicine",
+          "2": "Ammunition (bullets)",
+          "3": "Clothing (sets)",
+          "4": "Spare wagon parts",
+          "5": "Livestock fodder",
+          "6": "Trading goods / cash-on-hand"
+        }
+      },
+      "cash_int": {"offset": "0x54", "size": 4, "description": "Liquid cash (int, dollar amounts)"},
+      "extra_resource": {"offset": "0x56", "size": 2, "description": "Additional resource (included in starvation total)"},
+      "illness_rate": {"offset": "0x5E", "size": 1, "description": "Illness probability (used as: RNG(100) < rate/15 + 1)"},
+      "sick_days_left": {"offset": "0x60", "size": 1, "description": "Days remaining of illness (set to 20 on new illness)"},
+      "disease_type": {"offset": "0x61", "size": 1, "description": "0xFF=healthy; 0-8=disease type (cold, cholera, typhoid, etc.)"},
+      "disease_duration": {"offset": "0x66", "size": 1, "description": "Days remaining for disease"},
+      "technology_level": {"offset": "0x6B", "size": 1, "description": "Technology item (checked for tech-gated events)"},
+      "rest_days": {"offset": "0x2BE (from game_state_base)", "size": 1, "description": "Forced rest days at fort (10 or 20)"},
+      "score_field": {"offset": "0x2C9 (from game_state_base)", "size": 1, "description": "Scoring/distance metric"}
+    }
+  },
+
+  "weather_system": {
+    "direction_codes": {
+      "0": {"name": "Calm", "east_speed": 0, "west_speed": 0},
+      "1": {"name": "Variable Light", "east_speed": 0, "west_speed": 0},
+      "2": {"name": "Variable Moderate", "east_speed": 0, "west_speed": 0},
+      "3": {"name": "East Moderate", "east_speed": 20, "west_speed": 0},
+      "4": {"name": "East Strong", "east_speed": 80, "west_speed": 0},
+      "5": {"name": "West Moderate", "east_speed": 0, "west_speed": 160},
+      "6": {"name": "West Strong", "east_speed": 0, "west_speed": 640},
+      "0x87": {"name": "Storm Locked", "description": "Severe storm event in progress"},
+      "0x88": {"name": "Fog/Obstacle Locked", "description": "Fog or obstacle event"},
+      "0x89": {"name": "Special Calm Locked", "description": "Exceptional calm day event"}
+    },
+    "wind_speeds": {
+      "east_moderate": {"value": 20, "hex": "0x14", "source_function": "FUN_00001f24"},
+      "east_strong": {"value": 80, "hex": "0x50", "source_function": "FUN_00001f24"},
+      "west_moderate": {"value": 160, "hex": "0xA0", "source_function": "FUN_00001f24"},
+      "west_strong": {"value": 640, "hex": "0x280", "source_function": "FUN_00001f24"}
+    },
+    "probabilities": {
+      "strong_vs_moderate_wind": {
+        "value": "3/10 = 30%",
+        "source_function": "FUN_00001f24",
+        "context": "RNG(10) < 3 → strong wind, else moderate"
+      },
+      "weather_direction_change": {
+        "value": "~50% per tick",
+        "source_function": "FUN_00001f24",
+        "context": "RNG(2) == 0 → regenerate weather"
+      },
+      "weather_severity_rng_range": {
+        "value": 41,
+        "hex": "0x29",
+        "source_function": "FUN_000028c2",
+        "context": "RNG(41) used in weather severity generation"
+      },
+      "wind_presence_rng_range": {
+        "value": 1000,
+        "source_function": "FUN_000026b0",
+        "context": "RNG(1000) compared to table threshold to determine if wind present"
+      }
+    },
+    "table_locations": {
+      "weather_type_table": {
+        "a5_offset": "-0x1D11",
+        "description": "Weather severity seed table: [12 months][professions]",
+        "index_formula": "month * 0x0C + profession"
+      },
+      "wind_probability_table": {
+        "a5_offset": "-0x1CCA",
+        "description": "Wind presence probability table: [month][profession]",
+        "index_formula": "month * 0x18 + profession * 2",
+        "entry_size": 2,
+        "entry_unit": "threshold out of 1000"
+      }
+    }
+  },
+
+  "event_probabilities": {
+    "description": "Per-day event roll probabilities from FUN_0000309a",
+    "events": {
+      "landmark_arrival": {
+        "condition": "miles_traveled > 3000",
+        "probability": "deterministic threshold",
+        "source_function": "FUN_0000309a / FUN_00003546"
+      },
+      "severe_weather_exposure": {
+        "probability_per_player": "4% (RNG(100) < 4)",
+        "condition": "weather_severity > 2",
+        "source_function": "FUN_000034c6"
+      },
+      "illness": {
+        "probability": "RNG(100) < illness_rate/15 + 1",
+        "notes": "Per-player check based on player.illness_rate field",
+        "source_function": "FUN_00002d7c"
+      },
+      "wagon_breakdown": {
+        "probability": "5% (RNG(100) < 5)",
+        "condition": "supply[4] (spare parts) == 0",
+        "source_function": "FUN_00002f58"
+      },
+      "weather_travel_stop": {
+        "probability_strong_wind": "deterministic (direction 4 or 6)",
+        "probability_mild": "15% (RNG(100) < 15) when severity < 2",
+        "source_function": "FUN_00003566"
+      },
+      "good_travel_event": {
+        "probability": "6% (RNG(100) < 6)",
+        "source_function": "FUN_00002edc"
+      },
+      "winter_seasonal_event": {
+        "probability": "7% (RNG(100) < 7)",
+        "condition": "trail_month > 11 (December+)",
+        "types": ["theft/robbery", "supply loss", "injury/illness"],
+        "source_function": "FUN_0000309a"
+      },
+      "summer_seasonal_event": {
+        "probability": "4% (RNG(100) < 4)",
+        "condition": "trail_month < 12",
+        "types": ["theft/robbery", "supply loss", "injury/illness"],
+        "source_function": "FUN_0000309a"
+      },
+      "accident_winter": {
+        "probability": "5% (RNG(100) < 5)",
+        "condition": "trail_month > 11",
+        "types": ["supply accident", "time lost", "player injured"],
+        "source_function": "FUN_0000309a"
+      },
+      "find_supplies": {
+        "probability": "1% (RNG(100) case 0)",
+        "supply_found": {
+          "ammo": "RNG(40) + 20 bullets",
+          "other": "RNG(3) + 1 units per supply type"
+        },
+        "source_function": "FUN_000029a6"
+      },
+      "theft": {
+        "probability": "1% (RNG(100) case 1)",
+        "stolen_amount": "RNG(amount) + 1 or RNG(100)+1 if amount > 100",
+        "source_function": "FUN_000035c2"
+      },
+      "at_landmark": {
+        "probability": "50% (RNG(2) != 0) when distance_to_next == 0",
+        "fort_rest_short": 10,
+        "fort_rest_long": 20,
+        "probability_long_rest": "40% (RNG(100) < 40)",
+        "source_function": "FUN_00003814"
+      }
+    }
+  },
+
+  "illness_system": {
+    "disease_types": {
+      "0xFF": "Healthy",
+      "0": "Minor illness",
+      "1": "Moderate illness",
+      "2": "Cold / Frostbite (triggered by severe weather)",
+      "3-8": "Other diseases (cholera, typhoid, dysentery, etc. — exact mapping TBD)"
+    },
+    "duration_set_on_illness": {
+      "value": 20,
+      "hex": "0x14",
+      "source_function": "FUN_00002d7c",
+      "context": "sick_days_left set to 20 when illness event fires"
+    },
+    "cold_exposure_duration": {
+      "range": "9-11 days (RNG(3) + 9)",
+      "source_function": "FUN_000034c6"
+    },
+    "injury_event_durations": {
+      "minor": "RNG(3) + 3 days",
+      "moderate": "RNG(3) + 3 days",
+      "serious": "RNG(3) + 9 to 11 days (cold exposure)"
+    },
+    "supply_consumption_during_illness": {
+      "medicine_decremented": true,
+      "source_function": "FUN_000017b6"
+    }
+  },
+
+  "death_system": {
+    "trigger": "sum of all 7 supplies + extra_resource == 0 for ALL party members",
+    "source_function": "FUN_000019c2",
+    "game_over_flag": "0x20 in game_state_flags",
+    "player_death_event_id": "0x2C (44)"
+  },
+
+  "supply_capacity_limits": {
+    "location": "A5 - 0x2896 (runtime data, extracted at startup)",
+    "source_function": "FUN_000029a6",
+    "description": "Per-supply-type maximum carry capacity (array of 6 shorts)",
+    "indices": [
+      "supply[0] = Food",
+      "supply[1] = Medicine",
+      "supply[2] = Ammunition",
+      "supply[3] = Clothing",
+      "supply[4] = Spare parts",
+      "supply[5] = Fodder"
+    ],
+    "notes": "Caps applied whenever supplies are added. Values must be read from binary."
+  },
+
+  "random_number_system": {
+    "source_function": "A5 jump table entries — CODE_22_A5Init.bin; patterns observed throughout Display.c (CODE_5) and Model.c (CODE_11)",
+    "primary_rng": {
+      "pattern": "(**(code **)(A5 + 0xa2))(N)",
+      "description": "Main random number generator: returns 0 to N-1",
+      "source_function": "A5+0xa2 jump table slot — observed in FUN_0000309a, FUN_00001f24, FUN_000028c2 and many others",
+      "swift_equivalent": "Int.random(in: 0..<n)"
+    },
+    "coin_flip": {
+      "pattern": "(**(code **)(A5 + 0x262))()",
+      "description": "Unbounded random (used for coin flips and tie-breaking)",
+      "source_function": "A5+0x262 jump table slot — observed in FUN_0000309a scoring path and ending score seed (Ending.c FUN_00000100)"
+    },
+    "boolean_check": {
+      "pattern": "(**(code **)(A5 + 0x272))()",
+      "description": "Boolean random check (0 or 1)",
+      "source_function": "A5+0x272 jump table slot — observed in Display.c event branching"
+    }
+  },
+
+  "event_message_ids": {
+    "party_level_events": {
+      "description": "FUN_00002906(message_id) — dispatches party-wide event",
+      "ids": {
+        "0": "Good travel day",
+        "1": "Bad travel day",
+        "4": "Trail impassable (storm)",
+        "5": "Good hunting",
+        "7": "Fog/obstacle — travel stopped",
+        "8": "Storm — travel stopped",
+        "9": "Reached fort",
+        "10": "Rest 10 days at fort",
+        "11": "Rest 20 days at fort",
+        "12": "Arrived at landmark"
+      }
+    },
+    "player_level_events": {
+      "description": "FUN_0000294a(message_id, player_idx, slot, flag) — dispatches player event",
+      "ids": {
+        "20": "Lost days (10 days forced wait)",
+        "21": "Minor accident — time lost",
+        "22": "Supply found with technology advantage",
+        "23": "Supply found variant A",
+        "24": "Supply found variant B",
+        "26": "Mild injury",
+        "27": "Moderate injury",
+        "28": "Serious injury",
+        "29": "Cold exposure / frostbite",
+        "30": "Theft blocked (party has tech item)",
+        "31": "Theft prevented (multiplayer guard)",
+        "33": "Theft: supply stolen",
+        "34": "Theft: critical supply stolen",
+        "35": "Player starving",
+        "44": "Player death",
+        "52": "Disease recovery",
+        "54": "Disease: mild",
+        "55": "Disease: moderate",
+        "58": "Disease variant",
+        "63": "Supplies found",
+        "64": "Theft: cash stolen",
+        "65": "Accident: supplies damaged/lost"
+      }
+    }
+  },
+
+  "display_engine": {
+    "main_animation_function": {
+      "name": "FUN_0000007e",
+      "address": "0000007e",
+      "size": 452,
+      "segment": "Display.c",
+      "description": "Processes all display objects each Mac OS null event tick"
+    },
+    "sprite_animator": {
+      "name": "FUN_00000c62",
+      "address": "00000c62",
+      "size": 846,
+      "segment": "Display.c",
+      "description": "Keyframe-based sprite animation with looping and event callbacks"
+    },
+    "object_frame_size": {
+      "value": 52,
+      "hex": "0x0C * 4 + 4",
+      "context": "Each display object frame is copied in 13-word chunks in FUN_0000007e"
+    }
+  },
+
+  "a5_jump_table_entries": {
+    "description": "Key function pointers accessed via A5 offset (Mac OS dispatch table entries)",
+    "entries": {
+      "A5+0xa2": "Random(N) — returns 0..N-1",
+      "A5+0x262": "Coin flip / unbounded random",
+      "A5+0x272": "Boolean random",
+      "A5+0x2ca": "Memory block copy / allocate",
+      "A5+0xba": "Set sprite animation state",
+      "A5+0xda": "Resource load (GetResource equivalent)",
+      "A5+0x18a": "Network send packet",
+      "A5+0x182": "Network event handler",
+      "A5+0x402": "Resource load (variant)",
+      "A5+0x62": "Key/char handler",
+      "A5+0x15a": "System error handler",
+      "A5+0x72": "Window/view handler",
+      "A5+0xd02": "Timer/VBL handler",
+      "A5+0xafa": "New game / reset handler",
+      "A5+0x492": "Startup complete callback"
+    }
+  }
+}

@@ -1,0 +1,570 @@
+{
+  "metadata": {
+    "source": "Ghidra 12.1 pseudocode of Oregon Trail Color (MECC)",
+    "segments_analyzed": [
+      "CODE_13_Hunt.bin (Hunt.c, 15 functions)",
+      "CODE_18_River.bin (River.c, 19 functions)",
+      "CODE_17_Raft.bin (Raft.c, 17 functions)",
+      "CODE_7_Buy.bin (Buy.c, 9 functions)"
+    ],
+    "generated_at": "2026-05-24",
+    "notes": "All values extracted from decompiled 68k pseudocode. Addresses are within each CODE segment."
+  },
+
+  "hunt_minigame": {
+    "description": "Real-time sprite shooting gallery. Player fires bullets at moving animal targets.",
+
+    "session_limits": {
+      "max_simultaneous_targets": {
+        "value": 2,
+        "condition": "A5-0x2378 < 2",
+        "source": "FUN_00001266 spawn gate"
+      },
+      "max_total_targets_per_hunt": {
+        "value": 4,
+        "condition": "A5-0x237a < 4",
+        "source": "FUN_00001266 spawn gate"
+      },
+      "max_shots_per_hunt": {
+        "value": "player_ammo",
+        "cap": 20,
+        "cap_hex": "0x14",
+        "source": "FUN_0000193a — capped at min(player_ammo, 20)"
+      }
+    },
+
+    "probabilities": {
+      "direction_change_per_tick": {
+        "value": 0.02,
+        "condition": "RNG(100) < 2",
+        "applies_to": "small animals (species index < 3)",
+        "source": "FUN_0000145e"
+      },
+      "initial_direction_left": {
+        "value": 0.5,
+        "condition": "RNG(2) == 0 → left; else right",
+        "source": "FUN_00001266"
+      },
+      "initial_direction_right": {
+        "value": 0.5,
+        "condition": "RNG(2) == 1",
+        "source": "FUN_00001266"
+      }
+    },
+
+    "spawn_placement": {
+      "vertical_range": {
+        "formula": "RNG(0xa6 - sprite_height) + 0x3b",
+        "min_y": 59,
+        "max_y": 165,
+        "source": "FUN_00001266"
+      },
+      "horizontal_range": {
+        "formula": "RNG(sprite_width)",
+        "source": "FUN_00001266"
+      }
+    },
+
+    "boundary_checks": {
+      "right_edge": {
+        "value": 502,
+        "hex": "0x1f6",
+        "condition": "param_1[4] > 0x1f6 → kill sprite",
+        "source": "FUN_0000145e"
+      },
+      "left_edge": {
+        "formula": "9 - sprite_height",
+        "condition": "param_1[4] <= 9 - sprite_height → kill sprite",
+        "source": "FUN_0000145e"
+      }
+    },
+
+    "species_table": {
+      "count": 7,
+      "type": "short[7]",
+      "a5_offset": "-0x22c0",
+      "description": "Count of each animal species owned by player. Species 0-6: Squirrel, Rabbit, Duck, Bear, Deer, Bison, Elk (order inferred from sprite IDs)"
+    },
+
+    "per_species_tables": {
+      "max_frame_index": { "a5_offset": "-0x24ee", "type": "short[7]" },
+      "min_frame_index": { "a5_offset": "-0x24fc", "type": "short[7]" },
+      "velocity_magnitude": { "a5_offset": "-0x2518", "type": "short[7]" },
+      "animation_frame_count": { "a5_offset": "-0x250a", "type": "short[7]" },
+      "sprite_right_handle": { "a5_offset": "-0x249c", "type": "ptr[7]" },
+      "sprite_right_reverse": { "a5_offset": "-0x24d4", "type": "ptr[7]" },
+      "sprite_left_handle": { "a5_offset": "-0x2498", "type": "ptr[7]" },
+      "sprite_left_reverse": { "a5_offset": "-0x24d0", "type": "ptr[7]" }
+    },
+
+    "sound_ids": {
+      "gunshot": { "value": "0x232a", "source": "FUN_00001676" },
+      "empty_click": { "value": "0x232c", "source": "FUN_00001676" }
+    },
+
+    "screen_return_codes": {
+      "hunt_opened_ok": "0x30d23c9",
+      "alt_state": "0x30d23c8"
+    },
+
+    "state_variables": {
+      "active_target_count": { "a5_offset": "-0x2378", "type": "short", "max": 2 },
+      "total_spawned_this_hunt": { "a5_offset": "-0x237a", "type": "short", "max": 4 },
+      "rng_seed": { "a5_offset": "-0x237c", "type": "short", "description": "Sum of all species counts" },
+      "player_mounted_flag": { "a5_offset": "-0x2384", "type": "short", "description": "Adds +8 offset to spawn row" },
+      "fire_key_held": { "a5_offset": "-0x24da", "type": "byte" },
+      "bullet_in_flight": { "a5_offset": "-0x24d6", "type": "byte" },
+      "bullet_travel_remaining": { "a5_offset": "-0x24d8", "type": "short" },
+      "shots_taken": { "a5_offset": "-0x24de", "type": "short" },
+      "max_shots": { "a5_offset": "-0x24dc", "type": "short" }
+    }
+  },
+
+  "river_crossing": {
+    "description": "Turn-based crossing. Player chooses method; outcome computed via probability rolls.",
+
+    "crossing_methods": {
+      "1": "Ford (wade across)",
+      "2": "Float belongings across",
+      "3": "Variant (trail-dependent)",
+      "4": "Caulk wagon and float"
+    },
+
+    "crossing_outcomes": {
+      "supply_loss_flag": { "a5_offset": "-0x1856", "values": { "0": "none", "1": "minor delay", "2": "supply lost" } },
+      "player_event_flag": { "a5_offset": "-0x1858", "values": { "0": "none", "2": "supplies lost", "3": "player drowned", "4": "auto-success" } }
+    },
+
+    "probability_table": {
+      "ford_low_water": {
+        "month_8_or_11": {
+          "event": "supply_loss",
+          "probability": 0.16,
+          "condition": "RNG(100) < 16",
+          "water_level_condition": "bVar2 < 5 (low water)",
+          "source": "FUN_0000034e case 1"
+        },
+        "month_1": {
+          "event": "player_drowned",
+          "probability": 0.40,
+          "condition": "RNG(100) < 40",
+          "water_level_condition": "bVar2 < 5 (low water)",
+          "source": "FUN_0000034e case 1"
+        }
+      },
+      "ford_medium_water": {
+        "event": "auto_delay",
+        "probability": 1.0,
+        "note": "bVar2 >= 5 && bVar2 < 6: switches to method 1 handling with different thresholds",
+        "month_8_or_11_sub": {
+          "probability": 0.032,
+          "condition": "RNG(1000) < 32"
+        },
+        "month_1_sub": {
+          "probability": 0.08,
+          "condition": "RNG(100) < 8"
+        },
+        "source": "FUN_0000034e case 4"
+      },
+      "ford_high_water": {
+        "event": "supply_loss_and_delay",
+        "probability": 1.0,
+        "condition": "bVar2 >= 6",
+        "outcome_flags": { "1856": 1, "1858": 1 },
+        "source": "FUN_0000034e case 1"
+      },
+      "float_high_water": {
+        "event": "supply_loss",
+        "probability_formula": "danger * 5 / 100",
+        "probability_range": "0% to 25%",
+        "condition": "bVar2 > 4 AND RNG(100) < danger * 5",
+        "source": "FUN_0000034e case 2"
+      },
+      "method3_high_water": {
+        "danger_above_10": {
+          "probability": 0.10,
+          "condition": "RNG(100) < 10"
+        },
+        "danger_5_to_10": {
+          "probability": 0.05,
+          "condition": "RNG(100) < 5"
+        },
+        "source": "FUN_0000034e case 3"
+      },
+      "caulk_low_water": {
+        "note": "Defers to ford_low_water probability table",
+        "source": "FUN_0000034e case 4"
+      },
+      "caulk_high_water": {
+        "event": "supply_loss",
+        "probability_formula": "danger / 100",
+        "probability_range": "0% to 5%",
+        "condition": "bVar2 >= 5 AND RNG(100) < danger",
+        "source": "FUN_0000034e case 4"
+      }
+    },
+
+    "danger_level": {
+      "description": "River danger rating used by float/caulk probability calculations",
+      "formula": "5 - min(sick_party_count, active_party_count)",
+      "range": { "min": 0, "max": 5 },
+      "interpretation": {
+        "0": "Maximum danger (all party sick)",
+        "5": "Minimum danger (all healthy)"
+      },
+      "source": "FUN_000011c0"
+    },
+
+    "supply_loss_functions": {
+      "food_livestock_loss": {
+        "function": "FUN_00001480",
+        "probability_param": "0x28 (40%)",
+        "formula": "for each party member: if RNG(100) < 40: food_lost += 1; result *= 2; cap at player_food",
+        "result_location": "A5-0x186e"
+      },
+      "player_sick_check": {
+        "function": "FUN_00001512",
+        "probability_param": "0x28 (40%)",
+        "formula": "for each healthy party member: if RNG(100) < 40: mark_sick",
+        "result_location": "A5-0x1860 (byte[5])"
+      },
+      "other_supply_loss": {
+        "function": "FUN_000015be",
+        "probability_param": "0x28 (40%)",
+        "formula": "for each supply type 1-6: if player has it AND RNG(100) < 40: lose RNG(amount+1)",
+        "result_location": "A5-0x186e (short[7])"
+      }
+    },
+
+    "state_variables": {
+      "crossing_method": { "a5_offset": "-0x185a", "type": "short" },
+      "supply_loss_flag": { "a5_offset": "-0x1856", "type": "short" },
+      "player_event_flag": { "a5_offset": "-0x1858", "type": "short" },
+      "supply_loss_amounts": { "a5_offset": "-0x186e", "type": "short[7]" },
+      "sick_player_flags": { "a5_offset": "-0x1860", "type": "byte[5]" },
+      "multiplayer_flag": { "a5_offset": "-0x1872", "type": "byte", "multiplayer_value": "0x01" },
+      "display_initialized": { "a5_offset": "-0x192c", "type": "byte" },
+      "crossings_remaining": { "a5_offset": "-0x188a", "type": "int" }
+    }
+  },
+
+  "raft_crossing": {
+    "description": "Real-time minigame. Player steers raft left/right to avoid obstacles.",
+
+    "physics": {
+      "raft_x_position_range": { "min": 10, "max": 350, "source": "FUN_00000c78" },
+      "oar_delta_multiplier": { "value": 4, "formula": "new_x = raft_x + oar_delta * 4" },
+      "raft_speed_formula": "4 - coin_flip(), clamped to [1, 3]",
+      "raft_speed_range": { "min": 1, "max": 3, "source": "FUN_000001ce init" }
+    },
+
+    "obstacles": {
+      "max_obstacles": { "value": 20, "hex": "0x14", "a5_offset": "-0x1992" },
+      "concurrent_obstacle_slots": { "value": 3, "a5_offset": "-0x1964" },
+      "spawn_position_formula": "dice = RNG(8); x = dice * (-7) + 23; retry while x not in [-15, 15]",
+      "spawn_x_range": { "min": -15, "max": 15, "description": "Relative to river center" }
+    },
+
+    "collision_zone": {
+      "horizontal_tolerance": { "value": "±60 pixels", "formula": "obstacle.x ± 60 vs raft_x" },
+      "vertical_zone": { "y_min": 178, "y_max": 249, "source": "FUN_00000fea" },
+      "collision_check": "obstacle.y+31>209 AND obstacle.y+5<255 AND raft_x <= obstacle.x+64 AND raft_x+1 >= obstacle.x-60"
+    },
+
+    "collision_outcome_distribution": {
+      "description": "FUN_000007c0 uses coin_flip() (0-255 range) for 7 outcome tiers",
+      "note": "Exact supply loss per tier not fully readable due to decompile truncations",
+      "tiers": [
+        { "threshold_hex": "< 0x13", "range": "0-18", "approx_pct": 7.4, "severity": "most_severe" },
+        { "threshold_hex": "0x13-0x2d", "range": "19-45", "approx_pct": 10.5, "severity": "severe" },
+        { "threshold_hex": "0x2e-0x72", "range": "46-114", "approx_pct": 27.0, "severity": "moderate" },
+        { "threshold_hex": "0x73-0x99", "range": "115-153", "approx_pct": 15.2, "severity": "minor" },
+        { "threshold_hex": "0x9a-0xbf", "range": "154-191", "approx_pct": 14.8, "severity": "minor" },
+        { "threshold_hex": "0xc0-0xdc", "range": "192-220", "approx_pct": 11.3, "severity": "moderate" },
+        { "threshold_hex": ">= 0xdd", "range": "221-255", "approx_pct": 13.7, "severity": "least_severe" }
+      ],
+      "source": "FUN_000007c0"
+    },
+
+    "supply_loss_on_collision": {
+      "food_livestock_loss": {
+        "function": "FUN_0000183a",
+        "probability_param": "0x28 (40%)",
+        "formula": "for each party member: if RNG(100) < 40: food_lost += 1; result *= 2; cap at max"
+      },
+      "player_sick_drowned": {
+        "function": "FUN_0000189e",
+        "probability_param": "0x28 (40%)",
+        "formula": "for each healthy party member: if RNG(100) < 40: mark as drowned (disease_type=9)"
+      },
+      "other_supply_loss": {
+        "function": "FUN_00001940",
+        "probability_param": "0x32 (50%)",
+        "formula": "for each supply type 1-6: if RNG(100) < 50: lose RNG(amount+1)"
+      }
+    },
+
+    "disease_codes": {
+      "drowned_on_raft": {
+        "value": 9,
+        "field": "disease_type",
+        "source": "FUN_0000189e"
+      }
+    },
+
+    "sound_ids": {
+      "collision": { "value": "0x232e", "source": "FUN_00001366" }
+    },
+
+    "state_variables": {
+      "raft_speed": { "a5_offset": "-0x1980", "type": "short", "range": "1-3" },
+      "river_flow_position": { "a5_offset": "-0x1982", "type": "short", "init_value": -999 },
+      "active_obstacle_count": { "a5_offset": "-0x1990", "type": "short" },
+      "max_obstacles": { "a5_offset": "-0x1992", "type": "short", "value": 20 },
+      "raft_x_position": { "a5_offset": "-0x1994", "type": "short", "range": "10-350" },
+      "oar_delta": { "a5_offset": "-0x1998", "type": "short" },
+      "player_drowned_flags": { "a5_offset": "-0x195c", "type": "byte" },
+      "crossing_done": { "a5_offset": "-0x195e", "type": "byte" },
+      "multiplayer_speed_mod": { "a5_offset": "-0x1960", "type": "byte" },
+      "obstacle_slot_flags": { "a5_offset": "-0x1964", "type": "byte[3]" },
+      "crossing_state": { "a5_offset": "-0x197e", "type": "short", "values": { "0": "in_progress", "1": "success", "100": "hit_obstacle" } },
+      "supply_loss_amounts": { "a5_offset": "-0x19ac", "type": "short[7]" },
+      "disease_type_per_member": { "a5_offset": "-0x19bb", "type": "byte[7]", "drowned_code": 9 },
+      "supply_before_crossing": { "a5_offset": "-0x19d6", "type": "short[7]" }
+    }
+  },
+
+  "shopping": {
+    "description": "Dialog-based supply purchase system. Dynamic seasonal pricing via STR resources.",
+
+    "supply_types": {
+      "count": 7,
+      "indices": {
+        "0": "Food",
+        "1": "Ammunition",
+        "2": "Clothing",
+        "3": "Spare wagon parts",
+        "4": "Medicine",
+        "5": "Livestock fodder",
+        "6": "Trading goods / cash"
+      }
+    },
+
+    "price_classes": {
+      "spring_discount": { "value": 1, "months": "April-June (4-6)", "source": "FUN_00000a14" },
+      "normal": { "value": 2, "months": "Jan-Mar, Aug-Dec (0-3, 7+)", "source": "FUN_00000a14" },
+      "summer_premium": { "value": 4, "months": "July (7)", "source": "FUN_00000a14" },
+      "a5_offset": "-0x2b96"
+    },
+
+    "price_strings": {
+      "resource_id": "0xbc3",
+      "base_entry_id": "0x11 (17)",
+      "formula": "item_price_string_id = supply_type + 0x11",
+      "singular_form": "item_type + 8",
+      "plural_form": "item_type + 1",
+      "cant_afford_string": "0x100bc3",
+      "source": "FUN_000006e2 case 6"
+    },
+
+    "screen_chain": {
+      "sequence": ["FUN_000009aa (0x20d2347)", "FUN_0000060e (0x20d2348)", "FUN_00000678 (0x20d234b)", "FUN_00000cc4 (0x20d234a/0x20d2349)"],
+      "back_navigation_strings": {
+        "screen_2_back": "A5 + 0x9ba",
+        "screen_3_back": "A5 + 0x9c2",
+        "screen_4_back": "A5 + 0x9d2",
+        "fort_store_back": "A5 + 0x9f2"
+      }
+    },
+
+    "multiplayer_routing": {
+      "single_player_prefix": "0x20",
+      "description": "Screen chain IDs prefixed 0x20 for single-player, 0x10 or 0x30 for multiplayer routing"
+    },
+
+    "state_variables": {
+      "cart_quantities": { "a5_offset": "-0x3094", "type": "short[7]", "init": "zeroed on screen open" },
+      "price_class": { "a5_offset": "-0x2b96", "type": "short" },
+      "item_category": { "a5_offset": "-0x3096", "type": "byte" },
+      "purchase_quantity": { "a5_offset": "-0x3098", "type": "short" },
+      "cash_available_flag": { "a5_offset": "-0x309a", "type": "short", "note": "0 = can't afford" }
+    }
+  },
+
+  "ending_scoring": {
+    "description": "End-game scoring, hall of fame, name entry, and final screen sequencing. Source: CODE_10_Ending.bin (Ending.c), 9 functions.",
+
+    "functions": {
+      "FUN_000000de": {
+        "address": "0x0de",
+        "size_bytes": 54,
+        "role": "Simple ending event handler (failure / non-scoring screen)",
+        "return_code": "0x10d2382",
+        "sound_resource": { "value": "0xbbc", "decimal": 3004, "source": "FUN_000000de case 1" },
+        "sound_delay": { "value": "0x19", "decimal": 25, "source": "FUN_000000de case 1" },
+        "name_entry_max_chars": { "value": "0x1a", "decimal": 26, "source": "FUN_000000de case 1" }
+      },
+      "FUN_000001e6": {
+        "address": "0x1e6",
+        "size_bytes": 48,
+        "role": "Total score calculator — sums per-player scores over all party slots",
+        "party_count_offset": { "value": "0x240", "description": "Byte offset in secondary game state block for party size upper bound", "source": "FUN_000001e6" }
+      },
+      "FUN_00000216": {
+        "address": "0x216",
+        "size_bytes": 280,
+        "role": "Per-player score formula — calls A5+0x25a and A5+0x262 sequence",
+        "empty_slot_sentinel": { "value": -1, "hex": "0xFF", "description": "Byte value at slot index 10+player_index in secondary game state — vacant slot returns score 0", "source": "FUN_00000216" },
+        "score_sequence": [
+          { "step": 1, "call": "A5+0x25a", "description": "Score seed / unbounded RNG component A" },
+          { "step": 2, "call": "A5+0x262", "description": "Coin-flip roll B" },
+          { "step": 3, "call": "A5+0x262", "description": "Coin-flip roll C" },
+          { "step": 4, "call": "A5+0x262", "description": "Coin-flip roll D" },
+          { "step": 5, "call": "A5+0x262", "description": "Coin-flip roll E" },
+          { "step": 6, "call": "A5+0x25a", "description": "Score seed / unbounded RNG component F" },
+          { "step": 7, "call": "A5+0x262", "description": "Final roll — return value IS the player score" }
+        ]
+      },
+      "FUN_00001228": {
+        "address": "0x1228",
+        "role": "Main ending screen — total score, HOF eligibility, winner name entry",
+        "party_size_thresholds": {
+          "small_party_dialog": { "value": "< 9", "resource": "A5+0xa92", "source": "FUN_00001228 case 1" },
+          "large_party_dialog": { "value": ">= 9", "resource": "A5+0xa9a", "source": "FUN_00001228 case 1" }
+        },
+        "name_entry_max_chars": { "value": "0x1a", "decimal": 26, "source": "FUN_00001228 case 1" }
+      },
+      "FUN_000014ce": {
+        "address": "0x14ce",
+        "role": "Alternate ending handler — individual player results, multiplayer chain",
+        "hof_slot_stride": { "value": "0x10", "decimal": 16, "description": "Bytes per player HOF slot in current player block; base offset 0x2a", "source": "FUN_000014ce case 1" },
+        "name_string_append_comma": { "value": "0x2c", "description": "ASCII comma appended between name components", "source": "FUN_000014ce case 1" },
+        "name_string_append_space": { "value": "0x20", "description": "ASCII space appended between name components", "source": "FUN_000014ce case 1" },
+        "multiplayer_next_screen": { "resource": "A5+0xaa2", "description": "Shown after each player's ending when party size > 1", "source": "FUN_000014ce case 2" }
+      }
+    },
+
+    "string_resources": {
+      "month_names": {
+        "str_id_hex": "0x0bc6",
+        "str_id_decimal": 3014,
+        "file": "assets/strings/str_3014.json",
+        "content": "12-string list: January through December",
+        "usage": "FUN_000014ce case 1 — builds player display string with month of arrival",
+        "source": "FUN_000014ce @ 0x14ce"
+      },
+      "survivor_name_format": {
+        "str_id_hex": "0x12ea",
+        "str_id_decimal": 4842,
+        "content_inferred": "\"{player_name}, you reached Oregon!\" (living survivor with name)",
+        "usage": "FUN_00001228 — winner display when specific survivor identified",
+        "source": "FUN_00001228 case 1"
+      },
+      "last_survivor_format": {
+        "str_id_hex": "0x12fe",
+        "str_id_decimal": 4862,
+        "content_inferred": "Last survivor congratulations (no specific name, slot offset+9 == -1)",
+        "usage": "FUN_00001228 — winner display when last survivor",
+        "source": "FUN_00001228 case 1"
+      },
+      "score_line_wagon_wheel": {
+        "str_id_hex": "0x1316",
+        "str_id_decimal": 4886,
+        "icon_resource": "0x150bb8",
+        "content_inferred": "Score line with wagon-wheel icon (HOF score == 0)",
+        "usage": "FUN_00001228 case 1 — score display when not on HOF",
+        "source": "FUN_00001228 case 1"
+      },
+      "score_line_flat_trail": {
+        "str_id_hex": "0x1328",
+        "str_id_decimal": 4904,
+        "icon_resource": "0x140bb8",
+        "content_inferred": "Score line with flat-trail icon (HOF score > 0)",
+        "usage": "FUN_00001228 case 1 — score display when on HOF",
+        "source": "FUN_00001228 case 1"
+      },
+      "score_section_header": {
+        "str_id_hex": "0x138e",
+        "str_id_decimal": 5006,
+        "content_inferred": "Score section header (shown before score computation display)",
+        "usage": "FUN_00001228 case 1 first visit",
+        "source": "FUN_00001228 @ 0x1228"
+      },
+      "total_score_label": {
+        "str_id_hex": "0x1392",
+        "str_id_decimal": 5010,
+        "content_inferred": "\"Total Score:\" or equivalent label",
+        "usage": "FUN_00001228 case 1 first visit — precedes FUN_000001e6() call",
+        "source": "FUN_00001228 @ 0x1228"
+      },
+      "results_label": {
+        "str_id_hex": "0x13a0",
+        "str_id_decimal": 5024,
+        "content_inferred": "Results / ranking label",
+        "usage": "FUN_00001228 case 1 first visit — precedes HOF lookup",
+        "source": "FUN_00001228 @ 0x1228"
+      },
+      "date_format": {
+        "str_id_hex": "0x13ac",
+        "str_id_decimal": 5036,
+        "content_inferred": "Date format template (month + year)",
+        "usage": "FUN_00001228 case 1 first visit — HOF rank check",
+        "source": "FUN_00001228 @ 0x1228"
+      },
+      "name_entry_dialog": {
+        "str_id_hex": "0x1362",
+        "str_id_decimal": 4962,
+        "content_inferred": "Name entry dialog resource ID (26-char text field)",
+        "usage": "FUN_00001228 case 1 second visit — name entry setup",
+        "source": "FUN_00001228 @ 0x1228"
+      },
+      "alternate_ending_title": {
+        "str_id_hex": "0x158a",
+        "str_id_decimal": 5514,
+        "content_inferred": "Alternate ending screen title (individual player results)",
+        "usage": "FUN_000014ce case 1 — displayed on individual ending screen",
+        "source": "FUN_000014ce @ 0x14ce"
+      }
+    },
+
+    "hof_eligibility": {
+      "positive": { "value": "> 0", "meaning": "Eligible for HOF — name entry prompt shown" },
+      "not_winner": { "value": "= 0", "meaning": "Multiplayer non-winner — no HOF entry" },
+      "not_eligible": { "value": "-1", "hex": "0xFFFFFFFF", "meaning": "HOF check returned negative — player not eligible" },
+      "source": "FUN_00001228 case 1 first-visit HOF logic"
+    },
+
+    "state_variables": {
+      "hof_score": { "a5_offset": "-0x2b3a", "type": "int", "description": "HOF score / eligibility flag (-1=ineligible, 0=non-winner, >0=eligible)" },
+      "hof_candidate_index": { "a5_offset": "-0x2b3e", "type": "short", "description": "Index of first surviving party member (HOF candidate)" },
+      "timer_active": { "a5_offset": "-0x2b92", "type": "short", "values": { "0": "stopped", "1": "running" } },
+      "timer_duration": { "a5_offset": "-0x2b94", "type": "short", "value": "0xf0", "decimal": 240, "description": "Ticks until name-entry callback fires" },
+      "current_player_index": { "a5_offset": "-0x2790", "type": "byte", "description": "Active player slot for per-player ending" },
+      "current_player_block": { "a5_offset": "-0x2712", "type": "Handle", "description": "Current player data (name, occupation, month, HOF row)" },
+      "secondary_game_state": { "a5_offset": "-0x270a", "type": "Handle", "description": "Party state block (party size, slot status, party count)" },
+      "background_handle_1": { "a5_offset": "-0x2a84", "type": "ptr", "description": "Scene background resource layer 1" },
+      "background_handle_2": { "a5_offset": "-0x2a80", "type": "ptr", "description": "Scene background resource layer 2" },
+      "background_id": { "a5_offset": "-0x2a7c", "type": "short", "description": "Background resource dimension / ID" }
+    },
+
+    "dispatch_table_entries": {
+      "score_seed_a": { "a5_offset": "+0x25a", "description": "Score component seeder / unbounded RNG A (called twice in FUN_00000216)" },
+      "coin_flip_b": { "a5_offset": "+0x262", "description": "Coin-flip / unbounded roll (called five times in FUN_00000216; also used in Model.c)" },
+      "hof_lookup": { "a5_offset": "+0x26a", "description": "Hall of fame lookup / eligibility check" },
+      "hof_write_name": { "a5_offset": "+0x55a", "description": "Write player name to HOF record" },
+      "hof_finalize": { "a5_offset": "+0x562", "description": "Finalize/commit HOF entry" },
+      "score_display_init": { "a5_offset": "+0x56a", "description": "Score display initialization" },
+      "hof_rank_check": { "a5_offset": "+0x59a", "description": "HOF rank check (negative = not eligible)" },
+      "text_extract": { "a5_offset": "+0x75a", "description": "Extract text from UI element to buffer (used by FUN_00000c88, FUN_00000ffc)" },
+      "cleanup_handler": { "a5_offset": "+0x76a", "description": "Ending screen cleanup" },
+      "string_display": { "a5_offset": "+0x772", "description": "String/text display" },
+      "menu_return": { "a5_offset": "+0xb2", "description": "Return to main menu" },
+      "update_step": { "a5_offset": "+0x7aa", "description": "Per-tick update step (called in Case 2 timer handler)" },
+      "name_read": { "a5_offset": "+0x862", "description": "Read player name from text field" },
+      "name_display": { "a5_offset": "+0x86a", "description": "Display player name on screen" },
+      "num_to_string": { "a5_offset": "+0x422", "description": "Number-to-string conversion (used for month/year formatting)" },
+      "string_append": { "a5_offset": "+0xea", "description": "String append (concatenation)" },
+      "str_resource_load": { "a5_offset": "+0x402", "description": "Load string resource by ID into buffer" }
+    }
+  }
+}

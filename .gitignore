@@ -1,0 +1,29 @@
+# Player-supplied and derived original data: never commit these.
+/Original/
+/raw/
+/assets/
+/ghidra/
+/tools/
+/docs/reference/
+*.rsrc
+*.dsk
+*.img
+*.image
+*.toast
+*.hqx
+*.sit
+*.bin
+# Synthetic test fixture (dummy data only)
+!/OregonBound/OregonBoundTests/Fixtures/tiny-hfs.dsk
+
+.DS_Store
+build/
+DerivedData/
+xcuserdata/
+*.xcuserstate
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+.idea/
+.vscode/

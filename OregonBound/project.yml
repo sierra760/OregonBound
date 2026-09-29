@@ -1,0 +1,105 @@
+name: OregonBound
+
+options:
+  bundleIdPrefix: com.sierraburkhart
+  createIntermediateGroups: true
+
+targets:
+  OregonBound:
+    type: application
+    platform: [macOS, iOS]
+    deploymentTarget:
+      macOS: "13.0"
+      iOS: "16.0"
+    sources:
+      - OregonBound
+      - path: ../game_loop_constants.json
+        buildPhase: resources
+        type: file
+      - path: ../subsystem_constants.json
+        buildPhase: resources
+        type: file
+    dependencies:
+      - sdk: SpriteKit.framework
+      - sdk: SwiftUI.framework
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.sierraburkhart.OregonBound
+        PRODUCT_MODULE_NAME: OregonBound
+        PRODUCT_NAME: Oregon Bound
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        INFOPLIST_KEY_CFBundleDisplayName: Oregon Bound
+        INFOPLIST_KEY_CFBundleName: Oregon Bound
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        IPHONEOS_DEPLOYMENT_TARGET: "16.0"
+        TARGETED_DEVICE_FAMILY: "2"
+        SWIFT_VERSION: "5.9"
+        ENABLE_PREVIEWS: YES
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+
+  OregonBoundTests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget:
+      macOS: "13.0"
+    sources:
+      - OregonBoundTests
+      - path: ../game_loop_constants.json
+        buildPhase: resources
+        type: file
+      - path: ../subsystem_constants.json
+        buildPhase: resources
+        type: file
+      - path: OregonBoundTests/Fixtures/tiny-hfs.dsk
+        buildPhase: resources
+        type: file
+    dependencies:
+      - target: OregonBound_macOS
+    settings:
+      base:
+        MACOSX_DEPLOYMENT_TARGET: "13.0"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Oregon Bound.app/Contents/MacOS/Oregon Bound"
+        PRODUCT_BUNDLE_IDENTIFIER: com.sierraburkhart.OregonBoundTests
+        SWIFT_VERSION: "5.9"
+        GENERATE_INFOPLIST_FILE: YES
+        CODE_SIGN_STYLE: Automatic
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+
+schemes:
+  OregonBound:
+    build:
+      targets:
+        OregonBound_macOS: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      environmentVariables:
+        OREGON_BOUND_DATA: "$(OREGON_BOUND_DATA)"
+      targets:
+        - OregonBoundTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release
+
+  OregonBound_iOS:
+    build:
+      targets:
+        OregonBound_iOS: all
+    run:
+      config: Debug
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

@@ -1,0 +1,83 @@
+import Testing
+@testable import OregonBound
+
+struct OriginalRaftSessionTests {
+    private var input: OriginalRaftSession.Input {
+        .init(inventory: [3,10,100,1,1,1,1000],living: [true,true,true],names: ["A","B","C"],rain: 400)
+    }
+    @Test func initialLaneSentinelRetriesAndIsResetAfterInitialRock() {
+        var values = [0,4]
+        var bounds: [Int] = []
+        let session = OriginalRaftSession(input: input,startTick: 0) { bounds.append($0); return values.removeFirst() }
+        #expect(bounds == [8,8]); #expect(session.rocks.first?.lane == -5)
+        #expect(session.rocks.first?.x == 179); #expect(session.rocks.first?.y == 39)
+    }
+    @Test func progressAndDeadlineDoNotCatchUpAndPauseHasNoRandomDraws() {
+        var draws = 0
+        var session = OriginalRaftSession(input: input,startTick: 10) { _ in defer { draws += 1 }; return draws == 0 ? 0 : 4 }
+        session.advance(to: 9,mouseX: 100) { _ in Issue.record("Too early"); return 0 }
+        #expect(session.remaining == 1340)
+        session.advance(to: 1000,mouseX: 100) { _ in 39 }
+        #expect(session.remaining == 1338); #expect(session.raftLeft == 155)
+        session.setPaused(true,at: 1000)
+        session.advance(to: 9999,mouseX: nil) { _ in Issue.record("Paused draw"); return 0 }
+        #expect(session.remaining == 1338)
+    }
+    @Test func clampPreservesOriginalLogicalVersusSpriteOffset() {
+        var n = 0
+        var session = OriginalRaftSession(input: input,startTick: 0) { _ in defer { n += 1 }; return n == 0 ? 0 : 4 }
+        for tick in stride(from: 0,through: 114,by: 3) { session.advance(to: tick,mouseX: 0) { _ in 39 } }
+        #expect(session.raftLeft == 10); #expect(session.raftSpriteLeft == 11)
+        #expect(session.direction == 0)
+        session.advance(to: 117,mouseX: 400) { _ in 39 }
+        #expect(session.raftLeft == 14); #expect(session.raftSpriteLeft == 15)
+    }
+    @Test func trajectoryUsesSingleStorageAndFrameBeforeMove() {
+        var n = 0
+        var session = OriginalRaftSession(input: input,startTick: 0) { _ in defer { n += 1 }; return n == 0 ? 0 : 4 }
+        for tick in stride(from: 0,through: 36,by: 3) { session.advance(to: tick,mouseX: nil) { _ in 39 } }
+        #expect(session.rocks.first?.y == 65)
+        #expect(session.rocks.first?.frame == 10) // callback saw63
+        #expect(session.rocks.first?.x == 177) // 13×−0.178 crosses−2 once
+        session.advance(to: 39,mouseX: nil) { _ in 39 }
+        #expect(session.rocks.first?.frame == 8) // callback saw65
+    }
+    @Test func positiveIntersectionAndFrameThresholds() {
+        #expect(!OriginalRaftSession.hits(rockX: 111,rockY: 189,raftLeft: 159,direction: 0))
+        #expect(OriginalRaftSession.hits(rockX: 112,rockY: 189,raftLeft: 159,direction: 0))
+        #expect(OriginalRaftSession.rockFrame(top: 63) == 10)
+        #expect(OriginalRaftSession.rockFrame(top: 64) == 8)
+    }
+    @Test func collisionExactRNGOrderRawOxenAndLeaderLast() {
+        var n = 0
+        var session = OriginalRaftSession(input: input,startTick: 0) { _ in defer { n += 1 }; return n == 0 ? 0 : 4 }
+        var bounds: [Int] = []
+        for tick in stride(from: 0,through: 300,by: 3) {
+            session.advance(to: tick,mouseX: nil) { bound in
+                bounds.append(bound)
+                return bound == 40 ? 39 : 0
+            }
+            if session.collision != nil { break }
+        }
+        #expect(session.collision != nil)
+        #expect(Array(bounds.suffix(17)) == [100,11,100,101,100,2,100,2,100,2,100,1001,100,100,100,100,100])
+        #expect(session.inventory[0] == 0)
+        #expect(session.collision?.drownedMembers == [1,2,0])
+        #expect(session.pauseSteps == 100)
+        session.advance(to: session.nextTick,mouseX: nil) { _ in Issue.record("Pause draw"); return 0 }
+        #expect(session.pauseSteps == 98)
+        session.dismissCollision()
+        session.advance(to: session.nextTick,mouseX: nil) { _ in Issue.record("Finish draw"); return 0 }
+        #expect(session.result?.survivors == 0)
+        #expect(session.result?.losses == [3,0,0,0,0,0,0])
+        #expect(session.result?.drownedMembers == [0,1,2])
+    }
+    @Test func rainCapAndMapTruncation() {
+        #expect(OriginalRaftSession.markerTarget(progress: 18) == Float(467))
+        #expect(Int(Double(OriginalRaftSession.markerTarget(progress: 116))-475) == 0)
+        var n = 0
+        var p = input; p.rain = 850
+        let session = OriginalRaftSession(input: p,startTick: 0) { _ in defer { n += 1 }; return n == 0 ? 0 : 4 }
+        #expect(session.maximumRocks == 1)
+    }
+}
