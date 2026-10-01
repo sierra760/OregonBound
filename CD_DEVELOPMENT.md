@@ -154,3 +154,12 @@ Classic landmark strips remain unchanged. Local native renders match all 216
 location/weather/snow/display-mode combinations pixel for pixel against the
 supplied prepared images. Landmark ambient audio is identified separately and
 remains part of the audio use-site audit.
+
+The CD title now selects `9001`/`19001` explicitly and retains its static
+494×304 crop without consuming random numbers. Travel selects `5100`/`15100`
+and captures all selected frame dimensions, including monochrome frame 11's
+24-pixel height. Only the 256-color mode applies the moving sky/ground palette.
+Offscreen SpriteKit renders match three title crops and nine initial travel
+compositions against source pixels at native Retina scale. The native suite
+passes 840 parameterized cases (74 skipped), and the iPad target builds.
+River, raft, hunting, and monochrome ink/layout acceptance remain outstanding.

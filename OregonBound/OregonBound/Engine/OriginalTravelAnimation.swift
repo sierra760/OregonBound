@@ -55,6 +55,7 @@ struct OriginalTravelAnimation: Sendable {
 
     /// Literal callback state, including the original divergent origin/rect.
     struct Landmark: Sendable {
+        private let frameSizes: [(width: Int, height: Int)]
         var frame: Int
         var x: Int
         var y: Int
@@ -72,13 +73,14 @@ struct OriginalTravelAnimation: Sendable {
         var averageTicks = 5
         var duration = 0
         var delta = 0
-        var width: Int { OriginalTravelAnimation.frameSizes[frame].width }
-        var height: Int { OriginalTravelAnimation.frameSizes[frame].height }
+        var width: Int { frameSizes[frame].width }
+        var height: Int { frameSizes[frame].height }
         var atArrivalEdge: Bool { x == 254-width }
 
-        init(input: Input) {
+        init(input: Input, frameSizes: [(width: Int, height: Int)] = OriginalTravelAnimation.frameSizes) {
+            self.frameSizes = frameSizes
             frame = OriginalTravelAnimation.frameIndex(for: input.destinationIndex)
-            let size = OriginalTravelAnimation.frameSizes[frame]
+            let size = frameSizes[frame]
             x = input.destinationIndex < 0 || input.crossingPending ? -746 : 254-size.width-3*input.remainingMiles
             y = 46+(35-size.height)/2
             left = x; top = y
@@ -140,18 +142,22 @@ struct OriginalTravelAnimation: Sendable {
     private(set) var wagonPhase = 0
     private let upperStripWidth: Int
     private let lowerStripWidth: Int
+    private let selectedFrameSizes: [(width: Int, height: Int)]
     private(set) var upperStripX: Int
     private(set) var upperStripPhase = 0
     private(set) var lowerStripX: Int
     private var nominalTick = 0
 
-    init(input: Input, upperStripWidth: Int = 786, lowerStripWidth: Int = 786) {
+    init(input: Input, upperStripWidth: Int = 786, lowerStripWidth: Int = 786,
+         frameSizes: [(width: Int, height: Int)] = OriginalTravelAnimation.frameSizes) {
         precondition(upperStripWidth >= Self.viewport.width && lowerStripWidth >= Self.viewport.width)
+        precondition(frameSizes.count == Self.frameSizes.count && frameSizes.allSatisfy { $0.width > 0 && $0.height > 0 })
+        selectedFrameSizes = frameSizes
         self.upperStripWidth = upperStripWidth; self.lowerStripWidth = lowerStripWidth
         upperStripX = 326-upperStripWidth; lowerStripX = 326-lowerStripWidth
         precondition((0...2).contains(input.pace))
         self.input = input
-        landmark = Landmark(input: input)
+        landmark = Landmark(input: input, frameSizes: frameSizes)
     }
     mutating func apply(_ value: Input) {
         precondition((0...2).contains(value.pace))
@@ -221,7 +227,7 @@ struct OriginalTravelAnimation: Sendable {
     }
 
     private func command(_ frame: Int, _ x: Int, _ y: Int) -> DrawCommand {
-        let size = Self.frameSizes[frame]
+        let size = selectedFrameSizes[frame]
         return DrawCommand(frame: frame, destination: Rect(x: x, y: y, width: frame == 1 ? upperStripWidth : frame == 2 ? lowerStripWidth : size.width, height: size.height))
     }
 }

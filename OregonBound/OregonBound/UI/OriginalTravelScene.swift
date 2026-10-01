@@ -56,6 +56,7 @@ enum OriginalTravelPalette {
 }
 
 final class OriginalTravelScene: SKScene {
+    private let resource = OriginalResources.resource(monochrome: 5100, color: 15100)
     private var animation: OriginalTravelAnimation?
     private var active = false
     private var modalDispatchBlocked = false
@@ -94,10 +95,11 @@ final class OriginalTravelScene: SKScene {
             dayDelay: Int(trip.timing.timerThreshold),
             crossingPending: trip.originalRiverOutcome != nil)
         if animation == nil {
-            let frames = OriginalResources.frames(15100)
+            let frames = OriginalResources.frames(resource).sorted { $0.frame_index < $1.frame_index }
+            guard frames.map(\.frame_index) == Array(OriginalTravelAnimation.frameSizes.indices) else { return }
             animation = OriginalTravelAnimation(input: input,
-                upperStripWidth: frames.first { $0.frame_index == 1 }?.width ?? 786,
-                lowerStripWidth: frames.first { $0.frame_index == 2 }?.width ?? 786)
+                upperStripWidth: frames[1].width, lowerStripWidth: frames[2].width,
+                frameSizes: frames.map { ($0.width, $0.height) })
         }
         else { animation?.apply(input) }
         let shouldMove = moving && trip.phase == .travel
@@ -121,7 +123,7 @@ final class OriginalTravelScene: SKScene {
         colorSpaceObservers.forEach(NotificationCenter.default.removeObserver)
         colorSpaceObservers = TextureLoader.observeRenderingColorSpace(in: view) { [weak self] in self?.render() }
 
-        for entry in OriginalResources.frames(15100) {
+        for entry in OriginalResources.frames(resource) {
             entries[entry.frame_index] = entry
         }
         render()
@@ -180,7 +182,7 @@ final class OriginalTravelScene: SKScene {
 
     private func texture(frame: Int, palette: OriginalTravelAnimation.Palette) -> SKTexture? {
         guard let entry = entries[frame] else { return nil }
-        if entry.resource.type == "Ima4" || (palette.groundSource == 226 && palette.skySource == 230) {
+        if OriginalResources.colorMode != .color256 || (palette.groundSource == 226 && palette.skySource == 230) {
             return TextureLoader.texture(for: entry, renderingIn: view)
         }
         let key = "\(frame):\(palette.groundSource):\(palette.skySource)"

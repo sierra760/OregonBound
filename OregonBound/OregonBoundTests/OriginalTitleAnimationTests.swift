@@ -2,14 +2,14 @@ import Testing
 @testable import OregonBound
 
 struct OriginalTitleAnimationTests {
-    @Test func cdTitleUsesStaticPaintingWithoutConsumingRandom() {
+    @Test(arguments: [false, true]) func cdTitleUsesStaticPaintingWithoutConsumingRandom(monochrome: Bool) {
         var randomCalls = 0
-        var animation = OriginalTitleAnimation(edition: .macintoshCD12) { _ in
+        var animation = OriginalTitleAnimation(edition: .macintoshCD12, monochrome: monochrome) { _ in
             randomCalls += 1
             return 0
         }
         #expect(animation.states.isEmpty)
-        let expected = [OriginalTitleAnimation.DrawCommand(resourceID: 19001, frame: 0,
+        let expected = [OriginalTitleAnimation.DrawCommand(resourceID: monochrome ? 9001 : 19001, frame: 0,
             x: 9, y: 9, width: 496, height: 306)]
         #expect(animation.drawCommands == expected)
         for _ in 0..<1000 {

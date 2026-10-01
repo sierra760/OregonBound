@@ -56,13 +56,15 @@ struct OriginalTitleAnimation: Sendable {
     ]
 
     let edition: GameEdition
-    var resourceID: Int { edition == .macintoshCD12 ? 19001 : 19000 }
+    let monochrome: Bool
+    var resourceID: Int { edition == .macintoshCD12 ? (monochrome ? 9001 : 19001) : 19000 }
     private(set) var states: [State]
 
     /// Calls the supplied random helper in track creation order.
     /// The helper must return zero when the span is zero.
-    init(edition: GameEdition = .macintosh11, random: (Int) -> Int) {
+    init(edition: GameEdition = .macintosh11, monochrome: Bool = false, random: (Int) -> Int) {
         self.edition = edition
+        self.monochrome = monochrome
         states = (edition == .macintoshCD12 ? [] : Self.tracks).map {
             State(frame: $0.firstFrame, delay: Self.word(random($0.randomSpan)), repeatsRemaining: $0.repeats)
         }

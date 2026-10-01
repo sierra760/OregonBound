@@ -48,7 +48,8 @@ final class OriginalTitleScene: SKScene {
     private var colorSpaceObservers: [NSObjectProtocol] = []
 
     override init() {
-        animation = OriginalTitleAnimation(edition: GameData.edition) { OriginalRandomStream.shared.bounded($0) }
+        animation = OriginalTitleAnimation(edition: GameData.edition,
+            monochrome: OriginalResources.colorMode == .monochrome) { OriginalRandomStream.shared.bounded($0) }
         super.init(size: CGSize(width: 512, height: 322))
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 1, green: 246.0 / 255, blue: 137.0 / 255, alpha: 1)
