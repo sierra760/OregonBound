@@ -136,9 +136,13 @@ enum GraphicsExtractor {
 
     /// exporter.image_output_path: `images/<Type>/<type>_<id>[_<NN>].png`.
     static func imageRelativePath(_ image: DecodedImage) -> String {
-        let type = image.resource.resourceType
-        var stem = "\(type.lowercased())_\(image.resource.resourceId)"
-        if let frameIndex = image.frameIndex, let frameCount = image.frameCount, frameCount > 1 {
+        imageRelativePath(type: image.resource.resourceType, id: image.resource.resourceId,
+                          frameIndex: image.frameIndex, frameCount: image.frameCount)
+    }
+
+    static func imageRelativePath(type: String, id: Int, frameIndex: Int?, frameCount: Int?) -> String {
+        var stem = "\(type.lowercased())_\(id)"
+        if let frameIndex, let frameCount, frameCount > 1 {
             stem += "_" + (frameIndex < 10 ? "0" : "") + String(frameIndex)
         }
         return "images/\(type)/\(stem).png"

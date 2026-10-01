@@ -9,7 +9,7 @@ protocol OriginalAudioPlayback: AnyObject {
 final class OriginalPCMPlayback: OriginalAudioPlayback {
     private let engine = AVAudioEngine()
     private let player = AVAudioPlayerNode()
-    private var buffers: [Int: AVAudioPCMBuffer] = [:]
+    private let buffers = SessionResourceCache<Int, AVAudioPCMBuffer>()
 
     init() { engine.attach(player) }
     func start(_ resource: Int, completion: @escaping () -> Void) -> Bool {
@@ -31,15 +31,23 @@ final class OriginalPCMPlayback: OriginalAudioPlayback {
     func stop() { player.stop() }
 
     private func buffer(for resource: Int) -> AVAudioPCMBuffer? {
-        if let value = buffers[resource] { return value }
-        guard let url = GameData.url(forResource: "snd_\(resource)",withExtension: "wav",subdirectory: "sounds"),
-              let wav = try? Data(contentsOf: url),let sample = OriginalSoundSample(resource: resource,wav: wav),
+        buffers.value(for: resource, session: GameData.sessionID) { makeBuffer(for: resource) }
+    }
+
+    private func makeBuffer(for resource: Int) -> AVAudioPCMBuffer? {
+        let sample: OriginalSoundSample?
+        if let session = GameData.preparedSession {
+            sample = try? session.sounds.sample(resource)
+        } else if let url = GameData.url(forResource: "snd_\(resource)", withExtension: "wav", subdirectory: "sounds"),
+                  let wav = try? Data(contentsOf: url) {
+            sample = OriginalSoundSample(resource: resource, wav: wav)
+        } else { sample = nil }
+        guard let sample,
               let format = AVAudioFormat(standardFormatWithSampleRate: sample.sampleRate,channels: 1),
               let buffer = AVAudioPCMBuffer(pcmFormat: format,frameCapacity: AVAudioFrameCount(sample.samples.count)),
               let channel = buffer.floatChannelData?[0] else { return nil }
         buffer.frameLength = buffer.frameCapacity
         for (index, value) in sample.samples.enumerated() { channel[index] = (Float(value)-128)/128 }
-        buffers[resource] = buffer
         return buffer
     }
 }

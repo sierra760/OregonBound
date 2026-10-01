@@ -2,7 +2,11 @@ import SwiftUI
 import AVFoundation
 
 enum OriginalResources {
-    static let manifest = BundleAssets.loadManifest()
+    private static let manifestCache = SessionResourceCache<String, GraphicsManifest>()
+    private static let guideCache = SessionResourceCache<String, [GuideEntry]>()
+    static var manifest: GraphicsManifest? {
+        manifestCache.value(for: "graphics", session: GameData.sessionID) { BundleAssets.loadManifest() }
+    }
     private struct Strings: Decodable { let strings: [String] }
     private struct GuideGroup: Decodable { struct Entry: Decodable { let text: String }; let entries: [Entry] }
     struct GuideEntry: Identifiable { let id: Int; let title: String; let text: String }
@@ -13,7 +17,10 @@ enum OriginalResources {
         return value.strings
     }
 
-    static let guide: [GuideEntry] = {
+    static var guide: [GuideEntry] {
+        guideCache.value(for: "guide", session: GameData.sessionID, load: loadGuide) ?? []
+    }
+    private static func loadGuide() -> [GuideEntry] {
         let titles = strings(3150)
         var texts: [String] = []
         for id in 3151...3171 {
@@ -21,7 +28,7 @@ enum OriginalResources {
                let data = try? Data(contentsOf: url), let group = try? JSONDecoder().decode(GuideGroup.self, from: data) { texts += group.entries.map(\.text) }
         }
         return zip(titles, texts).enumerated().map { index, entry in GuideEntry(id: index, title: entry.0, text: entry.1) }
-    }()
+    }
 
     static func image(_ resource: Int, frame: Int = 0) -> Image? {
         guard let entry = manifest?.images(forResourceId: resource).first(where: { $0.frame_index == frame }),

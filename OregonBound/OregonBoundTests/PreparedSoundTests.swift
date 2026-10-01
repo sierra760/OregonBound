@@ -89,6 +89,24 @@ struct PreparedSoundTests {
         #expect(try library.sample(1) == nil)
     }
 
+    @Test(arguments: ["manifest", "wav"])
+    func libraryRejectsFilesOutsideItsRoot(kind: String) throws {
+        let root = try temporary(), outside = try temporary()
+        defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: outside) }
+        let entry = GameResourceCatalog.Entry(role: .guide1, type: "snd ", id: 17000, name: nil, attributes: 0, length: 39, sha256: "fixture", disposition: .resource)
+        let lookup = try GameResourceLookup(edition: .macintoshCD12, entries: [entry])
+        let output = ExtractionOutput(root: root.appendingPathComponent("sources/guide1"))
+        try SoundExtractor.extractSounds(trailFork: MacResourceFork(resources: [resource()]), into: output, strict: true, includeMetadata: true)
+        let target = output.url(kind == "manifest" ? "sounds/manifest.json" : record().path)
+        let external = outside.appendingPathComponent(target.lastPathComponent)
+        try FileManager.default.moveItem(at: target, to: external)
+        try FileManager.default.createSymbolicLink(at: target, withDestinationURL: external)
+        #expect(throws: (any Error).self) {
+            let library = try PreparedSoundLibrary(root: root, lookup: lookup, soundSources: [.guide1])
+            _ = try library.sample(17000)
+        }
+    }
+
     @Test(arguments: ["duplicate", "missing", "path", "schema"])
     func libraryRejectsBrokenSourceManifest(kind: String) throws {
         let root = try temporary(); defer { try? FileManager.default.removeItem(at: root) }

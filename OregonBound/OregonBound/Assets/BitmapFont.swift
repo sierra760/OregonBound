@@ -18,14 +18,18 @@ final class BitmapFont {
     }
     struct Placement { let image: CGImage; let rect: CGRect }
     struct Layout { let glyphs: [Placement]; let size: CGSize }
-    static let bold14 = BitmapFont(resource: 16131)
-    static let bold12 = BitmapFont(resource: 17847)
-    static let plain12 = BitmapFont(resource: 23522)
-    static let plain14 = BitmapFont(resource: 22669)
+    private static let cache = SessionResourceCache<Int, BitmapFont>()
+    private static func cached(_ resource: Int) -> BitmapFont? {
+        cache.value(for: resource, session: GameData.sessionID) { BitmapFont(resource: resource) }
+    }
+    static var bold14: BitmapFont? { cached(16131) }
+    static var bold12: BitmapFont? { cached(17847) }
+    static var plain12: BitmapFont? { cached(23522) }
+    static var plain14: BitmapFont? { cached(22669) }
     // System 7.0 FOND associations; these IDs cannot be derived from size.
-    static let chicago12 = BitmapFont(resource: 5478)
-    static let geneva9 = BitmapFont(resource: 4372)
-    static let geneva12 = BitmapFont(resource: 13913)
+    static var chicago12: BitmapFont? { cached(5478) }
+    static var geneva9: BitmapFont? { cached(4372) }
+    static var geneva12: BitmapFont? { cached(13913) }
     let metrics: Metrics
     private let glyphImages: [Int: CGImage]
     private let glyphIndicesByCode: [Int: Int]

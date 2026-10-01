@@ -109,7 +109,7 @@ enum TextureLoader {
     static func texture(for image: ManifestImage, renderingIn view: SKView? = nil) -> SKTexture? {
         guard let resourceURL = GameData.resourceURL(image.image_path) else { return nil }
         // A texture converted for one monitor must never be reused on another profile.
-        let key = "\(resourceURL.path):\(renderingColorSpaceID(for: view))" as NSString
+        let key = "\(GameData.sessionID.uuidString):\(resourceURL.path):\(renderingColorSpaceID(for: view))" as NSString
         if let cached = cache.object(forKey: key) { return cached }
         guard let source = CGImageSourceCreateWithURL(resourceURL as CFURL, nil),
               let imageSource = CGImageSourceCreateImageAtIndex(source, 0, nil) else {

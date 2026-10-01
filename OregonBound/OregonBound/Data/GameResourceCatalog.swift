@@ -13,7 +13,7 @@ struct GameResourceCatalog: Codable {
         case resource
         case emptyPlaceholder
     }
-    struct Entry: Codable {
+    struct Entry: Codable, Equatable {
         let role: GameDataSourceRole
         let type: String
         let id: Int

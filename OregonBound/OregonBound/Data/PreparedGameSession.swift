@@ -1,0 +1,146 @@
+import Foundation
+
+/// Read-only runtime view of a completed preparation. Its lifetime identity is
+/// separate from its on-disk location, which can be reused by a later import.
+/// Pending resources remain visible; loading is not full gameplay certification.
+struct PreparedGameSession {
+    enum Failure: Error, CustomStringConvertible {
+        case invalid(String)
+        var description: String {
+            switch self { case .invalid(let detail): return "Invalid prepared game data: \(detail). Re-import the original files." }
+        }
+    }
+    private struct Key: Hashable { let role: GameDataSourceRole; let type: String; let id: Int }
+    let id = UUID()
+    let root: URL
+    let manifest: GameDataPreparation.Manifest
+    let catalog: GameResourceCatalog
+    let lookup: GameResourceLookup
+    let graphics: GraphicsManifest
+    let sounds: PreparedSoundLibrary
+    var edition: GameEdition { manifest.edition }
+    var hasSystemResources: Bool { catalog.sources.contains { $0.role == .system } }
+
+    /// Existing scene consumers use the 256-color resource family. Explicit
+    /// CD selectors retain access to Ima4 separately; four-bit output conversion
+    /// and the corresponding scene adapters are still required before that mode.
+    var defaultGraphics: GraphicsManifest {
+        GraphicsManifest(source_file: graphics.source_file, images: graphics.images.filter { $0.resource.type != "Ima4" })
+    }
+
+    init(root: URL) throws {
+        self.root = root.standardizedFileURL
+        func read<T: Decodable>(_ type: T.Type, _ path: String) throws -> T {
+            try JSONDecoder().decode(type, from: Data(contentsOf: PreparedResourceFile.url(root: root, path: path)))
+        }
+        let decoder = JSONDecoder()
+        let manifest = try decoder.decode(GameDataPreparation.Manifest.self,
+            from: Data(contentsOf: PreparedResourceFile.url(root: root, path: "prepared_import.json")))
+        guard manifest.schemaVersion == 5, manifest.catalogPath == "resource_catalog.json",
+              manifest.lookupPath == "resource_lookup.json" else { throw Failure.invalid("unsupported manifest schema or paths") }
+        let catalog = try read(GameResourceCatalog.self, manifest.catalogPath)
+        let roles = Set(catalog.sources.map(\.role))
+        let required = Set(manifest.edition.requiredRoles)
+        guard catalog.edition == manifest.edition, roles.count == catalog.sources.count,
+              required.isSubset(of: roles), roles.subtracting(required).isSubset(of: [.system]),
+              catalog.entries.allSatisfy({ roles.contains($0.role) }) else { throw Failure.invalid("edition/source mismatch") }
+        let lookup = try GameResourceLookup(catalog: catalog)
+        let storedIndex = try read(GameResourceLookup.Index.self, manifest.lookupPath)
+        guard storedIndex.schemaVersion == lookup.index.schemaVersion,
+              storedIndex.edition == lookup.index.edition,
+              storedIndex.entries == lookup.index.entries else { throw Failure.invalid("resource lookup does not match catalog") }
+        let app: GameDataSourceRole = manifest.edition == .macintosh11 ? .classicApplication : .cdApplication
+        let graphicsRoles: Set<GameDataSourceRole> = manifest.edition == .macintosh11
+            ? [.classicApplication, .classicGraphics] : [.cdApplication, .graphics1, .graphics2, .graphics3, .graphics4]
+        guard Set(manifest.graphics.keys) == Set(graphicsRoles.map(\.rawValue)),
+              Set(manifest.rasterPictures.keys) == [app.rawValue] else { throw Failure.invalid("graphics source manifests") }
+        let entries = Dictionary(uniqueKeysWithValues: catalog.entries.map { (Key(role: $0.role, type: $0.type, id: $0.id), $0) })
+        var frames: [Key: [ManifestImage]] = [:]
+        func add(_ image: ManifestImage, role: GameDataSourceRole, rootRelative: Bool) throws {
+            let key = Key(role: role, type: image.resource.type, id: image.resource.id)
+            guard let entry = entries[key], entry.disposition == .resource,
+                  image.resource.source_file == role.rawValue, image.resource.raw_length == entry.length,
+                  ["Imag", "Ima4", "cicn", "PICT"].contains(key.type),
+                  image.width > 0, image.height > 0, image.width <= 16384, image.height <= 16384,
+                  image.width * image.height <= 16 * 1024 * 1024,
+                  image.frame_count > 0, image.frame_index >= 0, image.frame_index < image.frame_count,
+                  image.status == "ok" || (image.status == "partial" && image.diagnostics?.allSatisfy({
+                      $0.severity == "info" || ($0.severity == "warning" && $0.code == "imag.palette_fallback")
+                  }) == true) else { throw Failure.invalid("image metadata for \(role.rawValue)/\(key.type)/\(key.id)") }
+            let prefix = "sources/\(role.rawValue)/"
+            let localPath = GraphicsExtractor.imageRelativePath(type: key.type, id: key.id,
+                frameIndex: image.frame_index, frameCount: image.frame_count)
+            let expectedPath = rootRelative ? prefix + localPath : localPath
+            guard image.image_path == expectedPath else { throw Failure.invalid("image path does not match resource/frame") }
+            let path = prefix + localPath
+            _ = try PreparedResourceFile.url(root: root, path: path)
+            var qualified = image
+            qualified.image_path = path
+            frames[key, default: []].append(qualified)
+        }
+        for role in graphicsRoles {
+            let path = "sources/\(role.rawValue)/graphics_manifest.json"
+            guard manifest.graphics[role.rawValue] == path else { throw Failure.invalid("graphics manifest path") }
+            let source = try read(GraphicsManifest.self, path)
+            guard source.source_file == role.rawValue else { throw Failure.invalid("graphics manifest source") }
+            for image in source.images { try add(image, role: role, rootRelative: false) }
+        }
+        let rasterPath = "sources/\(app.rawValue)/raster_pictures.json"
+        guard manifest.rasterPictures[app.rawValue] == rasterPath else { throw Failure.invalid("raster manifest path") }
+        for image in try read([ManifestImage].self, rasterPath) {
+            guard image.resource.type == "PICT" else { throw Failure.invalid("non-picture in raster manifest") }
+            try add(image, role: app, rootRelative: true)
+        }
+        var pending: Set<Key> = []
+        for resource in manifest.pendingResources {
+            let key = Key(role: resource.role, type: resource.type, id: resource.id)
+            guard manifest.edition == .macintoshCD12, key.role == app, key.type == "PICT", key.id == 10256,
+                  entries[key] != nil, frames[key] == nil, pending.insert(key).inserted,
+                  resource.path == "sources/\(app.rawValue)/pending/PICT_10256.bin" else { throw Failure.invalid("unexpected pending resource") }
+            _ = try PreparedResourceFile.url(root: root, path: resource.path)
+        }
+        for entry in catalog.entries where graphicsRoles.contains(entry.role) {
+            guard ["Imag", "Ima4", "cicn", "PICT"].contains(entry.type),
+                  !(entry.type == "PICT" && GraphicsExtractor.textPictureIds.contains(entry.id)) else { continue }
+            let key = Key(role: entry.role, type: entry.type, id: entry.id)
+            if entry.disposition == .emptyPlaceholder || pending.contains(key) { continue }
+            guard let images = frames[key], let first = images.first,
+                  images.count == first.frame_count,
+                  images.allSatisfy({ $0.frame_count == first.frame_count }),
+                  images.map(\.frame_index).sorted() == Array(0..<images.count) else {
+                throw Failure.invalid("missing or duplicate image frames for \(entry.role.rawValue)/\(entry.type)/\(entry.id)")
+            }
+        }
+        let audioRoles = Set(catalog.entries.filter { $0.type == "snd " && required.contains($0.role) }.map(\.role))
+        guard audioRoles == Set(manifest.soundSources), audioRoles.count == manifest.soundSources.count else { throw Failure.invalid("sound source manifests") }
+        let effective = frames.flatMap { key, images -> [ManifestImage] in
+            lookup.resource(type: key.type, id: key.id)?.role == key.role ? images : []
+        }.sorted { ($0.resource.type, $0.resource.id, $0.frame_index) < ($1.resource.type, $1.resource.id, $1.frame_index) }
+        self.manifest = manifest
+        self.catalog = catalog
+        self.lookup = lookup
+        graphics = GraphicsManifest(source_file: manifest.edition.rawValue, images: effective)
+        sounds = try PreparedSoundLibrary(root: root, lookup: lookup, soundSources: manifest.soundSources)
+    }
+
+    func image(type: String, id: Int, frame: Int = 0) -> ManifestImage? {
+        graphics.images.first { $0.resource.type == type && $0.resource.id == id && $0.frame_index == frame }
+    }
+
+}
+
+enum PreparedResourceFile {
+    /// Containment includes symlink resolution, not just textual path prefixes.
+    static func url(root: URL, path: String) throws -> URL {
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard !components.isEmpty, components.allSatisfy({ !$0.isEmpty && $0 != "." && $0 != ".." }),
+              !path.contains("\\") else { throw PreparedGameSession.Failure.invalid("relative resource path") }
+        let base = root.resolvingSymlinksInPath().standardizedFileURL
+        let url = base.appendingPathComponent(path).resolvingSymlinksInPath().standardizedFileURL
+        guard url.path.hasPrefix(base.path + "/"),
+              (try? url.resourceValues(forKeys: [.isRegularFileKey]).isRegularFile) == true else {
+            throw PreparedGameSession.Failure.invalid("missing or escaping resource \(path)")
+        }
+        return url
+    }
+}

@@ -18,8 +18,9 @@ struct PreparedSoundLibrary {
     private struct LocatedSound {
         let role: GameDataSourceRole
         let record: SoundExtractor.Record
-        let url: URL
+        let path: String
     }
+    private let root: URL
     private let sounds: [Int: LocatedSound]
     let edition: GameEdition
 
@@ -32,8 +33,8 @@ struct PreparedSoundLibrary {
         let entries = lookup.index.entries.filter { $0.type == "snd " && included.contains($0.role) }
         var selected: [Int: LocatedSound] = [:]
         for role in Set(entries.map(\.role)) {
-            let source = root.appendingPathComponent("sources/\(role.rawValue)", isDirectory: true)
-            let data = try Data(contentsOf: source.appendingPathComponent("sounds/manifest.json"))
+            let prefix = "sources/\(role.rawValue)/"
+            let data = try Data(contentsOf: PreparedResourceFile.url(root: root, path: prefix + "sounds/manifest.json"))
             let manifest = try JSONDecoder().decode(SoundExtractor.Manifest.self, from: data)
             guard manifest.schemaVersion == 1,
                   Set(manifest.sounds.map(\.id)).count == manifest.sounds.count,
@@ -44,16 +45,17 @@ struct PreparedSoundLibrary {
             let records = Dictionary(uniqueKeysWithValues: manifest.sounds.map { ($0.id, $0) })
             for entry in entries where entry.role == role {
                 guard let record = records[entry.id] else { throw Failure.invalidManifest(role) }
-                selected[entry.id] = LocatedSound(role: role, record: record, url: source.appendingPathComponent(record.path))
+                selected[entry.id] = LocatedSound(role: role, record: record, path: prefix + record.path)
             }
         }
+        self.root = root
         sounds = selected
         edition = lookup.index.edition
     }
 
     func sample(_ id: Int) throws -> OriginalSoundSample? {
         guard let sound = sounds[id] else { return nil }
-        let wav = try Data(contentsOf: sound.url)
+        let wav = try Data(contentsOf: PreparedResourceFile.url(root: root, path: sound.path))
         guard let sample = OriginalSoundSample(record: sound.record, wav: wav) else {
             throw Failure.invalidSound(sound.role, id)
         }
