@@ -77,9 +77,11 @@ class DecodeImage:
     byte_ranges: dict[str, list[int]] = field(default_factory=dict)
     diagnostics: list[DecodeDiagnostic] = field(default_factory=list)
     image: Any = field(default=None, repr=False, compare=False)
+    bounds: list[int] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            **({"bounds": self.bounds} if self.bounds is not None else {}),
             "resource": self.resource.to_dict(),
             "status": self.status.value,
             "image_path": self.image_path,

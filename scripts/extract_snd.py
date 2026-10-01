@@ -23,7 +23,7 @@ INVENTORY_FILE = "assets/resource_inventory.json"
 OUTPUT_DIR = "assets/sounds"
 
 
-def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
+def parse_snd_format1(data: bytes, strict: bool = False) -> tuple[int, int, bytes]:
     """Parse a Format 1 Mac snd resource.
 
     Returns:
@@ -50,6 +50,7 @@ def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
     if offset + num_cmds * 8 > len(data):
         raise ValueError("snd command list is truncated")
 
+    command_end = offset + num_cmds * 8
     hdr_offset = None
     for _ in range(num_cmds):
         cmd, _p1, p2 = struct.unpack_from(">HHI", data, offset)
@@ -73,12 +74,16 @@ def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
     #  20: encode     (1B) — 0=stdSH, 0xFF=extSH, 0xFE=cmpSH
     #  21: baseFreq   (1B)
     #  22: sampleArea (length bytes) if samplePtr == 0
+    if strict and hdr_offset < command_end:
+        raise ValueError("SoundHeader overlaps the snd command list")
     if hdr_offset + 22 > len(data):
         raise ValueError(f"SoundHeader at {hdr_offset} truncated (resource length={len(data)})")
 
     sample_ptr, length, sr_fixed, loop_start, loop_end = struct.unpack_from(
         ">IIIII", data, hdr_offset
     )
+    if sample_ptr != 0:
+        raise ValueError("SoundHeader samples must be inline, not a memory pointer")
     encode = data[hdr_offset + 20]
 
     if encode != 0x00:
@@ -88,11 +93,15 @@ def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
 
     # Convert Fixed 16.16 to Hz (round to nearest integer for WAV header)
     sample_rate_hz = round(sr_fixed / 65536.0)
+    if strict and sample_rate_hz <= 0:
+        raise ValueError("SoundHeader sample rate must be positive")
 
     # Extract inline PCM samples
     samples_start = hdr_offset + 22
     samples_end = samples_start + length
     if samples_end > len(data):
+        if strict:
+            raise ValueError("SoundHeader sample payload is truncated")
         print(
             f"  Warning: declared length {length} exceeds resource bounds "
             f"({len(data) - samples_start} bytes available); truncating"

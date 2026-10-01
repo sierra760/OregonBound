@@ -66,7 +66,8 @@ enum ImagDecoder {
                     records.append(DecodedImage(
                         resource: resource, status: .ok, imagePath: nil,
                         width: width, height: height, mode: "L", frameIndex: frameIndex,
-                        frameCount: frameCount, byteRanges: ["pixels": [pixelStart, endOffset]], image: image))
+                        frameCount: frameCount, byteRanges: ["pixels": [pixelStart, endOffset]], image: image,
+                        bounds: [bounds.top, bounds.left, bounds.bottom, bounds.right]))
                     frameStart = frameEnd
                     continue
                 }
@@ -77,6 +78,9 @@ enum ImagDecoder {
                 let width = pixmap.width, height = pixmap.height, rowBytes = pixmap.rowBytes
                 if !pixmap.isPixMap || pixmap.pixelSize != 8 || width <= 0 || height <= 0 || rowBytes < width {
                     throw ReferenceDecodeError.value("Invalid 8-bit PixMap in frame \(frameIndex): \(pixmap.pythonDescription)")
+                }
+                guard rowBytes <= maximumFrameBytes / height else {
+                    throw ReferenceDecodeError.value("Imag frame backing store exceeds \(maximumFrameBytes) bytes")
                 }
                 var pixelStart = frameStart + 54
                 var frameDiagnostics: [DecodeDiagnostic] = []
@@ -128,7 +132,8 @@ enum ImagDecoder {
                     width: width, height: height, mode: "P",
                     frameIndex: frameIndex, frameCount: frameCount, palette: paletteInfo,
                     byteRanges: ["pixels": [pixelStart, min(endOffset, frameEnd)]],
-                    diagnostics: frameDiagnostics, image: image))
+                    diagnostics: frameDiagnostics, image: image,
+                    bounds: [pixmap.bounds.top, pixmap.bounds.left, pixmap.bounds.bottom, pixmap.bounds.right]))
                 frameStart = frameEnd
             }
         } catch {
@@ -503,9 +508,9 @@ enum ImagDecoder {
                     let decoded: [UInt8]
                     let consumed: Int
                     if low == 7 {
-                        (decoded, consumed) = fun00000aba(data, start: ptr, target: compWidth)
+                        (decoded, consumed) = try decodeCompressedRow(data, start: ptr, target: compWidth, variant: low)
                     } else {
-                        (decoded, consumed) = meccRLE(data, start: ptr, target: compWidth, patternLength: low)
+                        (decoded, consumed) = try decodeCompressedRow(data, start: ptr, target: compWidth, variant: low)
                     }
                     storeRow(rowOffset, decoded[...])
                     ptr += consumed
@@ -550,14 +555,14 @@ enum ImagDecoder {
                 let targetBytes = (pixelCount * depth + 7) / 8
                 let rowBuffer: [UInt8]
                 if low == 7 {
-                    let (decoded, consumed) = fun00000aba(data, start: ptr, target: targetBytes)
+                    let (decoded, consumed) = try decodeCompressedRow(data, start: ptr, target: targetBytes, variant: low)
                     ptr += consumed
                     rowBuffer = expandBits(decoded[...], depth: depth, targetPixels: pixelCount)
                 } else if low == 0 {
                     rowBuffer = expandBits(data.slice(ptr, count), depth: depth, targetPixels: pixelCount)
                     ptr += targetBytes
                 } else {
-                    let (decoded, consumed) = meccRLE(data, start: ptr, target: targetBytes, patternLength: low)
+                    let (decoded, consumed) = try decodeCompressedRow(data, start: ptr, target: targetBytes, variant: low)
                     ptr += consumed
                     rowBuffer = expandBits(decoded[...], depth: depth, targetPixels: pixelCount)
                 }
@@ -575,14 +580,14 @@ enum ImagDecoder {
                 let targetBytes = (pixelCount * depth + 7) / 8
                 let rowBufferSigned: [Int]
                 if low == 7 {
-                    let (decoded, consumed) = fun00000aba(data, start: ptr + 2, target: targetBytes)
+                    let (decoded, consumed) = try decodeCompressedRow(data, start: ptr + 2, target: targetBytes, variant: low)
                     ptr += 2 + consumed
                     rowBufferSigned = expandBitsSigned(decoded[...], depth: depth, targetPixels: pixelCount + 1)
                 } else if low == 0 {
                     rowBufferSigned = expandBitsSigned(data.slice(ptr + 2, count), depth: depth, targetPixels: pixelCount + 1)
                     ptr += 2 + targetBytes
                 } else {
-                    let (decoded, consumed) = meccRLE(data, start: ptr + 2, target: targetBytes, patternLength: low)
+                    let (decoded, consumed) = try decodeCompressedRow(data, start: ptr + 2, target: targetBytes, variant: low)
                     ptr += 2 + consumed
                     rowBufferSigned = expandBitsSigned(decoded[...], depth: depth, targetPixels: pixelCount + 1)
                 }
@@ -599,14 +604,14 @@ enum ImagDecoder {
                 let targetBytes = (pixelCount * depth + 7) / 8
                 let rowBuffer: [UInt8]
                 if low == 7 {
-                    let (decoded, consumed) = fun00000aba(data, start: ptr + 2, target: targetBytes)
+                    let (decoded, consumed) = try decodeCompressedRow(data, start: ptr + 2, target: targetBytes, variant: low)
                     ptr += 2 + consumed
                     rowBuffer = expandBits(decoded[...], depth: depth, targetPixels: pixelCount + 1)
                 } else if low == 0 {
                     rowBuffer = expandBits(data.slice(ptr + 2, count), depth: depth, targetPixels: pixelCount + 1)
                     ptr += 2 + targetBytes
                 } else {
-                    let (decoded, consumed) = meccRLE(data, start: ptr + 2, target: targetBytes, patternLength: low)
+                    let (decoded, consumed) = try decodeCompressedRow(data, start: ptr + 2, target: targetBytes, variant: low)
                     ptr += 2 + consumed
                     rowBuffer = expandBits(decoded[...], depth: depth, targetPixels: pixelCount + 1)
                 }
@@ -626,6 +631,18 @@ enum ImagDecoder {
         }
         if alignEnd && (ptr - start) & 1 != 0 { ptr += 1 }
         return (output, ptr)
+    }
+
+    /// Row helpers retain legal pattern overshoot for bit lookahead. A frame
+    /// must still supply enough decoded bytes and every consumed input byte.
+    private static func decodeCompressedRow(_ data: ByteSource, start: Int, target: Int,
+                                            variant: Int) throws -> (decoded: [UInt8], consumed: Int) {
+        let result = variant == 7 ? fun00000aba(data, start: start, target: target)
+            : meccRLE(data, start: start, target: target, patternLength: variant)
+        guard result.decoded.count >= target, result.consumed <= data.count - start else {
+            throw ReferenceDecodeError.value("Truncated Imag compressed row")
+        }
+        return result
     }
 
     /// Copies a previously decoded row (or zeros for a forward/invalid reference).

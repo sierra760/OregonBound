@@ -10,7 +10,7 @@ EXPECTED_OREGON_COLOR_COUNTS = {
 }
 
 
-def validate_manifest(manifest: Manifest, strict: bool = False) -> list[DecodeDiagnostic]:
+def validate_manifest(manifest: Manifest, strict: bool = False, expected_counts: dict[str, int] | None = None) -> list[DecodeDiagnostic]:
     diagnostics: list[DecodeDiagnostic] = []
     resource_ids_by_type: dict[str, set[int]] = {}
     for image in manifest.images:
@@ -26,7 +26,8 @@ def validate_manifest(manifest: Manifest, strict: bool = False) -> list[DecodeDi
     for palette in manifest.palettes:
         resource_ids_by_type.setdefault(palette.resource.resource_type, set()).add(palette.resource.resource_id)
 
-    for resource_type, expected in EXPECTED_OREGON_COLOR_COUNTS.items():
+    counts = EXPECTED_OREGON_COLOR_COUNTS if expected_counts is None else expected_counts
+    for resource_type, expected in counts.items():
         actual = len(resource_ids_by_type.get(resource_type, set()))
         if actual != expected:
             diagnostics.append(

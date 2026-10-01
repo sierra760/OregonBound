@@ -7,7 +7,7 @@ import macresources
 
 from .models import ResourceInfo
 
-GRAPHICAL_TYPES = {b"Imag", b"cicn", b"PICT", b"clut"}
+GRAPHICAL_TYPES = {b"Imag", b"Ima4", b"cicn", b"PICT", b"clut"}
 
 
 @dataclass(frozen=True)

@@ -343,6 +343,15 @@ def fun_000018e4(row_buf: bytes, comp_w: int, ivar5: bytes, depth: int) -> tuple
 # Frame decoder  — FUN_00000002
 # ---------------------------------------------------------------------------
 
+def _checked_compressed_row(data: bytes, start: int, target: int, variant: int) -> tuple[bytes, int]:
+    # Keep legal pattern overshoot for bit lookahead, but reject missing bytes.
+    decoded, consumed = (fun_00000aba(data, start, target) if variant == 7
+                         else mecc_rle(data, start, target, pattern_len=variant))
+    if len(decoded) < target or consumed > len(data) - start:
+        raise ValueError("Truncated Imag compressed row")
+    return decoded, consumed
+
+
 def decode_frame(
     data: bytes,
     start: int,
@@ -469,12 +478,12 @@ def decode_frame(
                 # 8-bit palette indices (no bit expansion, no ivar5 remap at this level).
                 if low == 7:
                     # FUN_00000aba decompresses to 8-bit palette indices directly
-                    decoded, consumed = fun_00000aba(data, ptr, comp_w)
+                    decoded, consumed = _checked_compressed_row(data, ptr, comp_w, low)
                     output[row_off : row_off + comp_w] = decoded[:comp_w]
                     ptr += consumed
                 else:
                     # MECC_RLE: A5+0x132 writes comp_w bytes as 8-bit indices
-                    decoded, consumed = mecc_rle(data, ptr, comp_w, pattern_len=low)
+                    decoded, consumed = _checked_compressed_row(data, ptr, comp_w, low)
                     output[row_off : row_off + comp_w] = decoded[:comp_w]
                     ptr += consumed
                 row += 1
@@ -528,7 +537,7 @@ def decode_frame(
 
             if low == 7:
                 # FUN_00000aba to expand_buf, then FUN_00000896 to row_buf
-                decoded, consumed = fun_00000aba(data, ptr, target_bytes)
+                decoded, consumed = _checked_compressed_row(data, ptr, target_bytes, low)
                 ptr += consumed
                 row_buf = expand_bits(decoded, depth, pixel_count)
             elif low == 0:
@@ -540,7 +549,7 @@ def decode_frame(
             else:
                 # A5+0x132 MECC_RLE decompresses to packed N-bit data,
                 # then FUN_00000896 expands to 8-bit row_buf
-                decoded, consumed = mecc_rle(data, ptr, target_bytes, pattern_len=low)
+                decoded, consumed = _checked_compressed_row(data, ptr, target_bytes, low)
                 ptr += consumed
                 row_buf = expand_bits(decoded, depth, pixel_count)
 
@@ -576,7 +585,7 @@ def decode_frame(
 
             if low == 7:
                 # FUN_00000aba decompresses to expand_buf, then FUN_00000896 expands
-                decoded, consumed = fun_00000aba(data, ptr + 2, target_bytes)
+                decoded, consumed = _checked_compressed_row(data, ptr + 2, target_bytes, low)
                 ptr += 2 + consumed
                 row_buf_signed = expand_bits_signed(decoded, depth, pixel_count + 1)
             elif low == 0:
@@ -589,7 +598,7 @@ def decode_frame(
             else:
                 # A5+0x132 MECC_RLE decompresses to packed N-bit data,
                 # then FUN_00000896 expands to signed values for FUN_000009cc
-                decoded, consumed = mecc_rle(data, ptr + 2, target_bytes, pattern_len=low)
+                decoded, consumed = _checked_compressed_row(data, ptr + 2, target_bytes, low)
                 ptr += 2 + consumed
                 row_buf_signed = expand_bits_signed(decoded, depth, pixel_count + 1)
 
@@ -611,14 +620,14 @@ def decode_frame(
             target_bytes = (pixel_count * depth + 7) // 8
 
             if low == 7:
-                decoded, consumed = fun_00000aba(data, ptr + 2, target_bytes)
+                decoded, consumed = _checked_compressed_row(data, ptr + 2, target_bytes, low)
                 ptr += 2 + consumed
                 row_buf = expand_bits(decoded, depth, pixel_count + 1)
             elif low == 0:
                 row_buf = expand_bits(data[ptr + 2 :], depth, pixel_count + 1)
                 ptr += 2 + target_bytes
             else:
-                decoded, consumed = mecc_rle(data, ptr + 2, target_bytes, pattern_len=low)
+                decoded, consumed = _checked_compressed_row(data, ptr + 2, target_bytes, low)
                 ptr += 2 + consumed
                 row_buf = expand_bits(decoded, depth, pixel_count + 1)
 

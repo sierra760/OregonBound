@@ -87,6 +87,7 @@ def decode_imag(
                     resource=resource, status=DecodeStatus.OK, image_path=None,
                     width=width, height=height, mode="L", frame_index=frame_index,
                     frame_count=frame_count, byte_ranges={"pixels": [pixel_start, end_offset]}, image=image,
+                    bounds=[top, left, bottom, right],
                 ))
                 frame_start = frame_end
                 continue
@@ -97,6 +98,8 @@ def decode_imag(
             if (not pixmap["is_pixmap"] or pixmap["pixel_size"] != 8
                     or width <= 0 or height <= 0 or row_bytes < width):
                 raise ValueError(f"Invalid 8-bit PixMap in frame {frame_index}: {pixmap}")
+            if row_bytes * height > 64 * 1024 * 1024:
+                raise ValueError("Imag frame backing store exceeds 67108864 bytes")
             pixel_start = frame_start + 54
             frame_diagnostics: list[DecodeDiagnostic] = []
             # CODE 5:0x5d8c–0x5d94: pmTable==0 means an inline color table.
@@ -142,7 +145,7 @@ def decode_imag(
                 image_path=None, width=width, height=height, mode="P",
                 frame_index=frame_index, frame_count=frame_count, palette=palette_info,
                 byte_ranges={"pixels": [pixel_start, min(end_offset, frame_end)]},
-                diagnostics=frame_diagnostics, image=image,
+                diagnostics=frame_diagnostics, image=image, bounds=list(pixmap["bounds"]),
             ))
             frame_start = frame_end
     except Exception as exc:

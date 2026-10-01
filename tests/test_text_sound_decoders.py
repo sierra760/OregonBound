@@ -70,3 +70,31 @@ def test_sound_rejects_pointer_commands(command):
 def test_sound_rejects_truncated_tables_and_bad_offsets(payload):
     with pytest.raises(ValueError):
         parse_snd_format1(payload)
+
+
+def test_sound_rejects_external_sample_pointer():
+    payload = bytearray(sound())
+    struct.pack_into('>I', payload, 14, 123)
+    with pytest.raises(ValueError):
+        parse_snd_format1(bytes(payload))
+
+
+@pytest.mark.parametrize('change', ['truncated', 'zero_rate', 'overlapping_header'])
+def test_strict_sound_rejects_incomplete_or_invalid_pcm(change):
+    payload = bytearray(sound())
+    if change == 'truncated':
+        payload.pop()
+    elif change == 'zero_rate':
+        struct.pack_into('>I', payload, 22, 0)
+    else:
+        struct.pack_into('>I', payload, 10, 0)
+    with pytest.raises(ValueError):
+        parse_snd_format1(bytes(payload), strict=True)
+
+
+def test_cd_origin_uses_pascal_length():
+    from scripts import extract_hvof
+    assert extract_hvof.parse_otcd_resource(b'\x03abc', 0, 'cd') == {
+        'id': 0, 'text': 'abc', 'source_file': 'cd', 'source_type': 'OTCD'}
+    with pytest.raises(ValueError):
+        extract_hvof.parse_otcd_resource(b'\x04abc', 0, 'cd')

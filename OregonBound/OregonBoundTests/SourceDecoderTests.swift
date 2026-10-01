@@ -73,4 +73,24 @@ struct SourceDecoderTests {
         }
     }
 
+    @Test func strictSoundRejectsTruncationPointersAndInvalidHeaders() {
+        var pointer = sound(0x8051)
+        pointer.replaceSubrange(14..<18, with: [0, 0, 0, 123])
+        var zeroRate = sound(0x8051)
+        zeroRate.replaceSubrange(22..<26, with: [0, 0, 0, 0])
+        var overlapping = sound(0x8051)
+        overlapping.replaceSubrange(10..<14, with: [0, 0, 0, 0])
+        for bytes in [pointer, zeroRate, overlapping, Data(sound(0x8051).dropLast())] {
+            #expect(throws: (any Error).self) { try SoundExtractor.parseFormat1(bytes, strict: true) }
+        }
+    }
+
+    @Test func cdOriginIsACheckedPascalStringWithExplicitType() throws {
+        let result = try TextResourceExtractors.parseOTCD(Data([3, 97, 98, 99]), resourceID: 0, sourceFile: "cd")
+        #expect(result == ["id": 0, "text": "abc", "source_file": "cd", "source_type": "OTCD"])
+        #expect(throws: (any Error).self) {
+            try TextResourceExtractors.parseOTCD(Data([4, 97, 98, 99]), resourceID: 0, sourceFile: "cd")
+        }
+    }
+
 }
