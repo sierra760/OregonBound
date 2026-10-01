@@ -51,7 +51,7 @@ enum PreparedSessionFixture {
         try output.writeJSON(ConfigurationExtractor.Profile(schemaVersion: 1, edition: edition, role: app,
             resourceID: 1000, resourceSHA256: GameDataSourceCatalog.Candidate.digest(configuration),
             defaults: ConfigurationExtractor.parse(configuration)), to: preferencesPath)
-        let manifest = GameDataPreparation.Manifest(schemaVersion: 6, edition: edition, preparedAt: Date(), catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: paths, rasterPictures: [app.rawValue: rasterPath], soundSources: [], terrainSources: [], pendingResources: [], unrecognizedSources: [])
+        let manifest = GameDataPreparation.Manifest(schemaVersion: 7, edition: edition, preparedAt: Date(), catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: paths, rasterPictures: [app.rawValue: rasterPath], soundSources: [], terrainSources: [], pendingResources: [], unrecognizedSources: [])
         try output.writeJSON(manifest, to: "prepared_import.json")
         return root
     }

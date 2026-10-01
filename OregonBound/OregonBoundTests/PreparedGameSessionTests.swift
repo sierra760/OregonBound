@@ -44,6 +44,17 @@ struct PreparedGameSessionTests {
         try JSONSerialization.data(withJSONObject: object).write(to: path)
         #expect(throws: (any Error).self) { try PreparedGameSession(root: root) }
     }
+    @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func requiresReimportOfUnconvertedAlternateColors(edition: GameEdition) throws {
+        let root = try PreparedSessionFixture.make(edition: edition); defer { try? FileManager.default.removeItem(at: root) }
+        let path = root.appendingPathComponent("prepared_import.json")
+        var object = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: path)) as? [String: Any])
+        object["schemaVersion"] = 6
+        try JSONSerialization.data(withJSONObject: object).write(to: path)
+        if edition == .macintoshCD12 {
+            #expect(throws: (any Error).self) { try PreparedGameSession(root: root) }
+        } else { #expect(try PreparedGameSession(root: root).edition == .macintosh11) }
+    }
     @Test func cacheInvalidatesValuesAndMissesWhenSessionChanges() {
         let cache = SessionResourceCache<String, Int>()
         let first = UUID(), second = UUID()

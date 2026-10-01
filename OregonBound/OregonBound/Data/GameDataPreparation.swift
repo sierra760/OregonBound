@@ -69,6 +69,14 @@ enum GameDataPreparation {
             guard let paletteFork = selection.sources[paletteRole]?.fork else { throw GameDataSourceCatalog.Failure.missing([paletteRole]) }
             let palette = try ImagDecoder.fallbackPalette(from: paletteFork)
             let context = GraphicsExtractor.PaletteContext(bytes: palette.palette, source: palette.source)
+            let cd16Palette: CD16Palette?
+            if selection.edition == .macintoshCD12 {
+                guard let initializer = app.fork["CODE", 23]?.data,
+                      let colorTable = paletteFork["clut", 1004]?.data else {
+                    throw ReferenceDecodeError.value("Missing CD 16-color source tables")
+                }
+                cd16Palette = try CD16Palette(initializer: initializer, colorTable: colorTable)
+            } else { cd16Palette = nil }
             for role in graphicsRoles + [appRole] {
                 guard let candidate = selection.sources[role] else { throw GameDataSourceCatalog.Failure.missing([role]) }
                 let relative = "sources/\(role.rawValue)"
@@ -80,7 +88,7 @@ enum GameDataPreparation {
                     .map { GameDataSourceCatalog.ResourceIdentity(type: $0.type, id: $0.id) })
                 try step("Decoding \(role.title) graphics…") {
                     _ = try GraphicsExtractor.extract(colorFork: fork, into: sourceOutput, sourceName: role.rawValue,
-                                                      paletteContext: context, expectedCounts: [], emptyPlaceholders: placeholders, strict: true)
+                                                      paletteContext: context, expectedCounts: [], emptyPlaceholders: placeholders, strict: true, cd16Palette: cd16Palette)
                 }
                 graphics[role.rawValue] = relative + "/graphics_manifest.json"
             }
@@ -144,7 +152,7 @@ enum GameDataPreparation {
             try output.writeJSON(lookup.index, to: "resource_lookup.json")
             let preferencesPath = "sources/\(appRole.rawValue)/preference_defaults.json"
             try output.writeJSON(preferences, to: preferencesPath)
-            let manifest = Manifest(schemaVersion: 6, edition: selection.edition, preparedAt: Date(),
+            let manifest = Manifest(schemaVersion: 7, edition: selection.edition, preparedAt: Date(),
                                     catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: graphics, rasterPictures: rasterPictures, soundSources: soundSources, terrainSources: terrainSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
             try output.writeJSON(manifest, to: "prepared_import.json")

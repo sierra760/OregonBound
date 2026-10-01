@@ -39,7 +39,7 @@ struct PreparedGameSession {
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(GameDataPreparation.Manifest.self,
             from: Data(contentsOf: PreparedResourceFile.url(root: root, path: "prepared_import.json")))
-        guard manifest.schemaVersion == 6, manifest.catalogPath == "resource_catalog.json",
+        guard manifest.schemaVersion == 7 || (manifest.schemaVersion == 6 && manifest.edition == .macintosh11), manifest.catalogPath == "resource_catalog.json",
               manifest.lookupPath == "resource_lookup.json" else { throw Failure.invalid("unsupported manifest schema or paths") }
         let catalog = try read(GameResourceCatalog.self, manifest.catalogPath)
         let roles = Set(catalog.sources.map(\.role))

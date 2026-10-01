@@ -20,5 +20,5 @@ screen. Python and Swift pixel equality is checked separately using private
 user-supplied input; no original resource or screenshot is distributed here.
 
 Re-import a CD installation prepared by an older decoder to obtain this picture.
-Existing installations with the explicitly preserved pending picture remain
-loadable; that compatibility does not turn their pending bytes into decoded art.
+Current CD preparation also requires the corrected alternate-color artwork
+described in [CD display](CD_DISPLAY.md); older CD preparations require re-import.

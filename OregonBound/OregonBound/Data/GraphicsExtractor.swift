@@ -24,7 +24,8 @@ enum GraphicsExtractor {
                         paletteContext: PaletteContext? = nil,
                         expectedCounts: [(type: String, count: Int)] = expectedOregonColorCounts,
                         emptyPlaceholders: Set<GameDataSourceCatalog.ResourceIdentity> = [],
-                        strict: Bool = false) throws -> GraphicsManifestDocument {
+                        strict: Bool = false,
+                        cd16Palette: CD16Palette? = nil) throws -> GraphicsManifestDocument {
         let localPalette = try ImagDecoder.fallbackPalette(from: colorFork)
         let fallbackPalette = paletteContext?.bytes ?? localPalette.palette
         let fallbackSource = paletteContext?.source ?? localPalette.source
@@ -42,8 +43,13 @@ enum GraphicsExtractor {
             let info = resourceInfo(record, sourceFile: sourceName)
             switch record.type {
             case "Imag", "Ima4":
-                manifest.images += ImagDecoder.decode(resource: info, data: record.data,
-                                                      fallbackPalette: fallbackPalette, fallbackSource: fallbackSource)
+                let frames = ImagDecoder.decode(resource: info, data: record.data,
+                                                fallbackPalette: fallbackPalette, fallbackSource: fallbackSource)
+                if record.type == "Ima4", let cd16Palette {
+                    manifest.images += try frames.map { try cd16Palette.convert($0) }
+                } else {
+                    manifest.images += frames
+                }
             case "cicn":
                 manifest.images += CicnDecoder.decode(resource: info, data: record.data)
             case "PICT":
