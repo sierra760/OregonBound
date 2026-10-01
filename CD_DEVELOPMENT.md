@@ -103,8 +103,10 @@ Resting and delayed wagon statuses use the opposite phase. Labels stay plain.
 The original byte-versus-long revision comparison is preserved: after the 255th
 publication, subsequent pane polls redraw even without a new publication.
 
-Oregon arrival also publishes before the enclosing timer pulse completes, as
-in the source. That extra publication is retained across subsequent journeys.
+Oregon arrival sends a terminal packet before the enclosing timer pulse
+completes. The receiver copies an inactive world without advancing the
+Conditions revision; terminal worlds do not redraw warnings. Normal publication
+counts persist across subsequent journeys.
 
 Tests cover snapshot isolation, timer and arrival publication, visibility, reloads,
 dispatch blocking, thresholds, revision behavior, and classic isolation.

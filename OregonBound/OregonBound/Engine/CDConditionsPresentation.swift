@@ -22,6 +22,9 @@ struct CDConditionsPresentation {
     mutating func publish(_ trip: Journey) {
         precondition(trip.gameEdition == .macintoshCD12)
         snapshot = trip
+        // CODE17:1052–10aa handles arrival packets (world flag0x20) separately:
+        // it copies an inactive world and bypasses the increment at10b8.
+        guard trip.phase != .finished || !trip.won else { return }
         revision &+= 1
     }
 
@@ -42,7 +45,7 @@ struct CDConditionsPresentation {
     mutating func poll(active: Bool = true, modalBlocked: Bool = false) -> Bool {
         guard active, !modalBlocked, UInt32(observedRevision) != revision else { return false }
         observedRevision = UInt8(truncatingIfNeeded: revision)
-        guard isVisible, snapshot != nil else { return false }
+        guard isVisible, let snapshot, snapshot.phase != .finished else { return false }
         redraw()
         return true
     }

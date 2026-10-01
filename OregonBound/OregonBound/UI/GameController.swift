@@ -146,8 +146,9 @@ enum GamePanel: String, Identifiable {
                 if oldPhase != .finished { buildEndingReport(value) }
             }
             trip = value
-            // CODE17:2c8e publishes the Oregon arrival before the enclosing
-            // model timer's publication. Losses and ordinary commands do not.
+            // CODE17:2c8e publishes Oregon arrival before the enclosing timer.
+            // Its terminal receiver copies the world without advancing the
+            // Conditions revision. Losses and ordinary commands do not send it.
             if value.gameEdition == .macintoshCD12, oldPhase != .finished,
                value.phase == .finished, value.won {
                 cdConditions.publish(value)
