@@ -1,4 +1,5 @@
 import Testing
+import Foundation
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
@@ -117,6 +118,64 @@ struct OriginalAudioBackendTests {
         let stops = output.stops
         scene.close()
         #expect(output.stops == stops)
+    }
+
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func raftViewReappearanceResumesExistingSession(edition: GameEdition) {
+        var tick = 0
+        let audio = GameAudio(playback: Output(), scheduleIdle: { _ in })
+        let scene = OriginalRaftScene(session: Self.raftSession(edition: edition), random: OriginalRandomStream(seed: 1),
+            audio: audio, clock: { tick }) { _ in }
+        scene.setActive(true); scene.advance(to: 0, mouseX: nil)
+        let remaining = scene.session.remaining
+        tick = 1; scene.viewDidDisappear()
+        scene.advance(to: 9, mouseX: nil)
+        #expect(scene.session.remaining == remaining)
+        tick = 10; scene.setActive(true)
+        scene.advance(to: 11, mouseX: nil)
+        #expect(scene.session.remaining == remaining)
+        scene.advance(to: 12, mouseX: nil)
+        #expect(scene.session.remaining == remaining - 2)
+        scene.close()
+    }
+
+    @MainActor @Test func hiddenRaftViewRetainsPendingCompletionUntilReappearance() {
+        var callbacks: [() -> Void] = []
+        var count = 0
+        let scene = OriginalRaftScene(session: Self.raftSession(living: [false]), random: OriginalRandomStream(seed: 1),
+            audio: GameAudio(playback: Output(), scheduleIdle: { _ in }), clock: { 0 },
+            scheduleCompletion: { callbacks.append($0) }) { _ in count += 1 }
+        scene.setActive(true); scene.advance(to: 0, mouseX: nil)
+        scene.viewDidDisappear()
+        callbacks.removeFirst()()
+        #expect(count == 0)
+        scene.setActive(true); scene.advance(to: 1, mouseX: nil)
+        #expect(count == 1)
+        scene.advance(to: 2, mouseX: nil)
+        #expect(count == 1)
+    }
+
+    @MainActor @Test(arguments: [0, 1, 2])
+    func raftOwnerTeardownCancelsSceneAndOldCompletion(exit: Int) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let audio = GameAudio(playback: Output(), scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        var trip = Journey(seed: 1, edition: .macintoshCD12); trip.phase = .rafting
+        game.trip = trip
+        var callbacks: [() -> Void] = [], count = 0
+        let scene = OriginalRaftScene(session: Self.raftSession(living: [false]), random: game.random,
+            audio: audio, clock: { 0 }, scheduleCompletion: { callbacks.append($0) }) { _ in count += 1 }
+        game.registerRaftScene(scene)
+        scene.setActive(true); scene.advance(to: 0, mouseX: nil)
+        if exit == 0 { game.trip = nil }
+        else if exit == 1 { game.trip = Journey(seed: 2, edition: .macintoshCD12) }
+        else { trip.phase = .finished; game.trip = trip }
+        audio.request(1017)
+        callbacks.removeFirst()()
+        scene.setActive(true); scene.advance(to: 10, mouseX: nil); scene.close()
+        #expect(count == 0 && audio.isPlaying)
     }
 
     private static func raftSession(living: [Bool] = [true,true,true,true,true], edition: GameEdition = .macintoshCD12) -> OriginalRaftSession {

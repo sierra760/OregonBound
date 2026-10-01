@@ -25,7 +25,21 @@ enum GamePanel: String, Identifiable {
     var exportDeparture: OriginalFileMenuRules.Departure?
     #endif
     var retainedExportRecords: [OriginalTrailLogExport.Record] = []
-    @Published var trip: Journey?
+    @Published var trip: Journey? {
+        didSet {
+            if oldValue?.id != trip?.id || (oldValue?.phase == .rafting && trip?.phase != .rafting) {
+                raftScene?.close()
+                raftScene = nil
+            }
+        }
+    }
+    private weak var raftScene: OriginalRaftScene?
+
+    func registerRaftScene(_ scene: OriginalRaftScene) {
+        guard trip?.phase == .rafting else { scene.close(); return }
+        if raftScene !== scene { raftScene?.close() }
+        raftScene = scene
+    }
     @Published private(set) var cdConditions = CDConditionsPresentation()
     @Published var panel: GamePanel? {
         didSet {

@@ -230,7 +230,9 @@ Ambience checks the shared channel before the movement deadline; drowning audio
 starts at the first loss-panel redraw after impact. Explicit redraws can replay
 that recording, while ordinary rendering does not. Modal/inactive scenes suspend
 new requests. Completion releases rafting audio before the landing pane opens,
-and cancelled scenes cannot deliver an old completion callback.
+and cancelled scenes cannot deliver an old completion callback. Temporary view
+disappearance suspends the retained scene; the controller cancels it only when
+the owning journey ends or changes.
 
 The controller's audio instance flows through the preparation pane and scene.
 Classic collision sounds retain their existing behavior. Sixty complete local
@@ -244,7 +246,7 @@ and interactive platform acceptance remain pending.
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 867 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 873 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.

@@ -17,7 +17,7 @@ struct OriginalRaftArtwork: View {
             .onAppear { visible = true; scene.setModalDispatchBlocked(modalBlocked); scene.setActive(scenePhase == .active) }
             .onChange(of: scenePhase) { phase in scene.setActive(visible && phase == .active) }
             .onChange(of: modalBlocked) { value in scene.setModalDispatchBlocked(value) }
-            .onDisappear { visible = false; scene.setActive(false); scene.close() }
+            .onDisappear { visible = false; scene.viewDidDisappear() }
     }
 }
 
@@ -181,6 +181,12 @@ struct OriginalRaftArtwork: View {
             apply(CDRaftAudio.redrawLoss(hasDrowned: !(session.collision?.drownedMembers.isEmpty ?? true)))
         }
         render()
+    }
+
+    /// SwiftUI may retain this scene across temporary view disappearance.
+    /// Only the owning journey's teardown or completion is terminal.
+    func viewDidDisappear() {
+        setActive(false)
     }
 
     func close() {
