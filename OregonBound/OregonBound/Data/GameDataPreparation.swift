@@ -19,6 +19,7 @@ enum GameDataPreparation {
         let lookupPath: String
         let graphics: [String: String]
         let soundSources: [GameDataSourceRole]
+        let terrainSources: [GameDataSourceRole]
         let pendingResources: [PendingResource]
         let unrecognizedSources: [String]
     }
@@ -51,6 +52,7 @@ enum GameDataPreparation {
             }
             var graphics: [String: String] = [:]
             var soundSources: [GameDataSourceRole] = []
+            var terrainSources: [GameDataSourceRole] = []
             var pending: [PendingResource] = []
             let graphicsRoles: [GameDataSourceRole] = selection.edition == .macintosh11
                 ? [.classicGraphics] : [.graphics1, .graphics2, .graphics3, .graphics4]
@@ -89,17 +91,25 @@ enum GameDataPreparation {
                 }
                 soundSources.append(role)
             }
+            for role in selection.edition.requiredRoles {
+                guard let candidate = selection.sources[role], candidate.fork.contains("TERR") else { continue }
+                try step("Decoding \(role.title) hunting terrain…") {
+                    try TerrainExtractor.extract(fork: candidate.fork,
+                        into: ExtractionOutput(root: output.url("sources/\(role.rawValue)")))
+                }
+                terrainSources.append(role)
+            }
             // Retain data whose native interpretation is still being recovered.
             // These entries cannot be mistaken for decoded/verified graphics.
             for role in selection.edition.requiredRoles {
                 guard let candidate = selection.sources[role] else { continue }
                 for resource in candidate.fork.resources {
                     let deferredPicture = role == appRole && resource.type == "PICT" && !GraphicsExtractor.textPictureIds.contains(resource.id)
-                    guard deferredPicture || resource.type == "TERR" else { continue }
+                    guard deferredPicture else { continue }
                     let path = "sources/\(role.rawValue)/pending/\(resource.type)_\(resource.id).bin"
                     try output.write(resource.data, to: path)
                     pending.append(PendingResource(role: role, type: resource.type, id: resource.id, path: path,
-                                                  reason: deferredPicture ? "Native raster PICT decoding pending" : "Terrain interpretation pending"))
+                                                  reason: "Native raster PICT decoding pending"))
                 }
             }
             if let system = selection.sources[.system] {
@@ -110,8 +120,8 @@ enum GameDataPreparation {
             }
             try output.writeJSON(catalog, to: "resource_catalog.json")
             try output.writeJSON(lookup.index, to: "resource_lookup.json")
-            let manifest = Manifest(schemaVersion: 2, edition: selection.edition, preparedAt: Date(),
-                                    catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", graphics: graphics, soundSources: soundSources,
+            let manifest = Manifest(schemaVersion: 3, edition: selection.edition, preparedAt: Date(),
+                                    catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", graphics: graphics, soundSources: soundSources, terrainSources: terrainSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
             try output.writeJSON(manifest, to: "prepared_import.json")
             return Report(root: destination, manifest: manifest)

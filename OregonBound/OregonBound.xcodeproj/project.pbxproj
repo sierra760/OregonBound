@@ -129,6 +129,7 @@
 		4D0F70DBC6A0EC67C7A4A5EA /* SourceDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5803BCE8088C72F1547B713 /* SourceDecoderTests.swift */; };
 		4DA616BAB9782A27CD3FA4B8 /* OriginalHuntTimePopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA104C5F9EBAD1A31B1258A0 /* OriginalHuntTimePopup.swift */; };
 		4ECF858E34D2DA5F777D6D6C /* game_loop_constants.json in Resources */ = {isa = PBXBuildFile; fileRef = 17559BF5DF4052BBD1C6BCB9 /* game_loop_constants.json */; };
+		4F70DB9C3C359C970DCC027E /* TerrainExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79CBEF306F41D521D7B9F07E /* TerrainExtractor.swift */; };
 		4FD2C11C1A8FF923ADAF623C /* GameDataPreparation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C26FEC6A28AD837E60F2626 /* GameDataPreparation.swift */; };
 		4FE4B30DBA2DBFC0BA0EFAFB /* OriginalHuntTimePopupRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 04BE2D0E6EFFEB26C88A7B64 /* OriginalHuntTimePopupRules.swift */; };
 		509588BA040F4776B0F40A87 /* OriginalAudioBackendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7561BB609CA53AAD7C9CC22B /* OriginalAudioBackendTests.swift */; };
@@ -227,6 +228,7 @@
 		821B2595632617212BF7194B /* OriginalLegendsRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78ACD2405797AF7B2A6A0944 /* OriginalLegendsRulesTests.swift */; };
 		8229A0F40F9068368E6A5D5E /* AnyCodable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB0EC13FE7F9A1B5B855201 /* AnyCodable.swift */; };
 		82B4F5FE4AC65DE30C551FDD /* OriginalStatusPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E465C8B60CCA204103D46DCD /* OriginalStatusPane.swift */; };
+		82E4D6075BE820EAA9465B9E /* TerrainExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A0D327498ADD464656DBB1 /* TerrainExtractorTests.swift */; };
 		8418EF236780FF7E6F960DF0 /* OriginalClassicScrollBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 966BEBFA294AAC0BC43704C6 /* OriginalClassicScrollBar.swift */; };
 		843B6820480DF9765A202975 /* OriginalTextEditLineLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3D1C0FECED609C6B280B884A /* OriginalTextEditLineLayout.swift */; };
 		845803C8C8DD29712E50ECF4 /* PICTDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A703029AFE4E42F5CA3047FF /* PICTDecoder.swift */; };
@@ -296,6 +298,7 @@
 		A73F0970A85BAD0D505AA9FB /* OriginalSoundSample.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1265F71BE8A9E34BE7DE5A17 /* OriginalSoundSample.swift */; };
 		A7805F2CAF6DE3A946A63746 /* TextureLoader.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC9D530FD640210450B4C5D2 /* TextureLoader.swift */; };
 		A7B5AB1534359B18A4E5241E /* OriginalChoicePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = F146BDE04C6F7C26B5F655EC /* OriginalChoicePane.swift */; };
+		A7C15F8F1F7FECCF7060C743 /* TerrainExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79CBEF306F41D521D7B9F07E /* TerrainExtractor.swift */; };
 		A7D8104A48C2E0AD488F6577 /* OriginalJournalRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAE950B41FD860671A2A08B5 /* OriginalJournalRules.swift */; };
 		A82AACE9D91DCA68073BEB8D /* tiny-hfs.dsk in Resources */ = {isa = PBXBuildFile; fileRef = 7AECF39DDBA9D27E6F8842B8 /* tiny-hfs.dsk */; };
 		A89022FEEBE7E9BD08C4C444 /* OriginalSystemFontTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4CA87487DA24FC527BA8E4EF /* OriginalSystemFontTests.swift */; };
@@ -597,6 +600,7 @@
 		78ACD2405797AF7B2A6A0944 /* OriginalLegendsRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalLegendsRulesTests.swift; sourceTree = "<group>"; };
 		78EC8188B91BCF482009260E /* OriginalManagementAlertContents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalManagementAlertContents.swift; sourceTree = "<group>"; };
 		78F53E09979A0EFBA534E6B6 /* GameSceneContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneContainerView.swift; sourceTree = "<group>"; };
+		79CBEF306F41D521D7B9F07E /* TerrainExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerrainExtractor.swift; sourceTree = "<group>"; };
 		7A7111D808B2EB13FC24225A /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		7AE68A7DC3C659F3FA4C06EC /* OriginalRandom.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalRandom.swift; sourceTree = "<group>"; };
 		7AECF39DDBA9D27E6F8842B8 /* tiny-hfs.dsk */ = {isa = PBXFileReference; path = "tiny-hfs.dsk"; sourceTree = "<group>"; };
@@ -647,6 +651,7 @@
 		AF93E8D1BE61FD7A2AF25A38 /* OriginalRaftPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalRaftPane.swift; sourceTree = "<group>"; };
 		B05312098A608F0FAF54B689 /* OriginalCalendarTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalCalendarTests.swift; sourceTree = "<group>"; };
 		B16353C0E783EC374FF466C9 /* MacResourceFork.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacResourceFork.swift; sourceTree = "<group>"; };
+		B1A0D327498ADD464656DBB1 /* TerrainExtractorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerrainExtractorTests.swift; sourceTree = "<group>"; };
 		B2739DFD7C77ACFE0DB5A7A7 /* OriginalSaveImport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalSaveImport.swift; sourceTree = "<group>"; };
 		B29401E4A83D6DF6C6839C0B /* OriginalTitleAnimationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalTitleAnimationTests.swift; sourceTree = "<group>"; };
 		B3A83AA070175AE5A4F88CDB /* OriginalEndingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalEndingView.swift; sourceTree = "<group>"; };
@@ -909,6 +914,7 @@
 				144200978B7DC84FEF39F14D /* SoundExtractor.swift */,
 				2E752D7814FBC0FB05F7319E /* SystemControlsExtractor.swift */,
 				DE8B9A249BC248813E9CFC47 /* SystemResourceDecompressor.swift */,
+				79CBEF306F41D521D7B9F07E /* TerrainExtractor.swift */,
 				DC99DDC16DC94B87F8A52439 /* TextResourceExtractors.swift */,
 			);
 			path = Data;
@@ -1029,6 +1035,7 @@
 				F02C5568AD262D6804FDDE8E /* SimulationRunnerTests.swift */,
 				A5803BCE8088C72F1547B713 /* SourceDecoderTests.swift */,
 				864971B167547A9CFBF2C819 /* SourceRequirementsTests.swift */,
+				B1A0D327498ADD464656DBB1 /* TerrainExtractorTests.swift */,
 				6A44B9E77CCCB47D3971BD7C /* TextureColorManagementTests.swift */,
 				12BBE4AA6F3D764863E838D0 /* Fixtures */,
 			);
@@ -1433,6 +1440,7 @@
 				CCFB0501C7F432B32D1DBE5E /* SubsystemConstants.swift in Sources */,
 				DC77CF94418638E5C5449EE3 /* SystemControlsExtractor.swift in Sources */,
 				BBDEB39357F18C250FAA5D28 /* SystemResourceDecompressor.swift in Sources */,
+				4F70DB9C3C359C970DCC027E /* TerrainExtractor.swift in Sources */,
 				409796BE0B7F930D79AE24AB /* TextResourceExtractors.swift in Sources */,
 				13D4A98C4D91994434510AE5 /* TextureLoader.swift in Sources */,
 				C9E6E8FFC845B0220218B0E3 /* TrailCatalog.swift in Sources */,
@@ -1603,6 +1611,7 @@
 				1C58AD47261D56232B325B4A /* SubsystemConstants.swift in Sources */,
 				6450F38D283A57CC2594C289 /* SystemControlsExtractor.swift in Sources */,
 				446DE46EE8C584FD2E6BDB62 /* SystemResourceDecompressor.swift in Sources */,
+				A7C15F8F1F7FECCF7060C743 /* TerrainExtractor.swift in Sources */,
 				978AE4D6626BE53E15EFC701 /* TextResourceExtractors.swift in Sources */,
 				A7805F2CAF6DE3A946A63746 /* TextureLoader.swift in Sources */,
 				3F2BACE041C876407E6802AC /* TrailCatalog.swift in Sources */,
@@ -1712,6 +1721,7 @@
 				B3469FA7019C59EA4B200D95 /* SimulationRunnerTests.swift in Sources */,
 				4D0F70DBC6A0EC67C7A4A5EA /* SourceDecoderTests.swift in Sources */,
 				730D4AAF1F93B80496857CDC /* SourceRequirementsTests.swift in Sources */,
+				82E4D6075BE820EAA9465B9E /* TerrainExtractorTests.swift in Sources */,
 				316E5DFA148AA07C1C22F8B5 /* TextureColorManagementTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
