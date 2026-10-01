@@ -10,6 +10,7 @@ enum SoundExtractor {
         case unsupportedFormat(id: Int, format: Int)
         case truncatedCommands(id: Int)
         case noBufferCommand(id: Int)
+        case pointerCommand(id: Int)
         case truncatedHeader(id: Int, offset: Int, length: Int)
         case unsupportedEncoding(id: Int, encode: Int)
 
@@ -19,7 +20,8 @@ enum SoundExtractor {
             case .unsupportedFormat(let id, let format):
                 return String(format: "Sound %d: unsupported snd format 0x%04x (only format 1 is supported)", id, format)
             case .truncatedCommands(let id): return "Sound \(id): snd command list is truncated"
-            case .noBufferCommand(let id): return "Sound \(id): no bufferCmd found in snd resource"
+            case .noBufferCommand(let id): return "Sound \(id): no sampled-sound command found in snd resource"
+            case .pointerCommand(let id): return "Sound \(id): sample command must use a resource offset, not a pointer"
             case .truncatedHeader(let id, let offset, let length):
                 return "Sound \(id): SoundHeader at \(offset) truncated (resource length=\(length))"
             case .unsupportedEncoding(let id, let encode):
@@ -38,7 +40,7 @@ enum SoundExtractor {
     }
 
     /// Parses a format-1 snd resource: synth list, command list, then the stdSH
-    /// SoundHeader referenced by the first bufferCmd.
+    /// SoundHeader referenced by the first offset-based soundCmd or bufferCmd.
     static func parseFormat1(_ data: Data, resourceID id: Int = 0) throws -> Sound {
         let reader = BinaryReader(data)
         guard reader.count >= 6 else { throw Failure.tooShort(id: id) }
@@ -49,14 +51,16 @@ enum SoundExtractor {
         guard offset + 2 <= reader.count else { throw Failure.truncatedCommands(id: id) }
         let commandCount = Int(try reader.u16(offset))
         offset += 2
+        guard offset + commandCount * 8 <= reader.count else { throw Failure.truncatedCommands(id: id) }
         var headerOffset: Int?
         for _ in 0..<commandCount {
             guard offset + 8 <= reader.count else { throw Failure.truncatedCommands(id: id) }
             let command = try reader.u16(offset)
             let param2 = Int(try reader.u32(offset + 4))
             offset += 8
-            // bufferCmd = 0x0051; dataOffsetFlag 0x8000 means param2 is an offset into the resource.
-            if command & 0x7FFF == 0x0051 {
+            // CD 1.2 uses soundCmd (0x50) as well as bufferCmd (0x51).
+            if command & 0x7FFF == 0x0050 || command & 0x7FFF == 0x0051 {
+                guard command & 0x8000 != 0 else { throw Failure.pointerCommand(id: id) }
                 headerOffset = param2
                 break
             }

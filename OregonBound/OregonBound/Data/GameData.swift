@@ -9,7 +9,7 @@ private let dataLogger = Logger(subsystem: "com.sierraburkhart.OregonBound", cat
 enum GameData {
     /// Bump when the on-disk layout or any decoder output changes so stale
     /// imports are redone.
-    static let layoutVersion = 2
+    static let layoutVersion = 3
     static let manifestName = "import.json"
     static let environmentOverride = "OREGON_BOUND_DATA"
 

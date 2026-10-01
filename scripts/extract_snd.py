@@ -4,7 +4,7 @@ extract_snd.py — Extract Mac snd resources from Oregon Trail resource fork to 
 
 Mac snd resource format reference:
   - Format 1: 2-byte format id (0x0001), synth list, command list, then sound data
-  - bufferCmd (0x0051 | 0x8000 dataOffsetFlag): param2 = offset to SoundHeader
+  - soundCmd/bufferCmd (0x0050/0x0051 | 0x8000): param2 = SoundHeader offset
   - SoundHeader (stdSH, encode=0): 4B samplePtr, 4B length, 4B sampleRate (Fixed 16.16),
     4B loopStart, 4B loopEnd, 1B encode, 1B baseFrequency, then inline 8-bit unsigned PCM
 
@@ -43,20 +43,26 @@ def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
     # Each synth entry: 2-byte id + 4-byte initOption = 6 bytes
     offset = 4 + num_synths * 6
 
+    if offset + 2 > len(data):
+        raise ValueError("snd command count is truncated")
     num_cmds = struct.unpack_from(">H", data, offset)[0]
     offset += 2
+    if offset + num_cmds * 8 > len(data):
+        raise ValueError("snd command list is truncated")
 
     hdr_offset = None
     for _ in range(num_cmds):
         cmd, _p1, p2 = struct.unpack_from(">HHI", data, offset)
         offset += 8
-        # bufferCmd = 0x0051; dataOffsetFlag = 0x8000 means p2 is an offset into resource
-        if (cmd & 0x7FFF) == 0x0051:
+        # CD 1.2 includes both standard sampled-sound command forms.
+        if (cmd & 0x7FFF) in (0x0050, 0x0051):
+            if not cmd & 0x8000:
+                raise ValueError("snd sample command must use a resource offset, not a pointer")
             hdr_offset = p2
             break
 
     if hdr_offset is None:
-        raise ValueError("No bufferCmd found in snd resource")
+        raise ValueError("No sampled-sound command found in snd resource")
 
     # SoundHeader layout at hdr_offset:
     #   0: samplePtr  (4B) — pointer; 0 means samples follow inline

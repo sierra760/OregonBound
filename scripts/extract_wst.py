@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 """Extract WST# (guidebook text) resources from Oregon Trail resource fork to JSON.
 
-Format (MECC-proprietary):
-  2-byte big-endian entry count (always 3, though final resource may have fewer real entries)
-  Followed by entries, each delimited by 0x01 byte:
-    0x01 marker | 1-byte metadata/style byte | Mac Roman text bytes
-  Entries are separated by 0x01; the data begins with 0x01 before the first entry.
-  Text trailing null bytes are stripped.
+Format: a big-endian 16-bit slot count followed by aligned 16-bit byte lengths
+and Mac Roman payloads. Empty slots retain their indices; the final payload
+needs no trailing alignment byte. Evidence: CD 1.2 CODE4:0b36-0bd0.
 
 Output: assets/guidebook/wst_{id}.json
   {"id": int, "name": str, "entry_count": int, "entries": [{"index": int, "text": str}]}
@@ -22,42 +19,24 @@ OUT_DIR = "assets/guidebook"
 
 
 def parse_wst_resource(data: bytes, res_id: int, res_name: str) -> dict:
-    """Parse a WST# resource using 0x01-delimited entry format.
-
-    Each entry is: 0x01 separator + 1-byte metadata/style + text (to next 0x01 or EOF).
-    The style byte is not interpreted—it appears to be a display/font code.
-    """
+    """Read length-prefixed strings without dropping empty slots or text bytes."""
     if len(data) < 2:
-        return {"id": res_id, "name": res_name, "entry_count": 0, "entries": []}
-
-    declared_count = struct.unpack(">H", data[:2])[0]
-
-    # Split the payload (after 2-byte count) by the 0x01 entry delimiter
-    parts = data[2:].split(b"\x01")
-    # Part 0 is always empty because data starts with 0x01
-    # Parts 1..N each begin with a 1-byte metadata field followed by entry text
+        raise ValueError(f"WST# {res_id}: truncated entry count")
+    declared_count = struct.unpack_from(">H", data)[0]
     entries = []
-    for idx, part in enumerate(parts):
-        if not part:
-            continue  # skip empty (Part 0, or padding nulls)
-        # First byte is metadata/style; remainder is text
-        text_bytes = part[1:].rstrip(b"\x00")
-        text = text_bytes.decode("mac_roman", errors="replace")
-        if text:  # skip truly empty entries (e.g. null-padded tail in last resource)
-            entries.append({"index": len(entries), "text": text})
-
-    if len(entries) != declared_count:
-        print(
-            f"  NOTE: WST# {res_id} declared count={declared_count}, "
-            f"extracted {len(entries)} entries"
-        )
-
-    return {
-        "id": res_id,
-        "name": res_name,
-        "entry_count": len(entries),
-        "entries": entries,
-    }
+    position = 2
+    for index in range(declared_count):
+        position += position % 2
+        if position + 2 > len(data):
+            raise ValueError(f"WST# {res_id}: truncated length for entry {index}")
+        length = struct.unpack_from(">H", data, position)[0]
+        position += 2
+        if position + length > len(data):
+            raise ValueError(f"WST# {res_id}: truncated text for entry {index}")
+        text = data[position:position + length].decode("mac_roman")
+        entries.append({"index": index, "text": text})
+        position += length
+    return {"id": res_id, "name": res_name, "entry_count": len(entries), "entries": entries}
 
 
 def main():

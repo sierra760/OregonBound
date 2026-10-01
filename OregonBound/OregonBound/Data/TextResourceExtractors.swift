@@ -7,7 +7,7 @@ import Foundation
 /// ORGN → metadata/orgn.json.
 ///
 /// Port of scripts/extract_str.py, extract_wst.py, extract_ditl.py and extract_hvof.py,
-/// including their tolerance of short resources (a truncated list simply ends early).
+/// WST# entries use checked lengths; the other list formats retain their reference tolerance.
 enum TextResourceExtractors {
     enum Failure: Error, CustomStringConvertible {
         case noOriginResource
@@ -37,23 +37,23 @@ enum TextResourceExtractors {
 
     // MARK: WST#
 
-    /// MECC guidebook text: 2-byte declared count, then 0x01-delimited entries of
-    /// one style byte plus Mac Roman text; trailing NULs are stripped and empty
-    /// entries skipped. `entry_count` is the number of entries actually found.
-    static func parseWST(_ data: Data, resourceID: Int, name: String?) -> JSONValue {
-        let nameValue: JSONValue = name.map { .string($0) } ?? .null
-        let bytes = [UInt8](data)
-        guard bytes.count >= 2 else { return ["id": .int(resourceID), "name": nameValue, "entry_count": 0, "entries": []] }
+    /// Counted, word-length-prefixed Mac Roman strings. Each length is aligned
+    /// to an even offset; empty slots retain their indices. CD CODE4:0b36–0bd0.
+    static func parseWST(_ data: Data, resourceID: Int, name: String?) throws -> JSONValue {
+        let reader = BinaryReader(data)
+        let count = Int(try reader.u16(0))
+        var position = 2
         var entries: [JSONValue] = []
-        for part in bytes[2...].split(separator: 0x01, omittingEmptySubsequences: true) {
-            var text = part.dropFirst()
-            while text.last == 0 { text = text.dropLast() }
-            guard !text.isEmpty else { continue }
-            let decoded = MacRoman.decode(text)
-            guard !decoded.isEmpty else { continue }
-            entries.append(["index": .int(entries.count), "text": .string(decoded)])
+        for index in 0..<count {
+            position += position % 2
+            let length = Int(try reader.u16(position))
+            position += 2
+            let text = MacRoman.decode(try reader.slice(position, length))
+            entries.append(["index": .int(index), "text": .string(text)])
+            position += length
         }
-        return ["id": .int(resourceID), "name": nameValue, "entry_count": .int(entries.count), "entries": .array(entries)]
+        return ["id": .int(resourceID), "name": name.map { .string($0) } ?? .null,
+                "entry_count": .int(entries.count), "entries": .array(entries)]
     }
 
     // MARK: DITL
