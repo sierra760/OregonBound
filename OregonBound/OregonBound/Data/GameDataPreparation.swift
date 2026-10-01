@@ -16,6 +16,7 @@ enum GameDataPreparation {
         let edition: GameEdition
         let preparedAt: Date
         let catalogPath: String
+        let lookupPath: String
         let graphics: [String: String]
         let soundSources: [GameDataSourceRole]
         let pendingResources: [PendingResource]
@@ -37,6 +38,7 @@ enum GameDataPreparation {
                     progress: (String) -> Void, isCancelled: () -> Bool = { false }) throws -> Report {
         try GameSourceRequirements.validate(selection)
         let catalog = try GameResourceCatalog(selection: selection)
+        let lookup = try GameResourceLookup(catalog: catalog)
         let appRole: GameDataSourceRole = selection.edition == .macintosh11 ? .classicApplication : .cdApplication
         guard let app = selection.sources[appRole] else { throw GameDataSourceCatalog.Failure.missing([appRole]) }
         try TextResourceExtractors.validate(app.fork)
@@ -107,8 +109,9 @@ enum GameDataPreparation {
                 }
             }
             try output.writeJSON(catalog, to: "resource_catalog.json")
-            let manifest = Manifest(schemaVersion: 1, edition: selection.edition, preparedAt: Date(),
-                                    catalogPath: "resource_catalog.json", graphics: graphics, soundSources: soundSources,
+            try output.writeJSON(lookup.index, to: "resource_lookup.json")
+            let manifest = Manifest(schemaVersion: 2, edition: selection.edition, preparedAt: Date(),
+                                    catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", graphics: graphics, soundSources: soundSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
             try output.writeJSON(manifest, to: "prepared_import.json")
             return Report(root: destination, manifest: manifest)
