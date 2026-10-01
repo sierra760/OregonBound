@@ -12,6 +12,7 @@ if str(SCRIPT_DIR) not in sys.path:
 import macresources
 
 from graphics_extract.cicn import decode_cicn
+from graphics_extract.icon import decode_icon
 from graphics_extract.cd_display import CD16Palette
 from graphics_extract.exporter import write_outputs
 from graphics_extract.imag import decode_imag, fallback_palette_from_resources
@@ -79,6 +80,8 @@ def extract(input_path: Path, output_dir: Path, strict: bool = False, *,
             manifest.images.extend(frames)
         elif record.type_code == b"cicn":
             manifest.images.extend(decode_cicn(record.info, record.data))
+        elif record.type_code == b"ICON":
+            manifest.images.extend(decode_icon(record.info, record.data))
         elif record.type_code == b"PICT":
             manifest.images.append(convert_pict(record.info, record.data))
 

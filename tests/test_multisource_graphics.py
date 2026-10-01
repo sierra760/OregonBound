@@ -10,6 +10,32 @@ def bitmap():
     return struct.pack('>HI IHhhhh', 1, 20, 0, 1, 3, 5, 4, 6) + bytes([1, 0x80])
 
 
+def test_monochrome_icon_bits_transparency_and_identity(tmp_path):
+    bits = bytearray(128)
+    bits[0], bits[3], bits[4], bits[127] = 0x80, 1, 0x40, 2
+    source = tmp_path / 'input'
+    resource_file(source, [(b'ICON', 7, bytes(bits)), (b'Imag', 7, bitmap())])
+    manifest = extract_graphics.extract(source, tmp_path / 'out', strict=True,
+                                       source_name='cdApplication', expected_counts={})
+    icons = [i for i in manifest.images if i.resource.resource_type == 'ICON']
+    assert len(icons) == 1
+    icon = icons[0]
+    assert icon.resource.source_file == 'cdApplication' and icon.resource.resource_id == 7
+    assert (icon.width, icon.height, icon.frame_index, icon.frame_count) == (32, 32, 0, 1)
+    assert icon.image_path == 'images/ICON/icon_7.png'
+    expected = [(0, 0, 0, 255 if i in [0, 31, 33, 1022] else 0) for i in range(1024)]
+    assert list(icon.image.getdata()) == expected
+    assert len(manifest.images) == 2
+
+
+@pytest.mark.parametrize('length', [127, 129])
+def test_invalid_monochrome_icon_length_fails(tmp_path, length):
+    source = tmp_path / 'input'
+    resource_file(source, [(b'ICON', 7, bytes(length))])
+    with pytest.raises(ValueError):
+        extract_graphics.extract(source, tmp_path / 'out', strict=True, expected_counts={})
+
+
 def resource_file(path, records):
     path.write_bytes(macresources.make_file([macresources.Resource(type=t, id=i, name='Synthetic', data=p) for t, i, p in records]))
 

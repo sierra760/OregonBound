@@ -5,7 +5,7 @@ import Foundation
 // manifest values match the reference pipeline; contact sheets are skipped.
 
 enum GraphicsExtractor {
-    static let graphicalTypes: Set<String> = ["Imag", "Ima4", "cicn", "PICT", "clut"]
+    static let graphicalTypes: Set<String> = ["Imag", "Ima4", "cicn", "ICON", "PICT", "clut"]
     struct PaletteContext { let bytes: [UInt8]; let source: String }
     enum Failure: Error, CustomStringConvertible {
         case incomplete(String)
@@ -52,6 +52,8 @@ enum GraphicsExtractor {
                 }
             case "cicn":
                 manifest.images += CicnDecoder.decode(resource: info, data: record.data)
+            case "ICON":
+                manifest.images += IconDecoder.decode(resource: info, data: record.data)
             case "PICT":
                 manifest.images.append(PICTDecoder.convert(resource: info, data: record.data))
             default:

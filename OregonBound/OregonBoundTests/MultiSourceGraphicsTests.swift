@@ -3,6 +3,35 @@ import Testing
 @testable import OregonBound
 
 struct MultiSourceGraphicsTests {
+    @Test func monochromeIconRetainsBitsTransparencyAndIdentity() throws {
+        var bits = Data(repeating: 0, count: 128)
+        bits[0] = 0x80; bits[3] = 1; bits[4] = 0x40; bits[127] = 2
+        try withOutput { output in
+            let manifest = try GraphicsExtractor.extract(colorFork: MacResourceFork(resources: [
+                resource("ICON", 7, bits), resource("Imag", 7, bitmap())]),
+                into: output, sourceName: "cdApplication", expectedCounts: [], strict: true)
+            let icon = try #require(manifest.images.first { $0.resource.resourceType == "ICON" })
+            #expect(icon.resource.sourceFile == "cdApplication" && icon.resource.resourceId == 7)
+            #expect(icon.width == 32 && icon.height == 32 && icon.frameIndex == 0 && icon.frameCount == 1)
+            #expect(icon.imagePath == "images/ICON/icon_7.png")
+            let pixels = try #require(icon.image).pixels
+            for index in 0..<1024 {
+                #expect(Array(pixels[index * 4..<index * 4 + 3]) == [0, 0, 0])
+                #expect(pixels[index * 4 + 3] == ([0, 31, 33, 1022].contains(index) ? 255 : 0))
+            }
+            #expect(manifest.images.count == 2)
+        }
+    }
+
+    @Test(arguments: [127, 129]) func invalidMonochromeIconLengthFailsStrictImport(length: Int) throws {
+        try withOutput { output in
+            let fork = MacResourceFork(resources: [resource("ICON", 7, Data(repeating: 0, count: length))])
+            #expect(throws: (any Error).self) {
+                try GraphicsExtractor.extract(colorFork: fork, into: output, expectedCounts: [], strict: true)
+            }
+        }
+    }
+
     private func bitmap() -> Data {
         var data = Data()
         data.appendU16(1)
