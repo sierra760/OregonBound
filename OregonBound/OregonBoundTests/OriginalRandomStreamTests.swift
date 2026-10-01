@@ -3,14 +3,16 @@ import Testing
 @testable import OregonBound
 
 struct OriginalRandomStreamTests {
-    @MainActor @Test func sharedConsumersPreserveInterleavedDrawsAndConsumeNothingForOne() {
+    @MainActor @Test func sharedConsumersPreserveInterleavedDrawsIncludingSpanOne() {
         let stream = OriginalRandomStream(seed: 17)
         var expected = OriginalRandom(seed: 17)
         let title: (Int)->Int = { stream.bounded($0) }
         let hunt: (Int)->Int = { stream.bounded($0) }
         #expect(title(300) == expected.bounded(300))
         let saved = stream.seed
-        #expect(hunt(1) == 0); #expect(stream.seed == saved)
+        #expect(hunt(1) == 0)
+        _ = expected.next()
+        #expect(stream.seed == expected.seed && stream.seed != saved)
         #expect(hunt(50) == expected.bounded(50))
         // Model days retain value semantics; controller brackets a synchronous action.
         var day = OriginalRandom(seed: stream.seed)
