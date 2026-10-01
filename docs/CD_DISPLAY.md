@@ -36,3 +36,10 @@ frame geometry from the selected family. The fixed 16-color palette bypasses the
 
 Monochrome presentation, original-screen comparisons and complete journey/platform
 acceptance remain open requirements of the broader CD support work.
+
+The CD title uses its static `19001` painting, selected from the current color
+family. Its authored 496×306 bitmap is drawn at (9,9) and clipped to the 494×304
+dialog item without scaling. CD CODE5's title callback creates one frame with
+no animation callback; the classic edition retains its eleven animated tracks.
+The CD title therefore consumes no animation random draws. The retained `19000`
+frames in the CD files are not used by this title callback.

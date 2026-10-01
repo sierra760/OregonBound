@@ -1,4 +1,4 @@
-/// Original Macintosh title scene, transcribed from CODE 4:0x0000–0x0d20.
+/// Classic title animation (CODE4:0000–0d20) and CD static painting (CODE5:052a–06d2).
 /// All coordinates are top-left coordinates in the full 512×322 content window.
 /// See docs/ORIGINAL_ANIMATION.md and scripts/analysis_animation.py for evidence.
 struct OriginalTitleAnimation: Sendable {
@@ -55,12 +55,15 @@ struct OriginalTitleAnimation: Sendable {
         Track(firstFrame: 45, lastFrame: 46, x: 212, y: 205, width: 44, height: 44, pauseBase: 40, randomSpan: 60, period: 1, repeats: 3, motion: .pingpong),
     ]
 
+    let edition: GameEdition
+    var resourceID: Int { edition == .macintoshCD12 ? 19001 : 19000 }
     private(set) var states: [State]
 
     /// Calls the supplied random helper in track creation order.
     /// The helper must return zero when the span is zero.
-    init(random: (Int) -> Int) {
-        states = Self.tracks.map {
+    init(edition: GameEdition = .macintosh11, random: (Int) -> Int) {
+        self.edition = edition
+        states = (edition == .macintoshCD12 ? [] : Self.tracks).map {
             State(frame: $0.firstFrame, delay: Self.word(random($0.randomSpan)), repeatsRemaining: $0.repeats)
         }
     }
@@ -68,7 +71,7 @@ struct OriginalTitleAnimation: Sendable {
     /// One original engine update. The renderer owns TickCount scheduling:
     /// after an update, set the next deadline to current ticks+2, with no catch-up.
     mutating func step(random: (Int) -> Int) {
-        for index in Self.tracks.indices {
+        for index in states.indices {
             let track = Self.tracks[index]
             var state = states[index]
             if state.delay != 0 {
@@ -105,6 +108,11 @@ struct OriginalTitleAnimation: Sendable {
 
     /// Back-to-front opaque srcCopy draws. The original title uses no masks.
     var drawCommands: [DrawCommand] {
+        if edition == .macintoshCD12 {
+            // Authored bitmap extends two pixels beyond the 494×304 dialog item.
+            // The compositor clips that overflow; it never scales the painting.
+            return [DrawCommand(resourceID: resourceID, frame: 0, x: 9, y: 9, width: 496, height: 306)]
+        }
         var commands = [DrawCommand(resourceID: 19000, frame: 0, x: 9, y: 9, width: 494, height: 304)]
         for index in Self.tracks.indices.reversed() {
             let track = Self.tracks[index]

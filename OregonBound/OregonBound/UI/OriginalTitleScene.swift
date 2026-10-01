@@ -48,7 +48,7 @@ final class OriginalTitleScene: SKScene {
     private var colorSpaceObservers: [NSObjectProtocol] = []
 
     override init() {
-        animation = OriginalTitleAnimation { OriginalRandomStream.shared.bounded($0) }
+        animation = OriginalTitleAnimation(edition: GameData.edition) { OriginalRandomStream.shared.bounded($0) }
         super.init(size: CGSize(width: 512, height: 322))
         scaleMode = .resizeFill
         backgroundColor = SKColor(red: 1, green: 246.0 / 255, blue: 137.0 / 255, alpha: 1)
@@ -76,6 +76,18 @@ final class OriginalTitleScene: SKScene {
         }
         refreshRenderingColorSpace()
         guard sprites.isEmpty else { return }
+        let artwork: SKNode
+        if animation.edition == .macintoshCD12 {
+            let crop = SKCropNode()
+            let mask = SKSpriteNode(color: .white, size: CGSize(width: 494, height: 304))
+            mask.anchorPoint = CGPoint(x: 0, y: 1)
+            mask.position = CGPoint(x: 9, y: 313)
+            crop.maskNode = mask
+            addChild(crop)
+            artwork = crop
+        } else {
+            artwork = self
+        }
         for (index, command) in animation.drawCommands.enumerated() {
             let sprite = SKSpriteNode(texture: textures[command.frame])
             sprite.anchorPoint = CGPoint(x: 0, y: 1)
@@ -83,7 +95,7 @@ final class OriginalTitleScene: SKScene {
             sprite.size = CGSize(width: CGFloat(command.width), height: CGFloat(command.height))
             sprite.zPosition = CGFloat(index)
             sprite.blendMode = .replace // QuickDraw srcCopy: no white/black color key.
-            addChild(sprite)
+            artwork.addChild(sprite)
             sprites.append(sprite)
         }
         isPaused = !active || modalDispatchBlocked
@@ -102,7 +114,7 @@ final class OriginalTitleScene: SKScene {
         guard identifier != colorSpaceID else { return }
         colorSpaceID = identifier
         textures.removeAll()
-        for entry in OriginalResources.frames(19000) {
+        for entry in OriginalResources.frames(animation.resourceID) {
             textures[entry.frame_index] = TextureLoader.texture(for: entry, renderingIn: view)
         }
         for (sprite, command) in zip(sprites, animation.drawCommands) {
@@ -113,6 +125,7 @@ final class OriginalTitleScene: SKScene {
     override func update(_ currentTime: TimeInterval) {
         guard active, !modalDispatchBlocked else { return }
         refreshRenderingColorSpace()
+        guard animation.edition != .macintoshCD12 else { return }
         #if os(macOS)
         guard let window = view?.window, window.isVisible, window.occlusionState.contains(.visible) else {
             nextTick = nil
