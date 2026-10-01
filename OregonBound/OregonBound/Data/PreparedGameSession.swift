@@ -18,6 +18,7 @@ struct PreparedGameSession {
     let lookup: GameResourceLookup
     let graphics: GraphicsManifest
     let sounds: PreparedSoundLibrary
+    let terrain: PreparedTerrainLibrary
     let preferenceDefaults: ConfigurationExtractor.Defaults
     var edition: GameEdition { manifest.edition }
     var sourceFingerprint: String { GameSourceFingerprint.make(edition: edition, sources: catalog.sources) }
@@ -126,6 +127,11 @@ struct PreparedGameSession {
         }
         let audioRoles = Set(catalog.entries.filter { $0.type == "snd " && required.contains($0.role) }.map(\.role))
         guard audioRoles == Set(manifest.soundSources), audioRoles.count == manifest.soundSources.count else { throw Failure.invalid("sound source manifests") }
+        let terrainRoles = Set(catalog.entries.filter { $0.type == "TERR" && required.contains($0.role) }.map(\.role))
+        guard terrainRoles == Set(manifest.terrainSources), terrainRoles.count == manifest.terrainSources.count else {
+            throw Failure.invalid("terrain source manifests")
+        }
+        terrain = try PreparedTerrainLibrary(root: root, lookup: lookup, terrainSources: manifest.terrainSources)
         let effective = frames.flatMap { key, images -> [ManifestImage] in
             lookup.resource(type: key.type, id: key.id)?.role == key.role ? images : []
         }.sorted { ($0.resource.type, $0.resource.id, $0.frame_index) < ($1.resource.type, $1.resource.id, $1.frame_index) }
