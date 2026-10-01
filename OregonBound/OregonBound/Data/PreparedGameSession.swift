@@ -36,7 +36,8 @@ struct PreparedGameSession {
     /// Missing variants and frames never fall back to the other color family.
     var defaultGraphics: GraphicsManifest {
         GraphicsManifest(source_file: graphics.source_file, images: graphics.images.filter {
-            !["Imag", "Ima4"].contains($0.resource.type) || $0.resource.type == imageType
+            $0.resource.type != "ICON" &&
+                (!["Imag", "Ima4"].contains($0.resource.type) || $0.resource.type == imageType)
         })
     }
 
@@ -53,7 +54,7 @@ struct PreparedGameSession {
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(GameDataPreparation.Manifest.self,
             from: Data(contentsOf: PreparedResourceFile.url(root: root, path: "prepared_import.json")))
-        guard manifest.schemaVersion == 7 || (manifest.schemaVersion == 6 && manifest.edition == .macintosh11), manifest.catalogPath == "resource_catalog.json",
+        guard [7, 8].contains(manifest.schemaVersion) || (manifest.schemaVersion == 6 && manifest.edition == .macintosh11), manifest.catalogPath == "resource_catalog.json",
               manifest.lookupPath == "resource_lookup.json" else { throw Failure.invalid("unsupported manifest schema or paths") }
         guard colorMode == .color256 || manifest.edition == .macintoshCD12 else {
             throw Failure.invalid("alternate color mode requires Macintosh CD 1.2")
@@ -91,13 +92,19 @@ struct PreparedGameSession {
             let key = Key(role: role, type: image.resource.type, id: image.resource.id)
             guard let entry = entries[key], entry.disposition == .resource,
                   image.resource.source_file == role.rawValue, image.resource.raw_length == entry.length,
-                  ["Imag", "Ima4", "cicn", "PICT"].contains(key.type),
+                  ["Imag", "Ima4", "cicn", "ICON", "PICT"].contains(key.type),
                   image.width > 0, image.height > 0, image.width <= 16384, image.height <= 16384,
                   image.width * image.height <= 16 * 1024 * 1024,
                   image.frame_count > 0, image.frame_index >= 0, image.frame_index < image.frame_count,
                   image.status == "ok" || (image.status == "partial" && image.diagnostics?.allSatisfy({
                       $0.severity == "info" || ($0.severity == "warning" && $0.code == "imag.palette_fallback")
                   }) == true) else { throw Failure.invalid("image metadata for \(role.rawValue)/\(key.type)/\(key.id)") }
+            if key.type == "ICON" {
+                guard entry.length == 128, image.width == 32, image.height == 32,
+                      image.mode == "RGBA", image.frame_index == 0, image.frame_count == 1 else {
+                    throw Failure.invalid("monochrome icon metadata")
+                }
+            }
             let prefix = "sources/\(role.rawValue)/"
             let localPath = GraphicsExtractor.imageRelativePath(type: key.type, id: key.id,
                 frameIndex: image.frame_index, frameCount: image.frame_count)
@@ -131,7 +138,10 @@ struct PreparedGameSession {
             _ = try PreparedResourceFile.url(root: root, path: resource.path)
         }
         for entry in catalog.entries where graphicsRoles.contains(entry.role) {
-            guard ["Imag", "Ima4", "cicn", "PICT"].contains(entry.type),
+            // Schema8 adds complete ICON extraction. Earlier color preparations
+            // remain usable without icons; a future monochrome mode needs8.
+            guard (["Imag", "Ima4", "cicn", "PICT"].contains(entry.type)
+                   || (manifest.schemaVersion >= 8 && entry.type == "ICON")),
                   !(entry.type == "PICT" && GraphicsExtractor.textPictureIds.contains(entry.id)) else { continue }
             let key = Key(role: entry.role, type: entry.type, id: entry.id)
             if entry.disposition == .emptyPlaceholder || pending.contains(key) { continue }

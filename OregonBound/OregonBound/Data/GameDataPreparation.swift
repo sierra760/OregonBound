@@ -82,7 +82,7 @@ enum GameDataPreparation {
                 let relative = "sources/\(role.rawValue)"
                 let sourceOutput = ExtractionOutput(root: output.url(relative))
                 let fork = role == appRole
-                    ? MacResourceFork(resources: candidate.fork.resources.filter { $0.type == "Imag" || $0.type == "cicn" })
+                    ? MacResourceFork(resources: candidate.fork.resources.filter { ["Imag", "cicn", "ICON"].contains($0.type) })
                     : candidate.fork
                 let placeholders = Set(catalog.entries.filter { $0.role == role && $0.disposition == .emptyPlaceholder }
                     .map { GameDataSourceCatalog.ResourceIdentity(type: $0.type, id: $0.id) })
@@ -152,7 +152,7 @@ enum GameDataPreparation {
             try output.writeJSON(lookup.index, to: "resource_lookup.json")
             let preferencesPath = "sources/\(appRole.rawValue)/preference_defaults.json"
             try output.writeJSON(preferences, to: preferencesPath)
-            let manifest = Manifest(schemaVersion: 7, edition: selection.edition, preparedAt: Date(),
+            let manifest = Manifest(schemaVersion: 8, edition: selection.edition, preparedAt: Date(),
                                     catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: graphics, rasterPictures: rasterPictures, soundSources: soundSources, terrainSources: terrainSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
             try output.writeJSON(manifest, to: "prepared_import.json")

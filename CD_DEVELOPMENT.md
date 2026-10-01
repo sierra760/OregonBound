@@ -113,3 +113,19 @@ at warning and safe boundaries, in both color modes (32 row comparisons).
 The full macOS suite passes 810 parameterized cases with 74 skipped, and the
 iPad simulator target builds. Live original-game warning timing comparison
 remains part of the outstanding foreground acceptance work.
+
+## Monochrome control resources
+
+New preparations use schema 8 and include the separate `ICON` resources used
+by the original monochrome controls. Both extractors decode their fixed 32×32
+bitmaps with black foreground pixels and transparent unset bits, matching the
+source's `srcOr` drawing. They preserve resource type, ID, and source role.
+The supplied CD contains 25 application icons and one in Graphics 2; all 26
+match native, Python, and independent raw-bitmap checks. All 2,362 preexisting
+CD PNGs remain byte-identical after re-preparation.
+
+Schema 8 requires every cataloged icon to have its prepared frame. Older schema
+7 color imports and classic schema 6 imports remain usable. Color presentation
+excludes `ICON` entries so they cannot displace a color image with the same ID.
+This prepares the controls for monochrome support; runtime artwork bindings,
+layout, and display-mode selection are still in progress.

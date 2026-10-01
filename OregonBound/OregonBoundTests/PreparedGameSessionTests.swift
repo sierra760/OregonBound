@@ -3,6 +3,37 @@ import Testing
 @testable import OregonBound
 
 struct PreparedGameSessionTests {
+    @Test func schema8IconsStayTypedAndOutsideColorPresentation() throws {
+        let root = try PreparedSessionFixture.make(schemaVersion: 8, icons: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for mode in PreparedGameSession.ColorMode.allCases {
+            let session = try PreparedGameSession(root: root, colorMode: mode)
+            #expect(session.image(type: "ICON", id: 7)?.resource.source_file == "cdApplication")
+            #expect(session.image(type: "ICON", id: 7)?.image_path == "sources/cdApplication/images/ICON/icon_7.png")
+            #expect(session.image(type: "cicn", id: 7) != nil)
+            #expect(session.displayImage(id: 7)?.resource.type == mode.imageType)
+            #expect(!session.defaultGraphics.images.contains { $0.resource.type == "ICON" })
+        }
+    }
+
+    @Test(arguments: [6, 7, 8]) func iconCompletenessIsVersioned(schema: Int) throws {
+        let edition: GameEdition = schema == 6 ? .macintosh11 : .macintoshCD12
+        let root = try PreparedSessionFixture.make(edition: edition, schemaVersion: schema, icons: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let app = edition == .macintosh11 ? "classicApplication" : "cdApplication"
+        let path = root.appendingPathComponent("sources/\(app)/graphics_manifest.json")
+        let manifest = try JSONDecoder().decode(GraphicsManifest.self, from: Data(contentsOf: path))
+        let missing = GraphicsManifest(source_file: manifest.source_file,
+            images: manifest.images.filter { $0.resource.type != "ICON" })
+        try JSONEncoder().encode(missing).write(to: path)
+        if schema == 8 {
+            #expect(throws: (any Error).self) { try PreparedGameSession(root: root) }
+        } else {
+            let session = try PreparedGameSession(root: root)
+            #expect(session.image(type: "ICON", id: 7) == nil)
+        }
+    }
+
     @Test func alternateColorSessionKeepsTypedIdentityAndNoFrameFallback() throws {
         let root = try PreparedSessionFixture.make(); defer { try? FileManager.default.removeItem(at: root) }
         let normal = try PreparedGameSession(root: root)
