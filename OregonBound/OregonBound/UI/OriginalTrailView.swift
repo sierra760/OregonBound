@@ -106,7 +106,7 @@ struct OriginalTrailView: View {
             text("Wagon", x: 0, y: 168, width: 119, font: .bold12, alignment: .center)
             pair("Pace:", trip.pace.rawValue, y: 180)
             pair("Rations:", trip.rations.rawValue, y: 192)
-            pair("Food Left:", "\(trip.inventory[.food].formatted()) lbs.", y: 204)
+            pair("Food Left:", "\(trip.totalFood.formatted()) lbs.", y: 204)
             pair("Health:", trip.healthLabel, y: 216)
             pair("Wagon:", wagonStatus, y: 239)
         }

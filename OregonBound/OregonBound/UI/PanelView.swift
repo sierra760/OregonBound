@@ -31,7 +31,10 @@ struct PanelView: View {
         case .supplies:
             Text("Money: \(dollars(trip.cash))").bold()
             ForEach(Supply.allCases) { item in
-                HStack { Text(item.title); Spacer(); Text("\(trip.displayQuantity(item))") }.padding(.horizontal, 35)
+                HStack { Text(item == .food && trip.gameEdition == .macintoshCD12 ? "Non-perishable food" : item.title); Spacer(); Text("\(trip.displayQuantity(item))") }.padding(.horizontal, 35)
+            }
+            if trip.gameEdition == .macintoshCD12 {
+                HStack { Text("Perishable food"); Spacer(); Text("\(trip.inventory.perishableFood)") }.padding(.horizontal, 35)
             }
             Text("\(trip.livingMembers.count) of \(trip.members.count) people are alive. Health: \(trip.healthLabel).")
         case .map:

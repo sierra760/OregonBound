@@ -65,3 +65,25 @@ struct OriginalEndingPresentationTests {
         #expect(JourneyEngine.score(trip) == (rows.reduce(0) { $0 + $1.points } * 7 + 1) / 2)
     }
 }
+
+struct OriginalStatusContentTests {
+    @Test func cdStatusUsesAllEightItemsAndItsOwnSingularTable() {
+        var trip = Journey(seed: 1, edition: .macintoshCD12)
+        for item in 0..<8 { trip.inventory[originalIndex: item] = 1 }
+        let strings = (0..<18).map { "label\($0)" }
+        let rows = OriginalStatusPane.supplyRows(trip, strings: strings)
+        #expect(OriginalStatusPane.supplyStringsID(for: trip.gameEdition) == 3030)
+        #expect(rows.count == 8)
+        #expect(rows.map(\.label) == (8..<16).map { "label\($0)" })
+        #expect(rows.map(\.count) == Array(repeating: 1, count: 8))
+        #expect(OriginalStatusPane.moneyBaseline(for: trip.gameEdition) == 173)
+        trip.inventory[.food] = 26; trip.inventory.perishableFood = 49
+        #expect(trip.totalFood == 75)
+        #expect(OriginalStatusPane.supplyRows(trip, strings: strings).suffix(2).map(\.label) == ["label6","label7"])
+        trip.edition = .macintosh11
+        #expect(trip.totalFood == 26)
+        #expect(OriginalStatusPane.supplyRows(trip, strings: strings).count == 7)
+        #expect(OriginalStatusPane.supplyStringsID(for: trip.gameEdition) == 3011)
+        #expect(OriginalStatusPane.moneyBaseline(for: trip.gameEdition) == 159)
+    }
+}
