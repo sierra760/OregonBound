@@ -20,6 +20,7 @@ struct PreparedGameSession {
     let sounds: PreparedSoundLibrary
     let preferenceDefaults: ConfigurationExtractor.Defaults
     var edition: GameEdition { manifest.edition }
+    var sourceFingerprint: String { GameSourceFingerprint.make(edition: edition, sources: catalog.sources) }
     var hasSystemResources: Bool { catalog.sources.contains { $0.role == .system } }
 
     /// Existing scene consumers use the 256-color resource family. Explicit
