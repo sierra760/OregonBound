@@ -231,6 +231,38 @@ struct RuntimeResourceTests {
         #expect(classic.cdConditions.snapshot == nil && classic.cdConditions.revision == 0)
     }
 
+    @MainActor @Test func cdConditionsArrivalPublicationCarriesAcrossJourneysAtByteBoundary() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = try conditionsController(root)
+        var trip = Journey(seed: 7, edition: .macintoshCD12)
+        trip.phase = .landmark
+        trip.inventory[.food] = 1000; trip.inventory[.oxen] = 8
+        trip.original?.weather.initialized = true; trip.original?.weather.category = 0x8a
+        game.trip = trip; game.showConditions()
+        for _ in 0..<252 { game.tick() }
+        #expect(game.cdConditions.revision == 253)
+        game.trip?.phase = .travel; game.trip?.locationID = "dalles"
+        game.trip?.destinationID = "oregon"; game.trip?.legDistance = 100
+        game.trip?.legProgress = 99; game.trip?.original?.flags = 10
+        game.trip?.delayDays = 0 // The expired delay flag suppresses events, then clears before movement.
+        // The stopped counter is already one pulse short of a daily update.
+        game.tick()
+        #expect(game.trip?.won == true && game.trip?.phase == .finished)
+        #expect(game.cdConditions.revision == 255) // Arrival plus timer publication.
+        #expect(game.cdConditions.snapshot?.won == true)
+        game.setConditionsVisible(false); game.pollConditions()
+        var next = Journey(seed: 9, edition: .macintoshCD12); next.phase = .landmark
+        game.trip = next; game.setConditionsVisible(true)
+        #expect(game.cdConditions.revision == 256)
+        game.pollConditions()
+        let phase = game.cdConditions.warningPhase
+        game.pollConditions()
+        #expect(game.cdConditions.warningPhase != phase)
+        game.perform { JourneyEngine.finish(&$0, won: false, reason: "Test loss") }
+        #expect(game.cdConditions.revision == 256) // Loss has no arrival publication.
+    }
+
     @Test func aboutIdentifiesTheIndependentApp() {
         #expect(OriginalAboutRules.program == "Oregon Bound")
         #expect(OriginalAboutRules.copyright == "Copyright 2026 Sierra Burkhart")

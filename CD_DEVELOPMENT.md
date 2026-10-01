@@ -103,10 +103,13 @@ Resting and delayed wagon statuses use the opposite phase. Labels stay plain.
 The original byte-versus-long revision comparison is preserved: after the 255th
 publication, subsequent pane polls redraw even without a new publication.
 
-Tests cover snapshot isolation, timer publication, visibility, reloads,
+Oregon arrival also publishes before the enclosing timer pulse completes, as
+in the source. That extra publication is retained across subsequent journeys.
+
+Tests cover snapshot isolation, timer and arrival publication, visibility, reloads,
 dispatch blocking, thresholds, revision behavior, and classic isolation.
 Local native renders using supplied fonts match all four rows in both phases,
 at warning and safe boundaries, in both color modes (32 row comparisons).
-The full macOS suite passes 809 parameterized cases with 74 skipped, and the
+The full macOS suite passes 810 parameterized cases with 74 skipped, and the
 iPad simulator target builds. Live original-game warning timing comparison
 remains part of the outstanding foreground acceptance work.

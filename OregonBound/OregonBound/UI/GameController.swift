@@ -146,6 +146,12 @@ enum GamePanel: String, Identifiable {
                 if oldPhase != .finished { buildEndingReport(value) }
             }
             trip = value
+            // CODE17:2c8e publishes the Oregon arrival before the enclosing
+            // model timer's publication. Losses and ordinary commands do not.
+            if value.gameEdition == .macintoshCD12, oldPhase != .finished,
+               value.phase == .finished, value.won {
+                cdConditions.publish(value)
+            }
             running = value.phase == .travel && (value.original?.flags ?? 0) & 2 != 0
             if value.canSave { persist() }
         } catch { self.error = error.localizedDescription; running = false }
@@ -155,7 +161,7 @@ enum GamePanel: String, Identifiable {
         guard applicationActive, !isOriginalModalPresented, var trip,
               [.travel, .landmark, .river, .fork, .hunting, .rafting].contains(trip.phase),
               trip.originalTradeSession == nil else { return }
-        // CODE17 publishes once at the end of every active model pulse, even
+        // CODE17 publishes at the end of every active model pulse, even
         // when its day threshold was not reached or travel is stopped.
         defer {
             if let updated = self.trip, updated.gameEdition == .macintoshCD12 {
