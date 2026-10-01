@@ -108,6 +108,10 @@ struct OriginalTrailView: View {
             pair("Rations:", trip.rations.rawValue, y: 192)
             pair("Food Left:", "\(trip.totalFood.formatted()) lbs.", y: 204)
             pair("Health:", trip.healthLabel, y: 216)
+            if trip.gameEdition == .macintoshCD12 {
+                let weight = trip.original?.cdWagonWeight ?? trip.inventory.cdWagonWeight
+                pair("Weight:", "\(OriginalStoreRules.grouped(weight)) lbs.", y: 228)
+            }
             pair("Wagon:", wagonStatus, y: 239)
         }
     }
