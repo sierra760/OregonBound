@@ -59,6 +59,96 @@ struct RuntimeResourceTests {
         #expect(OriginalJournalRules.weatherEvent(13) == nil)
     }
 
+    @Test func cdConditionsRedrawsOnPublishedRevisionsAndPreservesSnapshots() {
+        var trip = Journey(seed: 7, edition: .macintoshCD12)
+        trip.inventory[.food] = 100
+        var state = CDConditionsPresentation()
+        state.show(trip)
+        #expect(state.revision == 1 && !state.warningPhase)
+        let poll1 = state.poll()
+        #expect(poll1 && state.warningPhase)
+        let poll2 = state.poll()
+        #expect(!poll2 && state.warningPhase)
+        trip.inventory[.food] = 101
+        #expect(state.snapshot?.totalFood == 100)
+        state.publish(trip)
+        #expect(state.snapshot?.totalFood == 101)
+        let poll3 = state.poll()
+        #expect(poll3 && !state.warningPhase)
+        #expect(trip.randomState == 7)
+    }
+
+    @Test func cdConditionsHiddenAndBlockedPollsHaveDifferentRevisionSemantics() {
+        let trip = Journey(seed: 7, edition: .macintoshCD12)
+        var state = CDConditionsPresentation()
+        state.show(trip)
+        state.hide()
+        let poll4 = state.poll()
+        #expect(!poll4) // consumes revision without drawing
+        #expect(!state.warningPhase)
+        state.show(trip)
+        #expect(state.warningPhase) // full reveal draw
+        let poll5 = state.poll()
+        #expect(!poll5)
+        state.publish(trip)
+        let poll6 = state.poll(active: false)
+        #expect(!poll6)
+        let poll7 = state.poll(modalBlocked: true)
+        #expect(!poll7)
+        #expect(state.warningPhase)
+        let poll8 = state.poll()
+        #expect(poll8 && !state.warningPhase)
+        let replacement = Journey(seed: 8, edition: .macintoshCD12)
+        state.show(replacement)
+        #expect(state.revision == 3 && state.warningPhase)
+        #expect(state.snapshot?.id == replacement.id)
+    }
+
+    @Test func cdConditionsPreservesSourceByteVersusLongComparisonAfter255() {
+        let trip = Journey(seed: 7, edition: .macintoshCD12)
+        var state = CDConditionsPresentation()
+        state.show(trip)
+        for _ in 1..<255 { state.publish(trip) }
+        #expect(state.revision == 255)
+        let poll9 = state.poll()
+        #expect(poll9)
+        let poll10 = state.poll()
+        #expect(!poll10)
+        state.publish(trip)
+        #expect(state.revision == 256)
+        let poll11 = state.poll()
+        #expect(poll11)
+        let phase = state.warningPhase
+        let poll12 = state.poll()
+        #expect(poll12 && state.warningPhase != phase)
+    }
+
+    @Test func cdConditionsWarningThresholdsAndOppositeWagonPhase() {
+        var trip = Journey(seed: 7, edition: .macintoshCD12)
+        trip.inventory[.food] = 100
+        trip.original?.badness = 105
+        trip.original?.cdWagonWeight = 2750
+        trip.original?.flags = 4
+        let warning = CDConditionsPresentation.styles(for: trip, warningPhase: true)
+        #expect(warning.food && warning.health && warning.weight && !warning.wagon)
+        let opposite = CDConditionsPresentation.styles(for: trip, warningPhase: false)
+        #expect(!opposite.food && !opposite.health && !opposite.weight && opposite.wagon)
+        trip.inventory.perishableFood = 1
+        trip.original?.badness = 104
+        trip.original?.cdWagonWeight = 2749
+        let safe = CDConditionsPresentation.styles(for: trip, warningPhase: true)
+        #expect(!safe.food && !safe.health && !safe.weight)
+        for (flags, status, flashes) in [(0,"Stopped",false),(2,"Moving",false),(8,"Stopped",false),(10,"Delayed",true),(14,"Resting",true)] {
+            trip.original?.flags = UInt8(flags)
+            #expect(CDConditionsPresentation.wagonStatus(for: trip) == status)
+            #expect(CDConditionsPresentation.styles(for: trip, warningPhase: false).wagon == flashes)
+        }
+        trip.originalRiverOutcome = .init(requestedMethodRaw: 1, animationMethodRaw: 1,
+            failureKind: 0, status: 0, currentFactor: 0, phase: .animation)
+        #expect(CDConditionsPresentation.wagonStatus(for: trip) == "Crossing River")
+        #expect(!CDConditionsPresentation.styles(for: trip, warningPhase: false).wagon)
+    }
+
     @Test func aboutIdentifiesTheIndependentApp() {
         #expect(OriginalAboutRules.program == "Oregon Bound")
         #expect(OriginalAboutRules.copyright == "Copyright 2026 Sierra Burkhart")
