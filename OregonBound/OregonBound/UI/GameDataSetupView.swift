@@ -22,6 +22,15 @@ struct GameDataSetupView: View {
                             }.buttonStyle(.plain).disabled(state.importing)
                                 .accessibilityAddTraits(state.choice == choice ? [.isSelected] : [])
                         }
+                        if state.choice == .installed(.macintoshCD12) {
+                            Picker("Artwork", selection: $state.colorMode) {
+                                ForEach(PreparedGameSession.ColorMode.allCases, id: \.self) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
+                            }.pickerStyle(.segmented).disabled(state.importing)
+                            Text("Choose the CD edition’s original color artwork.")
+                                .font(.callout).foregroundStyle(.secondary)
+                        }
                         Button("Play") { if let choice = state.choice { state.play(choice) } }
                             .keyboardShortcut(.defaultAction).disabled(state.importing || state.choice == nil)
                     }

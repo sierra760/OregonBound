@@ -84,7 +84,7 @@ struct GameDataLibrary {
 
     /// Missing edition is nil; an invalid installed record is an actionable error.
     /// Reading does not activate or migrate a running game.
-    func load(_ edition: GameEdition) throws -> PreparedGameSession? {
+    func load(_ edition: GameEdition, colorMode: PreparedGameSession.ColorMode = .color256) throws -> PreparedGameSession? {
         let relative = "\(edition.rawValue)/current.json"
         let recordURL = try contained(relative)
         guard FileManager.default.fileExists(atPath: recordURL.path) else { return nil }
@@ -95,7 +95,7 @@ struct GameDataLibrary {
         let record = try JSONDecoder().decode(Record.self, from: Data(contentsOf: file))
         guard record.schemaVersion == 1, record.edition == edition else { throw Failure.invalid("installation record edition or version") }
         let location = try contained("\(edition.rawValue)/generations/\(record.generation.uuidString)", isDirectory: true)
-        let session = try PreparedGameSession(root: location)
+        let session = try PreparedGameSession(root: location, colorMode: colorMode)
         guard session.edition == edition, session.sourceFingerprint == record.sourceFingerprint else {
             throw Failure.invalid("installation source identity")
         }

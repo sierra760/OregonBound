@@ -11,6 +11,7 @@ enum GameDataLaunch {
     @Published private(set) var isReady: Bool
     @Published private(set) var sessionID = UUID()
     @Published private(set) var choices: [GameDataSelection] = []
+    @Published var colorMode: PreparedGameSession.ColorMode = .color256
     @Published var choice: GameDataSelection?
     @Published var selected: [URL] = []
     @Published private(set) var importing = false
@@ -63,7 +64,7 @@ enum GameDataLaunch {
                 guard let legacyRoot else { throw GameDataLibrary.Failure.invalid("missing classic import") }
                 launch = .legacy(legacyRoot)
             case .installed(let edition):
-                guard let session = try library.load(edition) else { throw GameDataLibrary.Failure.invalid("missing installed edition") }
+                guard let session = try library.load(edition, colorMode: edition == .macintoshCD12 ? colorMode : .color256) else { throw GameDataLibrary.Failure.invalid("missing installed edition") }
                 launch = .prepared(session)
             }
             try library.select(selection)

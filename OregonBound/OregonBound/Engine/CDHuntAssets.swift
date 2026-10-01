@@ -18,7 +18,7 @@ struct CDHuntAssets {
         func load(_ resource: Int, count: Int) throws {
             let id = resource - (monochrome ? 10000 : 0)
             frames[resource] = try (0..<count).map { index in
-                guard let image = session.image(type: "Imag",id: id,frame: index), image.frame_count == count,
+                guard let image = session.displayImage(id: id,frame: index), image.frame_count == count,
                       let bounds = image.bounds, bounds.count == 4,
                       bounds.allSatisfy({ (-32768...32767).contains($0) }),
                       bounds[2]-bounds[0] == image.height, bounds[3]-bounds[1] == image.width else {

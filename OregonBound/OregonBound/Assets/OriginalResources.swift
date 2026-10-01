@@ -7,6 +7,10 @@ enum OriginalResources {
     static var manifest: GraphicsManifest? {
         manifestCache.value(for: "graphics", session: GameData.sessionID) { BundleAssets.loadManifest() }
     }
+    static var imageType: String { GameData.preparedSession?.imageType ?? "Imag" }
+    static func frames(_ resource: Int) -> [ManifestImage] {
+        manifest?.images(forResourceId: resource).filter { $0.resource.type == imageType } ?? []
+    }
     private struct Strings: Decodable { let strings: [String] }
     private struct GuideGroup: Decodable { struct Entry: Decodable { let text: String }; let entries: [Entry] }
     struct GuideEntry: Identifiable { let id: Int; let title: String; let text: String }

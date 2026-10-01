@@ -3,6 +3,20 @@ import Testing
 @testable import OregonBound
 
 struct PreparedGameSessionTests {
+    @Test func alternateColorSessionKeepsTypedIdentityAndNoFrameFallback() throws {
+        let root = try PreparedSessionFixture.make(); defer { try? FileManager.default.removeItem(at: root) }
+        let normal = try PreparedGameSession(root: root)
+        let alternate = try PreparedGameSession(root: root, colorMode: .color16)
+        #expect(normal.imageType == "Imag" && alternate.imageType == "Ima4")
+        #expect(alternate.defaultGraphics.images.count == 1)
+        #expect(alternate.displayImage(id: 7)?.resource.source_file == "graphics3")
+        #expect(alternate.displayImage(id: 7, frame: 1) == nil)
+        #expect(alternate.image(type: "Imag", id: 7, frame: 1) != nil)
+        #expect(normal.sourceFingerprint == alternate.sourceFingerprint && normal.id != alternate.id)
+        let classic = try PreparedSessionFixture.make(edition: .macintosh11)
+        defer { try? FileManager.default.removeItem(at: classic) }
+        #expect(throws: (any Error).self) { try PreparedGameSession(root: classic, colorMode: .color16) }
+    }
     private func fixture() throws -> URL { try PreparedSessionFixture.make() }
     @Test func resolvesSourcesTypesFramesAndIndependentSessionIdentity() throws {
         let root = try fixture(); defer { try? FileManager.default.removeItem(at: root) }

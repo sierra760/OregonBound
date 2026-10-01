@@ -102,7 +102,7 @@ final class OriginalTitleScene: SKScene {
         guard identifier != colorSpaceID else { return }
         colorSpaceID = identifier
         textures.removeAll()
-        for entry in OriginalResources.manifest?.images(forResourceId: 19000) ?? [] where entry.resource.type == "Imag" {
+        for entry in OriginalResources.frames(19000) {
             textures[entry.frame_index] = TextureLoader.texture(for: entry, renderingIn: view)
         }
         for (sprite, command) in zip(sprites, animation.drawCommands) {

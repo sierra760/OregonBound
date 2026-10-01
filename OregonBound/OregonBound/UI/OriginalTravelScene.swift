@@ -93,7 +93,12 @@ final class OriginalTravelScene: SKScene {
             lastMovement: Int(trip.original?.lastMovement ?? 0),
             dayDelay: Int(trip.timing.timerThreshold),
             crossingPending: trip.originalRiverOutcome != nil)
-        if animation == nil { animation = OriginalTravelAnimation(input: input) }
+        if animation == nil {
+            let frames = OriginalResources.frames(15100)
+            animation = OriginalTravelAnimation(input: input,
+                upperStripWidth: frames.first { $0.frame_index == 1 }?.width ?? 786,
+                lowerStripWidth: frames.first { $0.frame_index == 2 }?.width ?? 786)
+        }
         else { animation?.apply(input) }
         let shouldMove = moving && trip.phase == .travel
         if self.moving != shouldMove { nextTick = nil }
@@ -116,7 +121,7 @@ final class OriginalTravelScene: SKScene {
         colorSpaceObservers.forEach(NotificationCenter.default.removeObserver)
         colorSpaceObservers = TextureLoader.observeRenderingColorSpace(in: view) { [weak self] in self?.render() }
 
-        for entry in OriginalResources.manifest?.images(forResourceId: 15100) ?? [] where entry.resource.type == "Imag" {
+        for entry in OriginalResources.frames(15100) {
             entries[entry.frame_index] = entry
         }
         render()
@@ -175,7 +180,7 @@ final class OriginalTravelScene: SKScene {
 
     private func texture(frame: Int, palette: OriginalTravelAnimation.Palette) -> SKTexture? {
         guard let entry = entries[frame] else { return nil }
-        if palette.groundSource == 226 && palette.skySource == 230 {
+        if entry.resource.type == "Ima4" || (palette.groundSource == 226 && palette.skySource == 230) {
             return TextureLoader.texture(for: entry, renderingIn: view)
         }
         let key = "\(frame):\(palette.groundSource):\(palette.skySource)"

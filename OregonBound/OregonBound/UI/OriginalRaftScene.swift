@@ -205,8 +205,8 @@ struct OriginalRaftArtwork: View {
     private func texture(_ command: OriginalRaftSession.DrawCommand) -> SKTexture? {
         let key = "\(command.resource):\(command.frame):\(command.masked)"
         if let cached = textures[key] { return cached }
-        guard let entry = OriginalResources.manifest?.images(forResourceId: command.resource)
-            .first(where: { $0.resource.type == "Imag" && $0.frame_index == command.frame }),
+        guard let entry = OriginalResources.frames(command.resource)
+            .first(where: { $0.frame_index == command.frame }),
               let url = GameData.resourceURL(entry.image_path),
               let source = CGImageSourceCreateWithURL(url as CFURL,nil),
               let image = CGImageSourceCreateImageAtIndex(source,0,nil),

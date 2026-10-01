@@ -4,6 +4,14 @@ import Foundation
 /// separate from its on-disk location, which can be reused by a later import.
 /// Pending resources remain visible; loading is not full gameplay certification.
 struct PreparedGameSession {
+    enum ColorMode: String, CaseIterable {
+        case color256, color16
+        var title: String { self == .color16 ? "16 colors" : "256 colors" }
+        var imageType: String { self == .color16 ? "Ima4" : "Imag" }
+    }
+    let colorMode: ColorMode
+    var imageType: String { colorMode.imageType }
+
     enum Failure: Error, CustomStringConvertible {
         case invalid(String)
         var description: String {
@@ -24,14 +32,20 @@ struct PreparedGameSession {
     var sourceFingerprint: String { GameSourceFingerprint.make(edition: edition, sources: catalog.sources) }
     var hasSystemResources: Bool { catalog.sources.contains { $0.role == .system } }
 
-    /// Existing scene consumers use the 256-color resource family. Explicit
-    /// CD selectors retain access to Ima4 separately; four-bit output conversion
-    /// and the corresponding scene adapters are still required before that mode.
+    /// A presentation view retains the selected family's type and source identity.
+    /// Missing variants and frames never fall back to the other color family.
     var defaultGraphics: GraphicsManifest {
-        GraphicsManifest(source_file: graphics.source_file, images: graphics.images.filter { $0.resource.type != "Ima4" })
+        GraphicsManifest(source_file: graphics.source_file, images: graphics.images.filter {
+            !["Imag", "Ima4"].contains($0.resource.type) || $0.resource.type == imageType
+        })
     }
 
-    init(root: URL) throws {
+    func displayImage(id: Int, frame: Int = 0) -> ManifestImage? {
+        image(type: imageType, id: id, frame: frame)
+    }
+
+    init(root: URL, colorMode: ColorMode = .color256) throws {
+        self.colorMode = colorMode
         self.root = root.standardizedFileURL
         func read<T: Decodable>(_ type: T.Type, _ path: String) throws -> T {
             try JSONDecoder().decode(type, from: Data(contentsOf: PreparedResourceFile.url(root: root, path: path)))
@@ -41,6 +55,9 @@ struct PreparedGameSession {
             from: Data(contentsOf: PreparedResourceFile.url(root: root, path: "prepared_import.json")))
         guard manifest.schemaVersion == 7 || (manifest.schemaVersion == 6 && manifest.edition == .macintosh11), manifest.catalogPath == "resource_catalog.json",
               manifest.lookupPath == "resource_lookup.json" else { throw Failure.invalid("unsupported manifest schema or paths") }
+        guard colorMode == .color256 || manifest.edition == .macintoshCD12 else {
+            throw Failure.invalid("alternate color mode requires Macintosh CD 1.2")
+        }
         let catalog = try read(GameResourceCatalog.self, manifest.catalogPath)
         let roles = Set(catalog.sources.map(\.role))
         let required = Set(manifest.edition.requiredRoles)

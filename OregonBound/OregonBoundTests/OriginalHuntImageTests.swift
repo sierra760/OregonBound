@@ -22,6 +22,9 @@ struct OriginalHuntImageTests {
                 let origin = index == 1 ? palette.skyIndex : index == 2 ? palette.groundIndex : index
                 #expect(Array(colors[index*3..<index*3+3]) == Array(table[origin*3..<origin*3+3]))
             }
+            let fixed = try #require(OriginalHuntImage.substitutingPalette(in: source, palette: palette, resourceType: "Ima4"))
+            #expect(fixed.colorSpace?.colorTable == table)
+            #expect(fixed.dataProvider?.data as Data? == data)
             #expect(source.colorSpace?.colorTable == table)
         }
     }

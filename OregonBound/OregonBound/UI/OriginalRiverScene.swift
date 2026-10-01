@@ -121,7 +121,7 @@ final class OriginalRiverScene: SKScene {
         if identifier != colorSpaceID {
             colorSpaceID = identifier
             textures.removeAll(); maskedTextures.removeAll()
-            for entry in OriginalResources.manifest?.images(forResourceId: 15310) ?? [] where entry.resource.type == "Imag" {
+            for entry in OriginalResources.frames(15310) {
                 textures[entry.frame_index] = TextureLoader.texture(for: entry, renderingIn: view)
                 if [7,9,12].contains(entry.frame_index),
                    let url = GameData.resourceURL(entry.image_path),

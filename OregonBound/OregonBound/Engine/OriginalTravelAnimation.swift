@@ -138,12 +138,17 @@ struct OriginalTravelAnimation: Sendable {
     private(set) var landmark: Landmark
     private(set) var wagonFrame = 3
     private(set) var wagonPhase = 0
-    private(set) var upperStripX = -460
+    private let upperStripWidth: Int
+    private let lowerStripWidth: Int
+    private(set) var upperStripX: Int
     private(set) var upperStripPhase = 0
-    private(set) var lowerStripX = -460
+    private(set) var lowerStripX: Int
     private var nominalTick = 0
 
-    init(input: Input) {
+    init(input: Input, upperStripWidth: Int = 786, lowerStripWidth: Int = 786) {
+        precondition(upperStripWidth >= Self.viewport.width && lowerStripWidth >= Self.viewport.width)
+        self.upperStripWidth = upperStripWidth; self.lowerStripWidth = lowerStripWidth
+        upperStripX = 326-upperStripWidth; lowerStripX = 326-lowerStripWidth
         precondition((0...2).contains(input.pace))
         self.input = input
         landmark = Landmark(input: input)
@@ -173,9 +178,9 @@ struct OriginalTravelAnimation: Sendable {
         let endTick = landmark.calls == 0 ? tick : readTick()
         landmark.advance(input: input, tick: tick, endTick: endTick)
         // Strips see the landmark AFTER its callback. Wrapping precedes movement.
-        if lowerStripX >= 64 { lowerStripX = -460 }
+        if lowerStripX >= 64 { lowerStripX = 326-lowerStripWidth }
         if !landmark.atArrivalEdge { lowerStripX += input.pace+1 }
-        if upperStripX >= 64 { upperStripX = -460 }
+        if upperStripX >= 64 { upperStripX = 326-upperStripWidth }
         if !landmark.atArrivalEdge {
             upperStripPhase += 1
             if upperStripPhase >= 3-input.pace {
@@ -217,6 +222,6 @@ struct OriginalTravelAnimation: Sendable {
 
     private func command(_ frame: Int, _ x: Int, _ y: Int) -> DrawCommand {
         let size = Self.frameSizes[frame]
-        return DrawCommand(frame: frame, destination: Rect(x: x, y: y, width: size.width, height: size.height))
+        return DrawCommand(frame: frame, destination: Rect(x: x, y: y, width: frame == 1 ? upperStripWidth : frame == 2 ? lowerStripWidth : size.width, height: size.height))
     }
 }

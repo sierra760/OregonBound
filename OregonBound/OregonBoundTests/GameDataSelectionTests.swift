@@ -3,6 +3,25 @@ import Testing
 @testable import OregonBound
 
 struct GameDataSelectionTests {
+    @MainActor @Test func colorChoiceIsCapturedAtPlayAndClassicStaysUnchanged() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let library = GameDataLibrary(root: root)
+        for edition in GameEdition.allCases {
+            _ = try library.install(edition: edition) { _ = try PreparedSessionFixture.make(at: $0, edition: edition) }
+        }
+        var launched: PreparedGameSession?
+        let state = GameDataState(library: library, legacyRoot: nil, directLaunch: false,
+            resetAudio: {}, activate: { if case .prepared(let session) = $0 { launched = session } })
+        state.colorMode = .color16
+        state.play(.installed(.macintoshCD12))
+        #expect(launched?.colorMode == .color16)
+        state.colorMode = .color256
+        #expect(launched?.colorMode == .color16)
+        state.showLibrary(); state.colorMode = .color16
+        state.play(.installed(.macintosh11))
+        #expect(launched?.colorMode == .color256)
+    }
     @Test func remembersChoiceWithoutChangingCurrentGenerations() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
