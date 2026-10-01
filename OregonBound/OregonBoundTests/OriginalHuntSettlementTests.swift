@@ -2,6 +2,28 @@ import Testing
 @testable import OregonBound
 
 struct OriginalHuntSettlementTests {
+    @Test func cdObservedHuntThenTwoRestUpdatesKeepFoodPoolsAndWeightDistinct() throws {
+        // Original CD reference: April2, 985 stored food, a53-pound hunt using
+        // one bullet. After its rest and cleanup days:979 stored,29 perishable.
+        var trip = Journey(seed: 41, edition: .macintoshCD12)
+        trip.phase = .travel; trip.destinationID = "kansas"
+        trip.legDistance = 102; trip.legProgress = 22; trip.miles = 22; trip.daysElapsed = 1
+        for (index, amount) in [16,10,400,2,2,2,985,0].enumerated() {
+            trip.inventory[originalIndex: index] = amount
+        }
+        try JourneyEngine.beginHunt(&trip)
+        try JourneyEngine.finishHunt(food: 53, shots: 1, in: &trip)
+        #expect(trip.inventory[.food] == 985 && trip.inventory.perishableFood == 53)
+        #expect(JourneyEngine.advanceActionDay(in: &trip))
+        #expect(JourneyEngine.advanceActionDay(in: &trip))
+        #expect(trip.daysElapsed == 3 && trip.miles == 22)
+        #expect(trip.inventory[.food] == 979 && trip.inventory.perishableFood == 29)
+        #expect(trip.totalFood == 1008 && trip.inventory[.bullets] == 399)
+        JourneyEngine.refreshWagonWeight(in: &trip)
+        #expect(trip.original?.cdWagonWeight == 1897)
+        #expect(trip.original!.flags & 4 == 0)
+    }
+
     @Test func liveFoodAndMileageButStartupCarryLimitSurviveInterleavedRest() throws {
         var trip = Journey(names: ["A", "B"], seed: 42)
         trip.phase = .travel
