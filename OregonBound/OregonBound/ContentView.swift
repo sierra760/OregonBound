@@ -124,12 +124,12 @@ struct GameRootView: View {
             ZStack {
             Group {
             if game.creatingGame && game.setupDialog == .welcome {
-                OriginalTextDialogView(resource: 9220) { _ in game.dismissSetupDialog(.welcome) }
+                OriginalTextDialogView(resource: 9220, proceed: game.setupDialogAction(for: .welcome))
             }
             else if game.creatingGame { OriginalRegistrationView(game: game) }
             else if let trip = game.trip {
                 if trip.phase == .outfitting { OriginalOutfittingView(game: game, trip: trip) }
-                else if trip.phase == .departure { OriginalTextDialogView(resource: 9080) { index in game.chooseDepartureMonth(index + 3) } }
+                else if trip.phase == .departure { OriginalTextDialogView(resource: 9080, proceed: game.setupDialogAction(for: .departure)) }
                 else if trip.phase == .finished { OriginalEndingView(game: game, trip: trip) }
                 else if trip.phase == .hunting {
                     OriginalWindow {

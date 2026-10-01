@@ -13,11 +13,13 @@ enum GamePanel: String, Identifiable {
 @MainActor final class GameController: ObservableObject {
     enum SetupDialog { case welcome, buyingAdvice, departure }
     @Published private(set) var setupDialog: SetupDialog?
+    private var setupDialogID: UUID?
 
     /// Logical dialog creation/close, independent of SwiftUI redraw and visibility.
     func presentSetupDialog(_ dialog: SetupDialog) {
         guard setupDialog != dialog, setupDialogIsValid(dialog) else { return }
         if let outgoing = setupDialog { dismissSetupDialog(outgoing) }
+        setupDialogID = UUID()
         setupDialog = dialog
         guard store.edition == .macintoshCD12 else { return }
         switch dialog {
@@ -29,8 +31,20 @@ enum GamePanel: String, Identifiable {
 
     func dismissSetupDialog(_ dialog: SetupDialog) {
         guard setupDialog == dialog else { return }
+        setupDialogID = nil
         setupDialog = nil
         if store.edition == .macintoshCD12 { audio.clear() }
+    }
+
+    /// Capture this opening now; an old view must not act on a later opening.
+    func setupDialogAction(for dialog: SetupDialog) -> (Int) -> Void {
+        let opening = setupDialogID
+        return { [weak self] index in
+            guard let self, let opening, self.setupDialogID == opening,
+                  self.setupDialog == dialog else { return }
+            if dialog == .departure { self.chooseDepartureMonth(index + 3) }
+            else { self.dismissSetupDialog(dialog) }
+        }
     }
 
     func chooseDepartureMonth(_ month: Int) {

@@ -128,6 +128,43 @@ struct OriginalAudioBackendTests {
         #expect(game.setupDialog == nil && !audio.isPlaying)
     }
 
+    @MainActor @Test(arguments: [GameController.SetupDialog.welcome, .buyingAdvice, .departure],
+                           [GameEdition.macintosh11, .macintoshCD12])
+    func oldSetupActionCannotAffectAnotherOpeningOfSameDialog(dialog: GameController.SetupDialog, edition: GameEdition) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: edition,
+            defaultPreferences: .init()), audio: audio)
+        func open() {
+            if dialog == .welcome { game.beginRegistration() }
+            else {
+                var trip = Journey(seed: 1, edition: edition)
+                if dialog == .departure { trip.phase = .departure }
+                game.trip = trip
+                if dialog == .buyingAdvice { game.presentSetupDialog(.buyingAdvice) }
+            }
+        }
+        open()
+        let oldAction = game.setupDialogAction(for: dialog)
+        game.completeDeparture(.exitGame)
+        open()
+        let currentJourney = game.trip?.id
+        let stops = output.stops
+        oldAction(0)
+        #expect(game.setupDialog == dialog && audio.isPlaying == (edition == .macintoshCD12) && output.stops == stops)
+        #expect(game.trip?.id == currentJourney)
+        if dialog == .departure { #expect(game.trip?.phase == .departure) }
+        let currentAction = game.setupDialogAction(for: dialog)
+        currentAction(1)
+        #expect(game.setupDialog == nil && !audio.isPlaying)
+        if dialog == .departure { #expect(game.trip?.phase == .landmark && game.trip?.departureMonth == 4) }
+        audio.request(1017)
+        currentAction(1)
+        #expect(audio.isPlaying && output.started.last == 1017)
+    }
+
     @MainActor @Test func cdRaftAmbienceChecksIdleBeforeMovementDeadline() {
         let output = Output()
         var idle: [() -> Void] = []

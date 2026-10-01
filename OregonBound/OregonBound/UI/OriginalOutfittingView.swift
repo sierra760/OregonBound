@@ -13,7 +13,7 @@ struct OriginalOutfittingView: View {
 
     var body: some View {
         if game.setupDialog == .buyingAdvice {
-            OriginalTextDialogView(resource: 9031) { _ in game.dismissSetupDialog(.buyingAdvice) }
+            OriginalTextDialogView(resource: 9031, proceed: game.setupDialogAction(for: .buyingAdvice))
         }
         else {
             OriginalWindow {
