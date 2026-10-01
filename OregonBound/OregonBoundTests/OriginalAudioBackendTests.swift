@@ -4,6 +4,130 @@ import Foundation
 
 struct OriginalAudioBackendTests {
 
+    @MainActor @Test func cdWelcomeRequestsNarrationOnRegistrationEntry() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: GameAudio(playback: output, scheduleIdle: { _ in }))
+        game.beginRegistration()
+        #expect(output.started == [10001])
+        #expect(game.creatingGame)
+    }
+
+    @MainActor @Test func cdDepartureNarrationFollowsJourneyPhaseOnce() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: GameAudio(playback: output, scheduleIdle: { _ in }))
+        var trip = Journey(seed: 1, edition: .macintoshCD12)
+        game.trip = trip
+        #expect(output.started.isEmpty)
+        trip.phase = .departure; game.trip = trip
+        #expect(output.started == [10002])
+        game.trip = trip
+        #expect(output.started == [10002] && output.stops == 0)
+        trip.phase = .landmark; game.trip = trip
+        #expect(!game.audio.isPlaying && output.stops == 1)
+    }
+
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func setupDialogsUseControllerAudioAndCloseBeforeNavigation(edition: GameEdition) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: edition,
+            defaultPreferences: .init()), audio: audio)
+        game.beginRegistration()
+        #expect(game.setupDialog == .welcome)
+        game.presentSetupDialog(.welcome) // Redraw/repeated presentation does not replay.
+        #expect(output.started == (edition == .macintoshCD12 ? [10001] : []))
+        game.dismissSetupDialog(.welcome)
+        #expect(game.creatingGame && game.setupDialog == nil && !audio.isPlaying)
+        game.start(profession: .banker, difficulty: .greenhorn, names: ["Test"], month: 4)
+        #expect(game.trip?.phase == .outfitting)
+        game.presentSetupDialog(.buyingAdvice)
+        #expect(game.setupDialog == .buyingAdvice)
+        game.dismissSetupDialog(.welcome) // A departed view cannot stop the new dialog.
+        #expect(game.setupDialog == .buyingAdvice)
+        #expect(audio.isPlaying == (edition == .macintoshCD12))
+        game.dismissSetupDialog(.buyingAdvice)
+        game.presentSetupDialog(.buyingAdvice)
+        game.perform { try JourneyEngine.completeOutfitting([:], in: &$0) }
+        #expect(game.setupDialog == .departure)
+        let stops = output.stops
+        output.onStop = { #expect(game.trip?.phase == .departure) }
+        game.chooseDepartureMonth(4)
+        output.onStop = nil
+        #expect(game.trip?.phase == .landmark && game.trip?.departureMonth == 4)
+        #expect(game.setupDialog == nil && !audio.isPlaying)
+        #expect(output.stops == stops + (edition == .macintoshCD12 ? 1 : 0))
+        audio.request(1017)
+        game.dismissSetupDialog(.departure)
+        #expect(audio.isPlaying && output.started.last == 1017)
+        #expect(output.started == (edition == .macintoshCD12 ? [10001,10003,10003,10002,1017] : [1017]))
+        #expect(game.error == nil)
+    }
+
+    @MainActor @Test(arguments: [0,1,2])
+    func abandonedSetupDialogClosesOnOwnerTransition(dialog: Int) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        if dialog == 0 { game.beginRegistration() }
+        else {
+            var trip = Journey(seed: 1, edition: .macintoshCD12)
+            if dialog == 2 { trip.phase = .departure }
+            game.trip = trip
+            if dialog == 1 { game.presentSetupDialog(.buyingAdvice) }
+        }
+        #expect(audio.isPlaying)
+        game.completeDeparture(.exitGame)
+        #expect(!audio.isPlaying && game.setupDialog == nil && !game.creatingGame && game.trip == nil)
+        let stops = output.stops
+        audio.request(2000)
+        game.dismissSetupDialog(.welcome); game.dismissSetupDialog(.buyingAdvice); game.dismissSetupDialog(.departure)
+        #expect(output.stops == stops && audio.isPlaying)
+    }
+
+    @MainActor @Test func setupNarrationPreservesQueueMuteAndTemporaryInactivity() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var idle: [() -> Void] = []
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        audio.request(9007)
+        game.beginRegistration()
+        #expect(output.started == [9007] && output.stops == 0)
+        output.callbacks.last?()
+        while !idle.isEmpty { idle.removeFirst()() }
+        #expect(output.started == [9007,10001])
+        let completedStops = output.stops
+        game.applicationActive = false; game.showingAbout = true; game.tick()
+        game.applicationActive = true; game.showingAbout = false; game.tick()
+        game.presentSetupDialog(.welcome)
+        #expect(output.started == [9007,10001] && output.stops == completedStops)
+        game.sound = false
+        #expect(!audio.isPlaying)
+        game.dismissSetupDialog(.welcome)
+        game.start(profession: .banker, difficulty: .greenhorn, names: ["Test"], month: 4)
+        game.presentSetupDialog(.buyingAdvice)
+        game.sound = true
+        game.presentSetupDialog(.buyingAdvice)
+        #expect(output.started == [9007,10001]) // Enabling sound does not recreate the dialog.
+        game.dismissSetupDialog(.buyingAdvice); game.presentSetupDialog(.buyingAdvice)
+        #expect(output.started == [9007,10001,10003])
+        game.trip = Journey(seed: 2, edition: .macintoshCD12)
+        #expect(game.setupDialog == nil && !audio.isPlaying)
+    }
+
     @MainActor @Test func cdRaftAmbienceChecksIdleBeforeMovementDeadline() {
         let output = Output()
         var idle: [() -> Void] = []
@@ -275,10 +399,11 @@ struct OriginalAudioBackendTests {
         var callbacks: [() -> Void] = []
         var stops = 0
         var succeeds = true
+        var onStop: (() -> Void)?
         func start(_ resource: Int, completion: @escaping () -> Void) -> Bool {
             started.append(resource);callbacks.append(completion);return succeeds
         }
-        func stop() { stops += 1 }
+        func stop() { stops += 1; onStop?() }
     }
     @Test func staleNativeCallbackCannotCompleteReplacementSound() {
         let output = Output()

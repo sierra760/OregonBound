@@ -11,6 +11,50 @@ enum GamePanel: String, Identifiable {
 }
 
 @MainActor final class GameController: ObservableObject {
+    enum SetupDialog { case welcome, buyingAdvice, departure }
+    @Published private(set) var setupDialog: SetupDialog?
+
+    /// Logical dialog creation/close, independent of SwiftUI redraw and visibility.
+    func presentSetupDialog(_ dialog: SetupDialog) {
+        guard setupDialog != dialog, setupDialogIsValid(dialog) else { return }
+        if let outgoing = setupDialog { dismissSetupDialog(outgoing) }
+        setupDialog = dialog
+        guard store.edition == .macintoshCD12 else { return }
+        switch dialog {
+        case .welcome: audio.request(10001)
+        case .departure: audio.request(10002)
+        case .buyingAdvice: audio.request(10003)
+        }
+    }
+
+    func dismissSetupDialog(_ dialog: SetupDialog) {
+        guard setupDialog == dialog else { return }
+        setupDialog = nil
+        if store.edition == .macintoshCD12 { audio.clear() }
+    }
+
+    func chooseDepartureMonth(_ month: Int) {
+        guard setupDialog == .departure, trip?.phase == .departure else { return }
+        // The original month callback clears before changing the world.
+        dismissSetupDialog(.departure)
+        perform { try JourneyEngine.chooseDeparture(month: month, in: &$0) }
+    }
+
+    private func setupDialogIsValid(_ dialog: SetupDialog) -> Bool {
+        switch dialog {
+        case .welcome: return creatingGame
+        case .buyingAdvice: return !creatingGame && trip?.phase == .outfitting
+        case .departure: return !creatingGame && trip?.phase == .departure
+        }
+    }
+
+    private func reconcileSetupDialog(replacingJourney: Bool = false) {
+        if let dialog = setupDialog, replacingJourney || !setupDialogIsValid(dialog) {
+            dismissSetupDialog(dialog)
+        }
+        if !creatingGame && trip?.phase == .departure { presentSetupDialog(.departure) }
+    }
+
     @Published var fileMenu = OriginalFileMenuRules.State()
     @Published var pendingDeparture: OriginalFileMenuRules.Departure?
     @Published var showingSaveTimeOut = false
@@ -31,6 +75,7 @@ enum GamePanel: String, Identifiable {
                 raftScene?.close()
                 raftScene = nil
             }
+            reconcileSetupDialog(replacingJourney: oldValue?.id != trip?.id)
         }
     }
     private weak var raftScene: OriginalRaftScene?
@@ -54,7 +99,7 @@ enum GamePanel: String, Identifiable {
     }
     @Published var error: String?
     @Published var running = false
-    @Published var creatingGame = false
+    @Published var creatingGame = false { didSet { reconcileSetupDialog() } }
     @Published var showingRouteDecision = false
     @Published var showingIntroduction = false
     @Published var showingTravelMap = false

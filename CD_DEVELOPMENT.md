@@ -241,12 +241,26 @@ random-state snapshots, including 178 collisions, 127 drowning cues and 219
 ambient starts. This verifies data and scheduling; audible original comparison
 and interactive platform acceptance remain pending.
 
+## CD setup narration
+
+The welcome screen, departure-month chooser and Matt's buying advice play their
+CD recordings once per dialog opening. Their controller closes outgoing audio
+before navigation, including cancelled setup and replacement journeys. Redraws,
+temporary inactivity and modal overlays preserve the current recording. The
+existing shared queue and mute behavior apply; classic setup remains silent.
+
+Verification covers the complete controller flow, repeated Help visits, stale
+close actions, cancellation, queue ordering, mute and both editions. A private
+source-data check completes all six departure months in all three display modes
+and verifies each recording against original PCM hashes and exact sample rates.
+Original foreground listening remains part of the final acceptance work.
+
 ## Current acceptance boundary
 
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 873 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 881 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.

@@ -22,6 +22,7 @@ import UniformTypeIdentifiers
         fileMenu.leaveAttractViaButton()
         fileMenu.beginSetup()
         creatingGame = true
+        presentSetupDialog(.welcome)
     }
     func trailLogRecords() -> [OriginalTrailLogExport.Record] {
         guard let trip, trip.phase != .finished else { return retainedExportRecords }

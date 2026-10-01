@@ -4,7 +4,6 @@ struct OriginalOutfittingView: View {
     @ObservedObject var game: GameController
     let trip: Journey
     @State private var quantities = Array(repeating: "", count: 7)
-    @State private var help = false
     private let labels = ["Oxen", "Sets of Clothing", "Boxes of Bullets (20/box)", "Spare Wagon Wheels", "Spare Wagon Axles", "Spare Wagon Tongues", "Pounds of Food"]
     private let maxima = [20, 50, 99, 3, 3, 3, 2000]
     private let prices = [2000, 1000, 200, 1000, 1000, 1000, 20]
@@ -13,7 +12,9 @@ struct OriginalOutfittingView: View {
     private func money(_ cents: Int) -> String { String(format: "%d.%02d", cents / 100, cents % 100) }
 
     var body: some View {
-        if help { OriginalTextDialogView(resource: 9031) { _ in help = false } }
+        if game.setupDialog == .buyingAdvice {
+            OriginalTextDialogView(resource: 9031) { _ in game.dismissSetupDialog(.buyingAdvice) }
+        }
         else {
             OriginalWindow {
                 ZStack(alignment: .topLeading) {
@@ -39,7 +40,7 @@ struct OriginalOutfittingView: View {
                     label("Total:", x: 395, y: 265, width: 37, font: .bold12)
                     label("$" + money(total), x: 435, y: 263, width: 52, alignment: .trailing)
                     label("You have \(dollars(trip.cash))", x: 329, y: 287, width: 158, font: .bold12, alignment: .trailing)
-                    OriginalButton(title: "Help") { help = true }.frame(width: 60, height: 20).offset(x: 171, y: 278)
+                    OriginalButton(title: "Help") { game.presentSetupDialog(.buyingAdvice) }.frame(width: 60, height: 20).offset(x: 171, y: 278)
                     OriginalButton(title: "Buy", action: purchase).frame(width: 60, height: 20).offset(x: 245, y: 278)
                 }
             }

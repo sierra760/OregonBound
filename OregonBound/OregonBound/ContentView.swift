@@ -38,7 +38,6 @@ struct ContentView: View {
 struct GameRootView: View {
     var chooseGameData: () -> Void = {}
     @StateObject private var game = GameController()
-    @State private var showingWelcome = false
     @State private var managementAlert: OriginalManagementAlerts.Presentation?
     @State private var managementAlertID = UUID()
     @State private var managementAlertReady = false
@@ -124,11 +123,13 @@ struct GameRootView: View {
         ZStack {
             ZStack {
             Group {
-            if game.creatingGame && showingWelcome { OriginalTextDialogView(resource: 9220) { _ in showingWelcome = false } }
+            if game.creatingGame && game.setupDialog == .welcome {
+                OriginalTextDialogView(resource: 9220) { _ in game.dismissSetupDialog(.welcome) }
+            }
             else if game.creatingGame { OriginalRegistrationView(game: game) }
             else if let trip = game.trip {
                 if trip.phase == .outfitting { OriginalOutfittingView(game: game, trip: trip) }
-                else if trip.phase == .departure { OriginalTextDialogView(resource: 9080) { index in game.perform { try JourneyEngine.chooseDeparture(month: index + 3, in: &$0) } } }
+                else if trip.phase == .departure { OriginalTextDialogView(resource: 9080) { index in game.chooseDepartureMonth(index + 3) } }
                 else if trip.phase == .finished { OriginalEndingView(game: game, trip: trip) }
                 else if trip.phase == .hunting {
                     OriginalWindow {
@@ -306,7 +307,7 @@ struct GameRootView: View {
     }
 
     private var titleScreen: some View {
-        OriginalAttractView(game: game, travel: { showingWelcome = true; game.beginRegistration() })
+        OriginalAttractView(game: game, travel: game.beginRegistration)
     }
 
     private func huntInput(_ trip: Journey) -> OriginalHuntSession.Input {
