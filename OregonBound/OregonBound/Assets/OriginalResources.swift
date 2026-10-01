@@ -65,6 +65,7 @@ final class GameAudio {
     private let playback: OriginalAudioPlayback
     private let scheduleIdle: (@escaping () -> Void) -> Void
     private var idleScheduled = false
+    private var sessionGeneration: UInt64 = 0
     private var generation: UInt64 = 0
     private var waitToken: UInt64 = 0
     private var waiters: [UInt64: () -> Void] = [:]
@@ -78,6 +79,15 @@ final class GameAudio {
     func request(_ id: Int) { apply(queue.request(id)) }
     func enqueue(_ id: Int) { queue.enqueue(id); schedulePump() }
     func clear() { apply(queue.clear()) }
+    /// End the old session without resuming its queued cleanup callbacks.
+    func resetForSession() {
+        sessionGeneration &+= 1
+        generation &+= 1
+        waiters.removeAll()
+        queue = OriginalAudioQueue()
+        idleScheduled = false
+        playback.stop()
+    }
     /// CODE1:33ba waits for current playback, with a180-tick maximum.
     func waitUntilIdle(_ completion: @escaping () -> Void) {
         guard queue.current != nil else { completion(); return }
@@ -101,8 +111,9 @@ final class GameAudio {
     private func schedulePump() {
         guard !idleScheduled else { return }
         idleScheduled = true
+        let session = sessionGeneration
         scheduleIdle { [weak self] in
-            guard let self else { return }
+            guard let self, self.sessionGeneration == session else { return }
             self.idleScheduled = false
             self.apply(self.queue.pump())
             // Muted enqueues consume one entry per idle, as CODE1:31e4 does.

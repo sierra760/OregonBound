@@ -6,6 +6,10 @@ enum GameEdition: String, Codable, CaseIterable {
     case macintosh11 = "macintosh-1.1"
     case macintoshCD12 = "macintosh-cd-1.2"
 
+    var title: String {
+        self == .macintosh11 ? "The Oregon Trail (Macintosh 1.1)" : "Oregon Trail CD (Macintosh 1.2)"
+    }
+
     var requiredRoles: [GameDataSourceRole] {
         switch self {
         case .macintosh11: return [.classicApplication, .classicGraphics]

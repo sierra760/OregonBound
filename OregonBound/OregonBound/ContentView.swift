@@ -15,13 +15,13 @@ struct TrailButtonStyle: ButtonStyle {
     }
 }
 
-/// Shows the import screen until the player's original files have been decoded.
+/// An edition is adopted before constructing its controller and resource views.
 struct ContentView: View {
     @StateObject private var dataState = GameDataState()
     var body: some View {
         ZStack {
             if dataState.isReady {
-                GameRootView()
+                GameRootView(chooseGameData: dataState.showLibrary).id(dataState.sessionID)
             } else {
                 GameDataSetupView(state: dataState)
                     .frame(minWidth: 512, minHeight: 322)
@@ -34,6 +34,7 @@ struct ContentView: View {
 }
 
 struct GameRootView: View {
+    var chooseGameData: () -> Void = {}
     @StateObject private var game = GameController()
     @State private var showingWelcome = false
     @State private var managementAlert: OriginalManagementAlerts.Presentation?
@@ -66,13 +67,27 @@ struct GameRootView: View {
         }
         .onReceive(timer) { _ in game.tick() }
         .onAppear {
+            game.chooseGameData = chooseGameData
             BundleAssets.validateManifest()
             GameAudio.shared.request(9007)
             #if os(macOS)
             OriginalApplicationDelegate.game = game
             #endif
         }
+        .onDisappear {
+            game.applicationActive = false
+            game.chooseGameData = nil
+            #if os(macOS)
+            if OriginalApplicationDelegate.game === game { OriginalApplicationDelegate.game = nil }
+            #endif
+        }
         #if os(iOS)
+        .safeAreaInset(edge: .bottom) {
+            if game.canChooseGameData {
+                Button("Game Data…", action: game.requestGameData)
+                    .padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
+            }
+        }
         .fileImporter(isPresented: $game.showingLoadDialog, allowedContentTypes: [.json]) { result in
             do {
                 let url = try result.get()

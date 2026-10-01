@@ -11,16 +11,17 @@ struct OregonBoundApp: App {
     }
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
-                #if os(macOS)
-                .frame(minWidth: OriginalWindowGeometry.minimumSize.width, minHeight: OriginalWindowGeometry.minimumSize.height)
-                #endif
-        }
         #if os(macOS)
+        Window("Oregon Bound", id: "game") {
+            ContentView()
+                .frame(minWidth: OriginalWindowGeometry.minimumSize.width, minHeight: OriginalWindowGeometry.minimumSize.height)
+        }
         .defaultSize(width: 1024, height: 644)
         .commands { OriginalGameCommands() }
-        #elseif os(iOS)
+        #else
+        WindowGroup {
+            ContentView()
+        }
         .commands { OriginalTabletMenus() }
         #endif
     }
@@ -37,6 +38,7 @@ struct OriginalGameCommands: Commands {
                 .keyboardShortcut("s").disabled(!acceptsCommands || game?.fileMenu.permits(.save) != true)
         }
         CommandGroup(after: .saveItem) {
+            Button("Game Data…") { game?.requestGameData() }.disabled(game?.canChooseGameData != true)
             Button("Export Trail Log…") { game?.requestExportTrailLog() }.disabled(!acceptsCommands || game?.fileMenu.permits(.exportLog) != true)
             Button("Exit Game") { game?.requestDeparture(.exitGame) }.keyboardShortcut("e").disabled(!acceptsCommands || game?.fileMenu.permits(.exitGame) != true)
         }
@@ -45,8 +47,10 @@ struct OriginalGameCommands: Commands {
         }
         #if os(macOS)
         CommandGroup(replacing: .appTermination) {
-            Button("Quit") { game?.requestDeparture(.quit) }.keyboardShortcut("q")
-                .disabled(!acceptsCommands || game?.fileMenu.permits(.quit) != true)
+            Button("Quit") {
+                if let game { game.requestDeparture(.quit) } else { NSApp.terminate(nil) }
+            }.keyboardShortcut("q")
+                .disabled(game != nil && (!acceptsCommands || game?.fileMenu.permits(.quit) != true))
         }
         #endif
         CommandMenu("Game") {

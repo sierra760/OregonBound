@@ -2,6 +2,23 @@ import Testing
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    @Test func sessionResetDiscardsOldWaitersCallbacksAndPumps() {
+        let output = Output()
+        var idle: [() -> Void] = []
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        audio.request(9002); audio.enqueue(9003)
+        var oldWaiter = false
+        audio.waitUntilIdle { oldWaiter = true }
+        let oldCallback = output.callbacks[0], oldPump = idle.removeFirst()
+        audio.resetForSession()
+        #expect(audio.enabled)
+        audio.enqueue(6001)
+        oldCallback(); oldPump()
+        #expect(output.started == [9002])
+        while !idle.isEmpty { idle.removeFirst()() }
+        #expect(output.started == [9002, 6001])
+        #expect(!oldWaiter)
+    }
     final class Output: OriginalAudioPlayback {
         var started: [Int] = []
         var callbacks: [() -> Void] = []

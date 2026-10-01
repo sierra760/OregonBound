@@ -26,6 +26,22 @@ struct GameDataLibrary {
         self.root = URL(fileURLWithPath: root.path, isDirectory: true).standardizedFileURL
     }
 
+    func selection() throws -> GameDataSelection? {
+        let url = try contained("selection.json")
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        let file = try PreparedResourceFile.url(root: root, path: "selection.json")
+        guard let size = try file.resourceValues(forKeys: [.fileSizeKey]).fileSize, size <= 65536 else {
+            throw Failure.invalid("selection record size")
+        }
+        return try JSONDecoder().decode(GameDataSelection.self, from: Data(contentsOf: file))
+    }
+
+    func select(_ selection: GameDataSelection) throws {
+        let url = try contained("selection.json")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        try JSONEncoder().encode(selection).write(to: url, options: .atomic)
+    }
+
     func importSources(_ sources: [URL], progress: (String) -> Void,
                        isCancelled: () -> Bool = { false }) throws -> PreparedGameSession {
         if isCancelled() { throw GameDataInstallation.Failure.cancelled }
@@ -101,6 +117,39 @@ struct GameDataLibrary {
             guard resolved.path.hasPrefix(base.path + "/") else { throw Failure.invalid("escaping installation path") }
         }
         return location.standardizedFileURL
+    }
+}
+
+enum GameDataSelection: Hashable, Identifiable, Codable {
+    case installed(GameEdition)
+    case legacyClassic
+
+    var id: String {
+        switch self { case .installed(let edition): return edition.rawValue; case .legacyClassic: return "legacy" }
+    }
+    var title: String {
+        switch self { case .installed(let edition): return edition.title; case .legacyClassic: return "The Oregon Trail (existing classic import)" }
+    }
+    private enum CodingKeys: CodingKey { case schemaVersion, source, edition }
+    init(from decoder: Decoder) throws {
+        let values = try decoder.container(keyedBy: CodingKeys.self)
+        guard try values.decode(Int.self, forKey: .schemaVersion) == 1 else { throw GameDataLibrary.Failure.invalid("selection version") }
+        let edition = try values.decode(GameEdition.self, forKey: .edition)
+        switch try values.decode(String.self, forKey: .source) {
+        case "installed": self = .installed(edition)
+        case "legacy" where edition == .macintosh11: self = .legacyClassic
+        default: throw GameDataLibrary.Failure.invalid("selected data source")
+        }
+    }
+    func encode(to encoder: Encoder) throws {
+        var values = encoder.container(keyedBy: CodingKeys.self)
+        try values.encode(1, forKey: .schemaVersion)
+        switch self {
+        case .installed(let edition):
+            try values.encode("installed", forKey: .source); try values.encode(edition, forKey: .edition)
+        case .legacyClassic:
+            try values.encode("legacy", forKey: .source); try values.encode(GameEdition.macintosh11, forKey: .edition)
+        }
     }
 }
 

@@ -41,7 +41,8 @@ accepts 2, 4 or 8; hunt time at 0x136 accepts selectors 1–6. Both source parsi
 and prepared-profile decoding validate these settings. Other configuration
 fields are outside this decoder. Original data and extracted profiles stay local.
 
-Normal CD import/selection and full gameplay remain under development.
+CD import and edition selection are connected to the installation library;
+full CD gameplay remains under development.
 Persistence identity and preference defaults do not establish that the CD
 simulation, scoring or management behavior has been fully implemented.
 

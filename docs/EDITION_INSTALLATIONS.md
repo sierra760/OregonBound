@@ -34,7 +34,21 @@ resolve outside the library are rejected, including existing parents of a new
 generation. These checks validate internal consistency, not authenticity against
 malicious edits to every metadata file.
 
-Importing and loading do not activate a game or change the selected edition.
-The player selector and teardown of the previous scene/audio session are separate
-integration work. Full CD gameplay remains under development; a validated import
-does not certify every original feature.
+Importing and loading do not activate a game or change the persisted selection.
+The app lists installed editions and the existing classic import at startup.
+Import adds or replaces one edition; Play reloads its current generation, records
+the selection in `selection.json`, then adopts it before creating a controller.
+Record schema 1 distinguishes installed editions from the historical classic
+folder. The last choice is highlighted at the next ordinary startup. An explicit
+`OREGON_BOUND_DATA` override retains direct classic launch for existing tooling.
+
+Game Data in the macOS File menu returns to the selector from the title screen.
+iPad also has a title-screen Game Data button outside the original canvas.
+Active journeys, setup and dialogs disable switching; exit the journey through
+the existing save flow first. Returning stops the old controller and audio;
+adoption recreates the controller and resource views. Audio reset discards old
+waiters, completion callbacks and scheduled queue pumps. macOS uses a single
+game window because resource adoption is process-wide.
+
+Full CD gameplay remains under development; import, selection and title-screen
+adoption do not certify every original feature.

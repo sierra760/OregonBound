@@ -50,6 +50,20 @@ enum GamePanel: String, Identifiable {
     private var dayTimerCounter: UInt8 = 0
     let random: OriginalRandomStream
     let store: JourneyStore
+    var chooseGameData: (() -> Void)?
+    var canChooseGameData: Bool {
+        trip == nil && !creatingGame && !isOriginalModalPresented && panel == nil && pendingDeparture == nil
+    }
+    func requestGameData() {
+        guard canChooseGameData, let chooseGameData else { return }
+        applicationActive = false
+        running = false
+        GameAudio.shared.resetForSession()
+        #if os(macOS)
+        if OriginalApplicationDelegate.game === self { OriginalApplicationDelegate.game = nil }
+        #endif
+        chooseGameData()
+    }
 
     init(store: JourneyStore = JourneyStore(), random: OriginalRandomStream? = nil) {
         self.store = store; self.random = random ?? .shared; hasSave = store.hasSave
