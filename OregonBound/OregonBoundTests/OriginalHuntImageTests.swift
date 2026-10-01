@@ -4,6 +4,23 @@ import Testing
 @testable import OregonBound
 
 struct OriginalHuntImageTests {
+    @Test func monochromeMaskKeepsEnclosedWhiteAndSkipsColorPalette() throws {
+        // Five one-bit rows: white border, black ring, enclosed white center.
+        let bits = Data([0b11111000, 0b10001000, 0b10101000, 0b10001000, 0b11111000])
+        let image = try #require(CGImage(width: 5, height: 5, bitsPerComponent: 1, bitsPerPixel: 1,
+            bytesPerRow: 1, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: [],
+            provider: CGDataProvider(data: bits as CFData)!, decode: nil,
+            shouldInterpolate: false, intent: .defaultIntent))
+        let palette = OriginalHuntSession.palette(destination: 2, month: 4, weather: 3, snow: true)
+        let unchanged = try #require(OriginalHuntImage.substitutingPalette(in: image, palette: palette, monochrome: true))
+        #expect(unchanged.dataProvider!.data! as Data == bits)
+        let masked = try #require(OriginalRiverScene.maskedImage(unchanged))
+        let pixels = Array(masked.dataProvider!.data! as Data)
+        #expect(pixels[3] == 0)
+        #expect(Array(pixels[48..<52]) == [255,255,255,255])
+        #expect(Array(pixels[24..<28]) == [0,0,0,255])
+    }
+
     @Test func replacementsPreserveOriginalIndicesAndOtherPaletteColors() throws {
         var table = (0..<256).flatMap { [UInt8($0),UInt8(255-$0),UInt8($0/2)] }
         let sourceSpace = try #require(CGColorSpace(indexedBaseSpace: CGColorSpace(name: CGColorSpace.sRGB)!,

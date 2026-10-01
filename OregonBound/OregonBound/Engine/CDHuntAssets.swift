@@ -11,8 +11,9 @@ struct CDHuntAssets {
     init(frames: [Int: [Rect]], terrains: [Int: TerrainExtractor.Terrain], monochrome: Bool) {
         self.frames = frames; self.terrains = terrains; self.monochrome = monochrome
     }
-    init(session: PreparedGameSession, monochrome: Bool = false) throws {
+    init(session: PreparedGameSession) throws {
         guard session.edition == .macintoshCD12 else { throw PreparedGameSession.Failure.invalid("CD hunting edition") }
+        let monochrome = session.colorMode == .monochrome
         var frames: [Int: [Rect]] = [:]
         var terrains: [Int: TerrainExtractor.Terrain] = [:]
         func load(_ resource: Int, count: Int) throws {

@@ -86,6 +86,11 @@ enum TextureLoader {
                                              colorTable: &table),
                   let copy = source.copy(colorSpace: indexed) else { return nil }
             tagged = copy
+        } else if source.colorSpace?.model == .monochrome {
+            // A one-component bitmap cannot be retagged with a three-component
+            // RGB space. Draw its original black/white samples into the RGBA
+            // destination instead; river and hunt masks need that conversion.
+            tagged = source
         } else {
             guard let copy = source.copy(colorSpace: sRGB) else { return nil }
             tagged = copy

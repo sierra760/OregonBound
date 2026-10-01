@@ -5,6 +5,17 @@ import SpriteKit
 @testable import OregonBound
 
 struct TextureColorManagementTests {
+    @Test(arguments: [CGColorSpace.sRGB, CGColorSpace.displayP3])
+    func monochromeBitmapConvertsToOpaqueRGBA(destination: CFString) throws {
+        let source = try #require(CGImage(width: 4, height: 1, bitsPerComponent: 1, bitsPerPixel: 1,
+            bytesPerRow: 1, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: [],
+            provider: CGDataProvider(data: Data([0b01010000]) as CFData)!, decode: nil,
+            shouldInterpolate: false, intent: .defaultIntent))
+        let converted = try #require(TextureLoader.convertedImage(source, to: CGColorSpace(name: destination)!))
+        #expect(Array(converted.dataProvider!.data! as Data) == [0,0,0,255,255,255,255,255,0,0,0,255,255,255,255,255])
+        #expect(source.bitsPerPixel == 1 && source.dataProvider!.data! as Data == Data([0b01010000]))
+    }
+
     private func rgba(_ bytes: [UInt8]) -> CGImage {
         CGImage(width: bytes.count / 4, height: 1, bitsPerComponent: 8, bitsPerPixel: 32,
                 bytesPerRow: bytes.count, space: CGColorSpace(name: CGColorSpace.sRGB)!,

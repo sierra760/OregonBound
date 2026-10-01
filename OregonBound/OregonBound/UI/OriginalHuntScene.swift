@@ -236,7 +236,8 @@ struct OriginalHuntArtwork: View {
               let url = GameData.resourceURL(entry.image_path),
               let source = CGImageSourceCreateWithURL(url as CFURL, nil),
               let image = CGImageSourceCreateImageAtIndex(source, 0, nil),
-              let swapped = OriginalHuntImage.substitutingPalette(in: image, palette: session.palette, resourceType: entry.resource.type) else { return nil }
+              let swapped = OriginalHuntImage.substitutingPalette(in: image, palette: session.palette,
+                resourceType: entry.resource.type, monochrome: OriginalResources.colorMode == .monochrome) else { return nil }
         // Frame19160/3 is black with four white corner pixels: its original srcOr
         // is identical to drawing opaque black with those white corners transparent.
         let prepared = command.transfer == .copy ? swapped : OriginalRiverScene.maskedImage(swapped)
@@ -250,8 +251,8 @@ struct OriginalHuntArtwork: View {
 /// Source palette operations precede CalcCMask and destination-profile conversion.
 enum OriginalHuntImage {
     static func substitutingPalette(in source: CGImage, palette: OriginalHuntSession.Palette,
-                                    resourceType: String = "Imag") -> CGImage? {
-        if resourceType == "Ima4" { return source }
+                                    resourceType: String = "Imag", monochrome: Bool = false) -> CGImage? {
+        if monochrome || resourceType == "Ima4" { return source }
         guard let space = source.colorSpace, space.model == .indexed,
               var colors = space.colorTable, colors.count >= 256*3 else { return nil }
         for (destination, origin) in [(1,palette.skyIndex),(2,palette.groundIndex)] {

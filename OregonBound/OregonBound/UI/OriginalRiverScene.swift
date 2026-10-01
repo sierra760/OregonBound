@@ -69,8 +69,10 @@ final class OriginalRiverScene: SKScene {
         completion = onComplete
         guard self.method != method || self.outcome != outcome || self.snow != snow || animation == nil else { return }
         self.method = method; self.outcome = outcome; self.snow = snow
-        let sizes = OriginalResources.frames(15310).sorted { $0.frame_index < $1.frame_index }.map { ($0.width, $0.height) }
-        let frames = OriginalRiverAnimation.displayFrames(sizes: sizes, edition: GameData.edition, snow: snow)
+        let resource = OriginalResources.resource(monochrome: 5310, color: 15310)
+        let sizes = OriginalResources.frames(resource).sorted { $0.frame_index < $1.frame_index }.map { ($0.width, $0.height) }
+        let frames = OriginalRiverAnimation.displayFrames(sizes: sizes, edition: GameData.edition, snow: snow,
+            color: OriginalResources.colorMode != .monochrome)
         animation = OriginalRiverAnimation(method: method, outcome: outcome, frames: frames)
         completed = false
         nextTick = nil
@@ -126,7 +128,7 @@ final class OriginalRiverScene: SKScene {
         if identifier != colorSpaceID {
             colorSpaceID = identifier
             textures.removeAll(); maskedTextures.removeAll()
-            for entry in OriginalResources.frames(15310) {
+            for entry in OriginalResources.frames(OriginalResources.resource(monochrome: 5310, color: 15310)) {
                 textures[entry.frame_index] = TextureLoader.texture(for: entry, renderingIn: view)
                 if [7,9,12].contains(entry.frame_index),
                    let url = GameData.resourceURL(entry.image_path),

@@ -163,3 +163,17 @@ Offscreen SpriteKit renders match three title crops and nine initial travel
 compositions against source pixels at native Retina scale. The native suite
 passes 840 parameterized cases (74 skipped), and the iPad target builds.
 River, raft, hunting, and monochrome ink/layout acceptance remain outstanding.
+
+Monochrome rivers select `5310`, retain the source's 20 logical animation slots
+by clamping the last two to bitmap 17, and omit color-only snow aliases.
+Hunting now captures the prepared session's monochrome family for terrain,
+animals, scenery, and projectiles. Grayscale bitmaps convert to RGBA before
+mask construction; enclosed white stays opaque, while exterior white clears.
+The color palette substitution is skipped for monochrome artwork.
+
+Local verification covers 36 river captures, all 60 monochrome hunting terrain
+views, 86 animal/projectile compositions, and 160 completed hunt settlements.
+Every compared native capture matches independent source compositing. The
+full native suite passes 843 parameterized cases (74 skipped); iPad builds.
+These are offscreen checks, separate from the pending original foreground
+comparison and full monochrome journey acceptance.
