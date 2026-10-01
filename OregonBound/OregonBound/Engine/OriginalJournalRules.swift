@@ -54,8 +54,9 @@ enum OriginalJournalRules {
     }
 
     static func supplyEvent(id: Int, rawQuantities: [Int], cashCents: Int = 0, edition: GameEdition = .macintosh11) -> String? {
-        guard (63...68).contains(id) else { return nil }
+        guard (63...(edition == .macintoshCD12 ? 69 : 68)).contains(id) else { return nil }
         let supplies = supplyList(rawQuantities: rawQuantities,cashCents: cashCents,edition: edition)
+        if id == 69 { return finishSentence("You lost \(supplies) due to spoilage.") }
         // CODE14:26ec–2746 selects the no-supplies form only for63 and66.
         let template = supplies.isEmpty && (id == 63 || id == 66)
             ? string(1523,id-62) : string(1503,id-62)

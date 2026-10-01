@@ -7,21 +7,40 @@ enum OriginalTrailEvents {
     typealias Draw = (_ bound: Int, _ codeOffset: Int) -> Int
     enum Action { case snowbound, snakebite, illness, foodAid, wildFruit, severeWeather, fogHail,
                        brokenPart, sickOx, brokenLimb, lostTrail, roughImpassable, fire,
-                       wanderedOx, lostPerson, suppliesFound, thief, dryGround }
+                       wanderedOx, lostPerson, suppliesFound, thief, dryGround, spoilage, overloadedPart, overloadedOx }
 
     static func run(_ trip: inout Journey, draw: Draw) {
         trip.ensureOriginalState()
         guard !trip.livingMembers.isEmpty else { return }
+        // The CD timer computes load before the daily event dispatch. Spoilage
+        // and this day's other losses cannot change the cached overload checks.
+        let cdWeight = trip.inventory.cdWagonWeight
+        var randomBreakage: Action?
         if trip.original!.weather.snow > 3000 { apply(.snowbound, to: &trip, draw: draw) }
         if trip.original!.weather.temperature >= 3 && draw(100, 0x30d6) < 4 { apply(.snakebite, to: &trip, draw: draw) }
+        // CD CODE17:3bd2–3bf2: warm-weather spoilage follows snakebite.
+        if trip.gameEdition == .macintoshCD12 && trip.original!.weather.temperature >= 3 && draw(100, 0x3be6) < 10 {
+            apply(.spoilage, to: &trip, draw: draw)
+        }
         if draw(100, 0x312c) < Int(trip.original!.badness) / 15 + 1 { apply(.illness, to: &trip, draw: draw) }
-        if trip.inventory[.food] == 0 && draw(100, 0x3160) < 5 { apply(.foodAid, to: &trip, draw: draw) }
+        if trip.totalFood == 0 && draw(100, 0x3160) < 5 { apply(.foodAid, to: &trip, draw: draw) }
         if (5...9).contains(trip.month) && draw(100, 0x319e) < 4 { apply(.wildFruit, to: &trip, draw: draw) }
         if [4, 6].contains(trip.original!.weather.category) ||
             (trip.original!.weather.temperature <= 1 && draw(100, 0x3200) < 15) { apply(.severeWeather, to: &trip, draw: draw) }
         if draw(100, 0x3216) < 6 { apply(.fogHail, to: &trip, draw: draw) }
         if draw(100, 0x322c) < (destinationIndex(trip) > 11 ? 7 : 4) {
-            apply([Action.brokenPart, .sickOx, .brokenLimb][draw(3, 0x326c)], to: &trip, draw: draw)
+            let action = [Action.brokenPart, .sickOx, .brokenLimb][draw(3, 0x326c)]
+            randomBreakage = action
+            apply(action, to: &trip, draw: draw)
+        }
+        if trip.gameEdition == .macintoshCD12 && !trip.livingMembers.isEmpty && cdWeight > 2750 {
+            let threshold = 90 - (cdWeight - 2750) / 50
+            if randomBreakage != .brokenPart && draw(100, 0x324e) > threshold {
+                apply(.overloadedPart, to: &trip, draw: draw)
+            }
+            if randomBreakage != .sickOx && draw(100, 0x33ea) > threshold {
+                apply(.overloadedOx, to: &trip, draw: draw)
+            }
         }
         if draw(100, 0x32a0) < 2 { apply(.lostTrail, to: &trip, draw: draw) }
         if destinationIndex(trip) > 11 && draw(100, 0x32c8) < 5 { apply(.roughImpassable, to: &trip, draw: draw) }
@@ -94,14 +113,21 @@ enum OriginalTrailEvents {
                 record(choice < 60 ? 11 : 10, in: &trip)
             }
         case .foodAid:
-            trip.inventory[.food] = Int(UInt16(truncatingIfNeeded: trip.inventory[.food] + 30))
+            trip.huntingFood = Int(UInt16(truncatingIfNeeded: trip.huntingFood + 30))
             record(20, in: &trip)
         case .wildFruit:
-            if trip.inventory[.food] < 2000 {
-                trip.inventory[.food] = min(2000, trip.inventory[.food] + 20); record(25, in: &trip)
+            if trip.huntingFood < trip.huntingFoodCapacity {
+                trip.huntingFood = min(trip.huntingFoodCapacity, trip.huntingFood + 20); record(25, in: &trip)
             }
-        case .sickOx:
-            guard selectWagon(trip, draw: draw), trip.inventory[.oxen] > 0 else { return }
+        case .spoilage:
+            guard trip.gameEdition == .macintoshCD12, selectWagon(trip, draw: draw) else { return }
+            let loss = trip.inventory.perishableFood / 10
+            guard loss > 0 else { return }
+            trip.inventory.perishableFood -= loss
+            var quantities = [Int](repeating: 0, count: 8); quantities[7] = loss
+            record(69, quantities: quantities, in: &trip)
+        case .sickOx, .overloadedOx:
+            guard (action == .overloadedOx || selectWagon(trip, draw: draw)), trip.inventory[.oxen] > 0 else { return }
             if trip.profession == .farmer && draw(2, 0x3444) != 0 { record(22, in: &trip) }
             else {
                 trip.inventory[.oxen] -= 1
@@ -110,8 +136,8 @@ enum OriginalTrailEvents {
         case .wanderedOx:
             guard selectWagon(trip, draw: draw) else { return }
             delay(draw(3, 0x2fd6) + 1, in: &trip); record(21, in: &trip)
-        case .brokenPart:
-            guard selectWagon(trip, draw: draw) else { return }
+        case .brokenPart, .overloadedPart:
+            guard action == .overloadedPart || selectWagon(trip, draw: draw) else { return }
             let part = Supply.allCases[draw(3, 0x2b68) + 3]
             let event: Int
             // Draw before profession check, including for nonspecialists.
@@ -154,7 +180,7 @@ enum OriginalTrailEvents {
             }
         case .suppliesFound, .fire:
             guard selectWagon(trip, draw: draw) else { return }
-            var quantities = [Int](repeating: 0, count: 7)
+            var quantities = [Int](repeating: 0, count: Inventory.itemCount(for: trip.gameEdition))
             if action == .suppliesFound {
                 for i in 1...5 where draw(2, 0x29e0) != 0 {
                     let item = Supply.allCases[i]
@@ -163,10 +189,9 @@ enum OriginalTrailEvents {
                 }
                 record(63, quantities: quantities, in: &trip)
             } else {
-                for i in 1...6 where draw(100, 0x1d44) < 50 {
-                    let item = Supply.allCases[i]
-                    quantities[i] = draw(trip.inventory[item] + 1, 0x1d62)
-                    trip.inventory[item] -= quantities[i]
+                for i in 1..<quantities.count where draw(100, 0x1d44) < 50 {
+                    quantities[i] = draw(trip.inventory[originalIndex: i] + 1, 0x1d62)
+                    trip.inventory[originalIndex: i] -= quantities[i]
                 }
                 if quantities.contains(where: { $0 != 0 }) { record(65, quantities: quantities, in: &trip) }
             }
@@ -184,12 +209,14 @@ enum OriginalTrailEvents {
                 }
                 guard loss > 0 else { return }
                 trip.inventory[item] -= loss
-                var quantities = [Int](repeating: 0, count: 7); quantities[index] = loss
+                var quantities = [Int](repeating: 0, count: Inventory.itemCount(for: trip.gameEdition)); quantities[index] = loss
                 record(64, quantities: quantities, in: &trip)
             } else if trip.cash > 100 {
                 // Literal CODE16:3746–3770: no cent-to-dollar division or clamp.
                 // Result may be negative; provenance permits bounded save decoding.
-                let loss = (draw(trip.cash > 10000 ? 100 : trip.cash, trip.cash > 10000 ? 0x3726 : 0x374e) + 1) * 100
+                // CD CODE17:4462 divides cents by100 before the small-cash draw.
+                let cashBound = trip.gameEdition == .macintoshCD12 ? trip.cash / 100 : trip.cash
+                let loss = (draw(trip.cash > 10000 ? 100 : cashBound, trip.cash > 10000 ? 0x3726 : 0x374e) + 1) * 100
                 trip.cash = Int(Int32(truncatingIfNeeded: trip.cash - loss))
                 if trip.cash < 0 { trip.originalCashOverdraft = true }
                 record(64, cash: loss, in: &trip)

@@ -105,6 +105,12 @@ struct Inventory: Codable, Equatable {
     func rawQuantities(for edition: GameEdition) -> [Int] {
         (0..<Self.itemCount(for: edition)).map { self[originalIndex: $0] }
     }
+    /// CD CODE17:2056. Pounds: wagon500, clothing3, bullets one tenth,
+    /// wheels40, axles70, tongues50, and both food pools. Oxen are excluded.
+    var cdWagonWeight: Int {
+        500 + self[.clothing] * 3 + self[.bullets] / 10 + self[.wheels] * 40
+            + self[.axles] * 70 + self[.tongues] * 50 + self[.food] + perishableFood
+    }
     subscript(_ supply: Supply) -> Int {
         get { quantities[supply.rawValue, default: 0] }
         set { quantities[supply.rawValue] = max(0, newValue) }

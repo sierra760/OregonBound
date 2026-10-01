@@ -189,4 +189,101 @@ struct OriginalTrailEventsTests {
         #expect(trip.randomState == random.seed)
         #expect(trip.original?.weather == state.weather)
     }
+    @Test(arguments: [(2,9,false), (3,9,true), (3,10,false)])
+    func cdWarmWeatherSpoilageRunsBetweenSnakebiteAndIllness(input: (Int,Int,Bool)) {
+        let (temperature, roll, spoils) = input
+        var trip = prepared(); trip.edition = .macintoshCD12
+        trip.inventory.perishableFood = 201
+        trip.original?.weather.temperature = UInt8(temperature)
+        var sites: [Int] = []
+        OriginalTrailEvents.run(&trip) { bound, site in
+            sites.append(site)
+            if site == 0x3be6 { return roll }
+            return bound - 1
+        }
+        #expect(trip.inventory.perishableFood == (spoils ? 181 : 201))
+        #expect(trip.inventory[.food] == 1000)
+        #expect(sites.contains(0x3be6) == (temperature >= 3))
+        if temperature >= 3 {
+            #expect(sites.first == 0x30d6)
+            #expect(sites[1] == 0x3be6)
+            #expect(sites.contains(0x312c))
+            if let spoilage = sites.firstIndex(of: 0x3be6), let illness = sites.firstIndex(of: 0x312c) {
+                #expect(spoilage < illness)
+            }
+        }
+        if spoils { #expect(trip.journal.last?.text == "You lost 20 pounds of perishable food due to spoilage.") }
+    }
+
+    @Test func cdFoodAidChecksBothPoolsAndFruitUsesPerishableCapacity() {
+        var trip = prepared(); trip.edition = .macintoshCD12
+        trip.inventory[.food] = 0; trip.inventory.perishableFood = 1
+        OriginalTrailEvents.run(&trip) { bound, site in
+            #expect(site != 0x3160)
+            return bound - 1
+        }
+        trip.inventory.perishableFood = 0
+        OriginalTrailEvents.run(&trip) { bound, site in site == 0x3160 ? 0 : bound - 1 }
+        #expect(trip.inventory[.food] == 0 && trip.inventory.perishableFood == 30)
+        trip.inventory[.food] = 2000; trip.inventory.perishableFood = 995
+        OriginalTrailEvents.apply(.wildFruit, to: &trip, draw: Draws([]).next)
+        #expect(trip.inventory[.food] == 2000 && trip.inventory.perishableFood == 1000)
+        let count = trip.journal.count
+        OriginalTrailEvents.apply(.wildFruit, to: &trip, draw: Draws([]).next)
+        #expect(trip.journal.count == count)
+    }
+
+    @Test func cdFireIncludesPerishableSlotAndTheftUsesWholeDollars() {
+        var trip = prepared(); trip.edition = .macintoshCD12
+        trip.inventory.perishableFood = 100
+        let fire = Draws([99,99,99,99,99,99,0,30])
+        OriginalTrailEvents.apply(.fire, to: &trip, draw: fire.next)
+        #expect(trip.inventory.perishableFood == 70 && trip.inventory[.food] == 1000)
+        #expect(fire.values.isEmpty)
+        #expect(trip.journal.last?.text == "A fire in your wagon destroyed 30 pounds of perishable food.")
+        trip.inventory[.food] = 0; trip.cash = 550
+        let thief = Draws([3,4])
+        OriginalTrailEvents.apply(.thief, to: &trip, draw: thief.next)
+        #expect(thief.bounds.last == 5)
+        #expect(trip.cash == 50 && trip.inventory.perishableFood == 70)
+    }
+
+    @Test(arguments: [(2750,99,false), (2751,90,false), (2751,91,true), (2800,89,false), (2800,90,true)])
+    func cdOverloadChecksUseWeightBeforeSpoilageAndStrictThreshold(input: (Int,Int,Bool)) {
+        let (weight, roll, breaks) = input
+        var trip = prepared(); trip.edition = .macintoshCD12
+        for item in Supply.allCases { trip.inventory[item] = 0 }
+        trip.inventory[.oxen] = 4; trip.inventory[.food] = 2000
+        trip.inventory.perishableFood = weight - 2500
+        trip.original?.weather.temperature = 3
+        var sites: [Int] = []
+        OriginalTrailEvents.run(&trip) { bound, site in
+            sites.append(site)
+            if site == 0x3be6 { return 0 } // Spoilage must not change this day's cached load.
+            if site == 0x324e { return roll }
+            if [0x2b68,0x2b76,0x2bb2,0x2bea].contains(site) { return 0 }
+            if site == 0x33ea { return 0 }
+            return bound - 1
+        }
+        #expect((trip.brokenPart == .wheels) == breaks)
+        #expect(sites.contains(0x324e) == (weight > 2750))
+        #expect(sites.contains(0x33ea) == (weight > 2750))
+        #expect(trip.inventory[.oxen] == 4)
+    }
+
+    @Test(arguments: [0,1]) func cdRandomBreakageSkipsOnlyItsCorrespondingOverloadCheck(selected: Int) {
+        var trip = prepared(); trip.edition = .macintoshCD12
+        trip.inventory[.food] = 2000; trip.inventory.perishableFood = 1000
+        var sites: [Int] = []
+        OriginalTrailEvents.run(&trip) { bound, site in
+            sites.append(site)
+            if site == 0x322c { return 0 }
+            if site == 0x326c { return selected }
+            if [0x324e,0x33ea].contains(site) { return 0 }
+            return bound - 1
+        }
+        #expect(sites.contains(0x324e) == (selected != 0))
+        #expect(sites.contains(0x33ea) == (selected != 1))
+    }
+
 }
