@@ -100,8 +100,15 @@ enum TextureLoader {
     }
 
     static func texture(cgImage source: CGImage, renderingIn view: SKView?) -> SKTexture {
-        let image = convertedImage(source, to: renderingColorSpace(for: view)) ?? source
-        let texture = SKTexture(cgImage: image)
+        let texture: SKTexture
+        if let image = convertedImage(source, to: renderingColorSpace(for: view)),
+           let data = image.dataProvider?.data {
+            // Upload the converted RGBA samples directly. SpriteKit's CGImage
+            // path can lose the final transparent pixel with a display ICC profile.
+            texture = SKTexture(data: data as Data,size: CGSize(width: image.width,height: image.height),flipped: true)
+        } else {
+            texture = SKTexture(cgImage: source)
+        }
         texture.filteringMode = .nearest
         return texture
     }

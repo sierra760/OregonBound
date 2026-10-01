@@ -10,7 +10,8 @@ struct OriginalHuntArtwork: View {
     @Environment(\.originalModalDispatchBlocked) private var modalBlocked
 
     var body: some View {
-        SpriteView(scene: scene, isPaused: !visible || scenePhase != .active || modalBlocked, preferredFramesPerSecond: 60)
+        SpriteView(scene: scene, isPaused: !visible || scenePhase != .active || modalBlocked, preferredFramesPerSecond: 60,
+                       options: scene.session.input.edition == .macintoshCD12 ? [.allowsTransparency] : [])
             .frame(width: 512, height: 322)
             .offset(x: -OriginalWindowLayout.contentOrigin.x, y: -OriginalWindowLayout.contentOrigin.y)
             .frame(width: 494, height: 262, alignment: .topLeading)
@@ -29,7 +30,8 @@ struct OriginalHuntArtwork: View {
 }
 
 @MainActor final class OriginalHuntScene: SKScene, ObservableObject {
-    private(set) var session: OriginalHuntSession
+    private(set) var session: any HuntingSession
+    private let audio: GameAudio
     private let random: OriginalRandomStream
     private let completion: (OriginalHuntSession.Result) -> Void
     private var active = false
@@ -41,37 +43,61 @@ struct OriginalHuntArtwork: View {
     private var textures: [String: SKTexture] = [:]
     private var sprites: [Int: SKSpriteNode] = [:]
     private let fills = SKNode()
+    private let backgroundLine = SKNode()
     private let clip = SKCropNode()
-    private static var tick: Int { Int(ProcessInfo.processInfo.systemUptime * 60) }
+    private let clock: () -> Int
 
     init(input: OriginalHuntSession.Input, random: OriginalRandomStream,
-         onFinish: @escaping (OriginalHuntSession.Result) -> Void) {
-        let tick = Self.tick
-        session = OriginalHuntSession(input: input,startTick: tick,deferInitialScenery: true) { random.bounded($0) }
+         cdAssets: CDHuntAssets? = nil, startTick: Int? = nil,
+         clock: @escaping () -> Int = { Int(ProcessInfo.processInfo.systemUptime * 60) }, audio: GameAudio = .shared,
+         onFinish: @escaping (OriginalHuntSession.Result) -> Void) throws {
+        let tick = startTick ?? clock()
+        self.clock = clock
+        if input.edition == .macintoshCD12 {
+            let assets: CDHuntAssets
+            if let cdAssets { assets = cdAssets }
+            else {
+                guard let prepared = GameData.preparedSession, prepared.edition == input.edition else {
+                    throw PreparedGameSession.Failure.invalid("CD hunting data is unavailable")
+                }
+                assets = try CDHuntAssets(session: prepared)
+            }
+            let preparation = CDHuntRules.prepare(destination: input.destination,month: input.month,rain: input.rain,
+                mileage: input.mileage,repeated: input.mileage == input.lastSuccessfulHuntMileage,
+                tickSeed: UInt32(truncatingIfNeeded: tick),reseed: { random.seed = $0 },random: { random.bounded($0) })
+            session = CDHuntSession(input: input,preparation: preparation,assets: assets,startTick: tick,
+                                    deferInitialScenery: true,random: { random.bounded($0) })
+        } else {
+            session = OriginalHuntSession(input: input,startTick: tick,deferInitialScenery: true) { random.bounded($0) }
+        }
+        self.audio = audio
         session.setPaused(true,at: tick)
         self.random = random
         completion = onFinish
         super.init(size: CGSize(width: 512, height: 322))
         scaleMode = .fill
-        backgroundColor = .black
+        backgroundColor = input.edition == .macintoshCD12 ? .clear : .black
         isUserInteractionEnabled = true
-        let viewport = OriginalHuntSession.viewport
+        let viewport = session.renderViewport
         let mask = SKSpriteNode(color: .white, size: CGSize(width: viewport.width, height: viewport.height))
-        mask.position = CGPoint(x: viewport.x + viewport.width / 2, y: 322 - viewport.y - viewport.height / 2)
+        mask.position = CGPoint(x: CGFloat(viewport.x) + CGFloat(viewport.width) / 2,
+                                y: 322 - CGFloat(viewport.y) - CGFloat(viewport.height) / 2)
         clip.maskNode = mask
         fills.zPosition = -1
         clip.addChild(fills)
+        backgroundLine.zPosition = 0.5
+        clip.addChild(backgroundLine)
         addChild(clip)
     }
     convenience init(input: OriginalHuntSession.Input,seed: UInt32,
-                     onFinish: @escaping (OriginalHuntSession.Result,UInt32)->Void) {
+                     onFinish: @escaping (OriginalHuntSession.Result,UInt32)->Void) throws {
         let stream = OriginalRandomStream(seed: seed)
-        self.init(input: input,random: stream) { result in onFinish(result,stream.seed) }
+        try self.init(input: input,random: stream) { result in onFinish(result,stream.seed) }
     }
     required init?(coder: NSCoder) { fatalError("OriginalHuntScene is created programmatically") }
     deinit { colorSpaceObservers.forEach(NotificationCenter.default.removeObserver) }
 
-    func prepareSound() { GameAudio.shared.request(9007) }
+    func prepareSound() { audio.request(9007) }
     func move() { guard active, !modalDispatchBlocked else { return }; session.move() }
     func stop() { guard active, !modalDispatchBlocked else { return }; session.stop() }
     /// Unlike native application suspension, a classic modal only skips idle calls.
@@ -82,7 +108,7 @@ struct OriginalHuntArtwork: View {
     func setActive(_ value: Bool) {
         if value && !modalDispatchBlocked { let stream = random; session.beginScene { stream.bounded($0) } }
         active = value
-        session.setPaused(!value, at: Self.tick)
+        session.setPaused(!value, at: clock())
         isPaused = !value || modalDispatchBlocked
     }
     override func didMove(to view: SKView) {
@@ -100,13 +126,20 @@ struct OriginalHuntArtwork: View {
         guard active, !modalDispatchBlocked else { return }
         deliverPendingCompletion()
         guard !completionSent else { return }
-        let tick = Self.tick
+        let tick = clock()
         #if os(macOS)
         guard let window = view?.window, window.isVisible, window.occlusionState.contains(.visible) else {
             session.setPaused(true, at: tick)
             return
         }
         #endif
+        advanceFrame(at: tick)
+    }
+    /// Frame dispatch after the host's visibility check; also used by offscreen native acceptance.
+    func advanceFrame(at tick: Int) {
+        guard active, !modalDispatchBlocked else { return }
+        deliverPendingCompletion()
+        guard !completionSent else { return }
         session.setPaused(false, at: tick)
         let stream = random
         session.beginScene { stream.bounded($0) }
@@ -117,7 +150,7 @@ struct OriginalHuntArtwork: View {
     private func fire(at point: CGPoint) {
         let x = Int(point.x), y = Int(322-point.y)
         guard active, !modalDispatchBlocked, OriginalHuntSession.viewport.contains(x: x, y: y) else { return }
-        _ = session.shoot(x: x, y: y)
+        _ = session.shoot(x: x, y: y, at: clock())
         deliverEvents()
     }
     #if os(macOS)
@@ -130,14 +163,14 @@ struct OriginalHuntArtwork: View {
     private func deliverEvents() {
         for event in session.takeEvents() {
             switch event {
-            case .fired: GameAudio.shared.clear(); GameAudio.shared.enqueue(9002)
-            case .dryFire: GameAudio.shared.clear(); GameAudio.shared.enqueue(9004)
-            case .hit: GameAudio.shared.clear(); GameAudio.shared.enqueue(9003)
+            case .fired: audio.clear(); audio.enqueue(9002)
+            case .dryFire: audio.clear(); audio.enqueue(9004)
+            case .hit: audio.clear(); audio.enqueue(9003)
             case .finished(let result):
                 guard !completionSent else { continue }
                 completionSent = true
                 // Do not publish SwiftUI navigation changes from SpriteKit's render callback.
-                GameAudio.shared.waitUntilIdle { [weak self] in
+                audio.waitUntilIdle { [weak self] in
                     DispatchQueue.main.async { [weak self] in
                         self?.pendingCompletion = result
                         self?.deliverPendingCompletion()
@@ -158,6 +191,15 @@ struct OriginalHuntArtwork: View {
             colorSpaceID = identifier
             textures.removeAll()
             fills.removeAllChildren()
+            backgroundLine.removeAllChildren()
+            if let command = session.backgroundLine, let image = OriginalHuntImage.solid(rgb16: command.rgb16) {
+                let node = SKSpriteNode(texture: TextureLoader.texture(cgImage: image, renderingIn: view))
+                node.anchorPoint = CGPoint(x: 0,y: 1)
+                node.position = CGPoint(x: command.rect.x,y: 322-command.rect.y)
+                node.size = CGSize(width: command.rect.width,height: command.rect.height)
+                node.blendMode = .replace
+                backgroundLine.addChild(node)
+            }
             for command in session.fillCommands {
                 guard let image = OriginalHuntImage.solid(rgb16: command.rgb16) else { continue }
                 let node = SKSpriteNode(texture: TextureLoader.texture(cgImage: image, renderingIn: view))

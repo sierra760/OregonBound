@@ -128,7 +128,8 @@ struct GameRootView: View {
                 else if trip.phase == .finished { OriginalEndingView(game: game, trip: trip) }
                 else if trip.phase == .hunting {
                     OriginalWindow {
-                        OriginalHuntPane(input: huntInput(trip), random: game.random) { result in
+                        OriginalHuntPane(input: huntInput(trip), random: game.random, audio: game.audio,
+                            onCancel: { game.perform { try JourneyEngine.cancelHunt(&$0) } }) { result in
                             game.finishOriginalHunt(result)
                         }
                     }
@@ -310,6 +311,7 @@ struct GameRootView: View {
               lastSuccessfulHuntMileage: trip.original?.lastSuccessfulHuntMileage ?? 0,
               ammunition: trip.inventory[.bullets], survivors: trip.livingMembers.count,
               currentFood: trip.inventory[.food], foodCapacity: Supply.food.capacity,
-              timeSetting: Int(trip.timing.huntSelector), originalDisplayFlag: true)
+              timeSetting: Int(trip.timing.huntSelector), originalDisplayFlag: true,
+              edition: trip.gameEdition, rain: Int(trip.original?.weather.rain ?? 0))
     }
 }

@@ -392,20 +392,30 @@ enum JourneyEngine {
         trip.phase = .hunting
     }
 
+    /// Native recovery when the selected installation cannot supply its hunt assets.
+    /// Returning from the error pane does not submit a hunting result or charge rest.
+    static func cancelHunt(_ trip: inout Journey) throws {
+        guard trip.phase == .hunting else { throw GameRuleError("This hunt is not active.") }
+        trip.phase = trip.miniGameReturnPhase
+    }
+
     static func finishHunt(food: Int, shots: Int, in trip: inout Journey) throws {
         let input = OriginalHuntSession.Input(destination: 0, month: 1, weatherCategory: 0,
             snow: false, mileage: trip.miles, lastSuccessfulHuntMileage: trip.original?.lastSuccessfulHuntMileage ?? 0,
             ammunition: trip.inventory[.bullets], survivors: trip.livingMembers.count,
             currentFood: trip.inventory[.food], foodCapacity: Supply.food.capacity,
             timeSetting: 3, originalDisplayFlag: true)
-        try finishHunt(result: OriginalHuntSession.settle(foodShot: food, shots: shots, input: input), in: &trip)
+        let result = trip.gameEdition == .macintoshCD12
+            ? CDHuntSession.settle(foodShot: food,shots: shots,input: input)
+            : OriginalHuntSession.settle(foodShot: food,shots: shots,input: input)
+        try finishHunt(result: result,in: &trip)
     }
 
     @discardableResult
     static func finishHunt(result: OriginalHuntSession.Result, in trip: inout Journey) throws -> OriginalHuntSession.Result {
         guard trip.phase == .hunting, result.foodShot >= 0, result.foodCarried >= 0,
               result.foodCarried <= result.foodShot,
-              [100, 200].contains(result.carryLimit),
+              (trip.gameEdition == .macintoshCD12 ? [125,250] : [100,200]).contains(result.carryLimit),
               result.foodCarried <= result.carryLimit,
               (0...min(20,trip.inventory[.bullets])).contains(result.shots)
         else { throw GameRuleError("This hunt is not active or its result is invalid.") }

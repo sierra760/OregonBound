@@ -1,10 +1,9 @@
 # Macintosh CD hunting
 
-The CD edition has different hunting rules from Macintosh 1.1. Work on its
-pane integration and renderer is in progress. `CDHuntRules`, `CDHuntAnimal`, and
-`CDHuntSession` implement initialization and the hunting engine. `CDHuntAssets`
-binds the prepared terrain and frame geometry. These components are not yet
-connected to `OriginalHuntScene`.
+The CD edition has different hunting rules from Macintosh 1.1. The hunting
+pane selects `CDHuntRules`, `CDHuntAnimal`, and `CDHuntSession` for CD journeys.
+`CDHuntAssets` binds prepared terrain and frame geometry; `HuntingSession` shares
+the presentation contract while preserving each edition's mechanics.
 
 The CD chooses one of ten habitats using destination, accumulated rain, and a
 random stream seeded from unsigned 16-bit mileage. It then reseeds the shared
@@ -57,6 +56,32 @@ normal random call). Only zero skips the draw for the supported nonnegative
 bounds. A regression test first demonstrated the unchanged seed; shared-stream
 and full-suite tests now pass with the source-correct sequence.
 
-Remaining hunting work includes pane integration, the journey settlement
-boundary, rendering/audio acceptance, and the phase-end review. Presence of
-extracted artwork alone is not proof of implemented gameplay.
+The scene receives the journey's edition and accumulated rain, uses its shared
+random stream, and defers scenery initialization until preparation completes.
+The pane reports unavailable hunting assets and offers a return to the trail
+without charging ammunition or a resting day. CD settlement accepts 125/250-pound
+limits, while classic journeys retain 100/200; the carrying limit captured at
+hunt startup survives interleaved changes to the party.
+
+CD CODE14 clips drawing to (9,9)–(503,268), with a black border at y267.
+The input user item extends to y271. The renderer preserves the three paper rows
+below the clip and positions odd-height crop masks on half-pixel centers.
+Native host visibility pauses the hunt; a separate frame-dispatch routine allows
+offscreen acceptance without weakening that visibility policy.
+
+Hunting uses preparation/fire/hit/dry-fire sound IDs 9007/9002/9003/9004 through
+the controller's audio queue. Private acceptance played all four supplied effects
+through `OriginalPCMPlayback` and received each completion callback. Native scene
+checks also exercise input, modal suppression, completion, and inventory settlement.
+
+A native synthetic regression found that SpriteKit's CGImage upload could lose
+the last transparent pixel with the host display profile. `TextureLoader` now
+uploads the already color-converted RGBA bytes with explicit row orientation.
+The regression checks transparent corners and asymmetric pixel placement.
+
+Private offscreen native acceptance completed 160 CD hunts. Sixty terrain captures
+and 86 animal/projectile captures matched independently composited decoded artwork
+pixel for pixel, covering all ten huntable species and 29 of 30 depth resource IDs.
+All 160 results returned through the scene callback and settled journey inventory,
+phase, and resting time correctly. These are native component checks, not a claim
+of screenshot equivalence to the original running game or foreground UI E2E coverage.
