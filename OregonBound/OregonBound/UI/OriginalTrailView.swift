@@ -25,8 +25,9 @@ struct OriginalTrailView: View {
                         .frame(width: 262, height: 77).originalPaneFrame(width: 262, height: 77).offset(x: OriginalWindowLayout.centerOffsetX)
                     OriginalMapArtwork(trip: trip).frame(width: 262, height: 119).originalPaneFrame(width: 262, height: 119).offset(x: OriginalWindowLayout.centerOffsetX, y: 80)
                 } else {
-                    PixelArtwork(resource: trip.location.image, frame: trip.location.frame)
-                        .id("\(trip.locationID)-\(trip.phase.rawValue)")
+                    OriginalLandmarkArtwork(trip: trip, displayedWeather: conditionsTrip.originalWeatherCategory,
+                                            visible: landmarkVisible)
+                        .id(trip.id)
                         .frame(width: 262, height: 155).originalPaneFrame(width: 262, height: 155).offset(x: OriginalWindowLayout.centerOffsetX)
                     ZStack(alignment: .topLeading) {
                         OriginalText(text: trip.location.name)
@@ -89,6 +90,10 @@ struct OriginalTrailView: View {
     }
 
     private var conditionsVisible: Bool { game.panel?.usesTrailPane != false }
+    private var landmarkVisible: Bool {
+        game.panel == nil && !game.showingRouteDecision && game.memorialID == nil && game.actionNotice == nil
+            && game.huntResult == nil && trip.originalTradeSession == nil && trip.originalRiverOutcome == nil
+    }
     private var conditionsTrip: Journey {
         guard trip.gameEdition == .macintoshCD12,
               let displayed = game.cdConditions.displayedSnapshot, displayed.id == trip.id else { return trip }
@@ -183,6 +188,40 @@ struct OriginalTrailView: View {
         game.panel = nil
         if trip.phase == .river || trip.phase == .fork { game.showingRouteDecision = true }
         else { game.continueJourney() }
+    }
+}
+
+/// CD pictures keep their authored dimensions (some extend beyond the pane).
+/// The classic edition retains its original shared-strip frame selection.
+private struct OriginalLandmarkArtwork: View {
+    let trip: Journey
+    let displayedWeather: Int
+    let visible: Bool
+    @State private var presentation = CDLandmarkPresentation()
+
+    private var index: Int { TrailCatalog.stops.firstIndex { $0.id == trip.locationID } ?? 0 }
+    private var snow: Int { Int(trip.original?.weather.snow ?? 0) }
+    var body: some View {
+        Group {
+            if trip.gameEdition == .macintoshCD12 {
+                if let art = presentation.artwork ?? CDLandmarkPresentation.artwork(index: index,
+                    weather: trip.originalWeatherCategory, snow: snow) {
+                    PixelArtwork(resource: art.colorResource, monochromeResource: art.monochromeResource,
+                                 frame: art.frame, preserveDimensions: true)
+                }
+            } else {
+                PixelArtwork(resource: trip.location.image, frame: trip.location.frame)
+            }
+        }.frame(width: 262, height: 155, alignment: .topLeading).clipped()
+            .onAppear(perform: update)
+            .onChange(of: trip) { _ in update() }
+            .onChange(of: displayedWeather) { _ in update() }
+            .onChange(of: visible) { _ in update() }
+    }
+    private func update() {
+        guard trip.gameEdition == .macintoshCD12 else { return }
+        presentation.update(index: index, weather: trip.originalWeatherCategory, snow: snow,
+                            displayedWeather: displayedWeather, visible: visible)
     }
 }
 

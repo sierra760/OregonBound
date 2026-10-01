@@ -3,6 +3,43 @@ import Testing
 @testable import OregonBound
 
 struct RuntimeResourceTests {
+    @Test(arguments: Array(0..<18))
+    func cdLandmarkFamiliesUseWeatherSnowAndSnakeException(index: Int) throws {
+        for weather in [0, 1, 2, 10] {
+            for snow in [0, 1, 65535] {
+                let art = try #require(CDLandmarkPresentation.artwork(index: index, weather: weather, snow: snow))
+                let variant = (weather > 1 ? 1 : 0) + (index != 12 && snow > 0 ? 2 : 0)
+                #expect(art.monochromeResource == 5400 + 10 * index + variant)
+                #expect(art.colorResource == 15400 + 10 * index + variant)
+                #expect(art.frame == 0)
+            }
+        }
+        #expect(CDLandmarkPresentation.artwork(index: -1, weather: 0, snow: 0) == nil)
+        #expect(CDLandmarkPresentation.artwork(index: 18, weather: 0, snow: 0) == nil)
+    }
+
+    @Test func cdLandmarkRefreshesOnReopeningAndDisplayedWeatherOnly() {
+        var pane = CDLandmarkPresentation()
+        pane.update(index: 3, weather: 0, snow: 0, displayedWeather: 0, visible: true)
+        #expect(pane.artwork?.colorResource == 15430)
+        // A model change does not redraw the scene until Conditions draws it.
+        pane.update(index: 3, weather: 2, snow: 1, displayedWeather: 0, visible: true)
+        #expect(pane.artwork?.colorResource == 15430)
+        pane.update(index: 3, weather: 2, snow: 1, displayedWeather: 2, visible: true)
+        #expect(pane.artwork?.colorResource == 15433)
+        // Snow alone does not recreate a visible pane.
+        pane.update(index: 3, weather: 2, snow: 0, displayedWeather: 2, visible: true)
+        #expect(pane.artwork?.colorResource == 15433)
+        pane.update(index: 3, weather: 2, snow: 0, displayedWeather: 2, visible: false)
+        pane.update(index: 3, weather: 2, snow: 0, displayedWeather: 2, visible: true)
+        #expect(pane.artwork?.colorResource == 15431)
+        // The source reopens on every category change, even within a variant.
+        pane.update(index: 3, weather: 3, snow: 1, displayedWeather: 3, visible: true)
+        #expect(pane.artwork?.colorResource == 15433)
+        pane.update(index: 12, weather: 3, snow: 1, displayedWeather: 3, visible: true)
+        #expect(pane.artwork?.colorResource == 15521)
+    }
+
     @Test func extractsOnlySuppliedResourcesAndRejectsMissingInput() throws {
         let destination = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: destination) }

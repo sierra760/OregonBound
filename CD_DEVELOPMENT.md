@@ -139,3 +139,18 @@ maps, and endings. Local source-data checks resolve 198 selected artwork/control
 frames across the three CD display modes. Save fingerprints remain independent
 of display choice. Monochrome stays outside the setup selector until animated
 paths, authored geometry, ink/patterns, and full journeys are verified.
+
+## CD landmark scenes
+
+Stopped landmarks use the CD's separate `5400`/`15400` families, with ten IDs
+reserved per location. Weather categories above 1 select the cloudy variant;
+accumulated snow selects the snowy variant. Snake River uses only its two
+weather variants. Each selected image has one frame. The native pane draws at
+authored dimensions and clips overflow instead of resizing the painting.
+
+An open scene refreshes when Conditions displays a changed weather category.
+Snow changes alone retain the existing picture until the pane is reopened.
+Classic landmark strips remain unchanged. Local native renders match all 216
+location/weather/snow/display-mode combinations pixel for pixel against the
+supplied prepared images. Landmark ambient audio is identified separately and
+remains part of the audio use-site audit.

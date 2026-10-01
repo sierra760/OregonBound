@@ -79,6 +79,7 @@
 		27F16BE7EA990133064E6951 /* OriginalSaveArchive.swift in Sources */ = {isa = PBXBuildFile; fileRef = 381C9FD32656E2AD3E53F487 /* OriginalSaveArchive.swift */; };
 		2927D5BA734FDDB5CEEEFFA4 /* OriginalHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFFCB2A4C61E511656DEA79 /* OriginalHealth.swift */; };
 		88868F668D76ED5F00D31106 /* CDConditionsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCC6F713BA5D5D8B2E88F47 /* CDConditionsPresentation.swift */; };
+		01B9129C41BF34FD1ED84076 /* CDLandmarkPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C7CD9D9BB0EAB9D1C94338 /* CDLandmarkPresentation.swift */; };
 		293E4E5D1E7C14FC1FBB6A06 /* OriginalHuntImageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15CA700C328E30F7867B2F97 /* OriginalHuntImageTests.swift */; };
 		2B3248F039A3EAE240FB2FC9 /* ImagDecoder.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5430C29DE1931B2210DCF3D /* ImagDecoder.swift */; };
 		2CC9FDF0246DED84E0F5EC2B /* JourneyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 766B066A52627A92705FB67A /* JourneyStore.swift */; };
@@ -145,6 +146,7 @@
 		4AC2D20653E9B634D179027B /* GraphicsExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C393D74EFBC5BA70203F26E /* GraphicsExtractor.swift */; };
 		4AF49E7358026EC8F6884C66 /* OriginalHealth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DFFCB2A4C61E511656DEA79 /* OriginalHealth.swift */; };
 		2C9AEFD2FD06F395CE909040 /* CDConditionsPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCC6F713BA5D5D8B2E88F47 /* CDConditionsPresentation.swift */; };
+		337CD6107E13312142224EFF /* CDLandmarkPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 65C7CD9D9BB0EAB9D1C94338 /* CDLandmarkPresentation.swift */; };
 		4D0F70DBC6A0EC67C7A4A5EA /* SourceDecoderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A5803BCE8088C72F1547B713 /* SourceDecoderTests.swift */; };
 		4DA4C612C133EB2EE230D8F0 /* HuntingSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01D68F7952EEF55CA1F7F6B7 /* HuntingSession.swift */; };
 		4DA616BAB9782A27CD3FA4B8 /* OriginalHuntTimePopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA104C5F9EBAD1A31B1258A0 /* OriginalHuntTimePopup.swift */; };
@@ -549,6 +551,7 @@
 		1DA3AE798CFC3A4D47C0CE3B /* OriginalRoutePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalRoutePane.swift; sourceTree = "<group>"; };
 		1DFFCB2A4C61E511656DEA79 /* OriginalHealth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalHealth.swift; sourceTree = "<group>"; };
 		6DCC6F713BA5D5D8B2E88F47 /* CDConditionsPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDConditionsPresentation.swift; sourceTree = "<group>"; };
+		65C7CD9D9BB0EAB9D1C94338 /* CDLandmarkPresentation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDLandmarkPresentation.swift; sourceTree = "<group>"; };
 		1E3B41829720BCB741F743F2 /* OriginalOutfittingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalOutfittingView.swift; sourceTree = "<group>"; };
 		1E5EC49480BC057942F92D0B /* OriginalPreferencesRenderingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalPreferencesRenderingTests.swift; sourceTree = "<group>"; };
 		1F7A16675B5D7F235E7EEBC7 /* OriginalHuntPane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalHuntPane.swift; sourceTree = "<group>"; };
@@ -927,6 +930,7 @@
 				779718AD3A85B17B01F68F82 /* OriginalGameDefaultKeyRules.swift */,
 				1DFFCB2A4C61E511656DEA79 /* OriginalHealth.swift */,
 				6DCC6F713BA5D5D8B2E88F47 /* CDConditionsPresentation.swift */,
+				65C7CD9D9BB0EAB9D1C94338 /* CDLandmarkPresentation.swift */,
 				53E281545F5C13BADF5D6662 /* OriginalHuntEligibility.swift */,
 				95F849113DE5275EF0FFD2F5 /* OriginalHuntPresentation.swift */,
 				A7C0B8DC5C4D5B55A6A025D0 /* OriginalHuntSession.swift */,
@@ -1464,6 +1468,7 @@
 				0CE92FC94E3AADCD3E6A0E80 /* OriginalGuidePane.swift in Sources */,
 				4AF49E7358026EC8F6884C66 /* OriginalHealth.swift in Sources */,
 				2C9AEFD2FD06F395CE909040 /* CDConditionsPresentation.swift in Sources */,
+				337CD6107E13312142224EFF /* CDLandmarkPresentation.swift in Sources */,
 				3BEFFEA85E25E7BE21D9612C /* OriginalHostInformation.swift in Sources */,
 				972EB6F7E033C75A47A245CC /* OriginalHuntEligibility.swift in Sources */,
 				B31B41DAAACB6BB79DDC177A /* OriginalHuntPane.swift in Sources */,
@@ -1650,6 +1655,7 @@
 				932076944401F6541E4AD55B /* OriginalGuidePane.swift in Sources */,
 				2927D5BA734FDDB5CEEEFFA4 /* OriginalHealth.swift in Sources */,
 				88868F668D76ED5F00D31106 /* CDConditionsPresentation.swift in Sources */,
+				01B9129C41BF34FD1ED84076 /* CDLandmarkPresentation.swift in Sources */,
 				46EB8DE3F853B8EB1AA0711F /* OriginalHostInformation.swift in Sources */,
 				C9B49A730A9EC0C2018BA6F3 /* OriginalHuntEligibility.swift in Sources */,
 				728BCE5C3823A629C21331FC /* OriginalHuntPane.swift in Sources */,

@@ -69,10 +69,16 @@ struct PixelArtwork: View {
     var monochromeResource: Int? = nil
     var frame = 0
     var type: String? = nil
+    var preserveDimensions = false
     var body: some View {
         let selected = monochromeResource.map { OriginalResources.resource(monochrome: $0, color: resource) } ?? resource
         if let image = OriginalResources.image(selected, type: type, frame: frame) {
-            image.resizable().interpolation(.none).aspectRatio(contentMode: .fit)
+            if preserveDimensions,
+               let entry = OriginalResources.manifest?.image(resource: selected, type: type ?? OriginalResources.imageType, frame: frame) {
+                image.resizable().interpolation(.none).frame(width: CGFloat(entry.width), height: CGFloat(entry.height))
+            } else {
+                image.resizable().interpolation(.none).aspectRatio(contentMode: .fit)
+            }
         } else {
             Text("Artwork unavailable (\(selected))").font(.caption).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
