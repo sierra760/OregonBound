@@ -14,7 +14,7 @@ struct OriginalTradePane: View {
             originalPaper
             Group {
                 if let session = trip.originalTradeSession {
-                    if session.isValid { offerPane(session) }
+                    if session.isValid(in: trip.gameEdition) { offerPane(session) }
                     else { invalidSavedOffer }
                 } else { requestPane }
             }.allowsHitTesting(validationError == nil).accessibilityHidden(validationError != nil)
@@ -67,11 +67,14 @@ struct OriginalTradePane: View {
     }
 
     private func offerContents(_ session: OriginalTradingRules.Session) -> some View {
-        ZStack(alignment: .topLeading) {
+        let art = session.artwork(in: trip.gameEdition)
+        return ZStack(alignment: .topLeading) {
             originalPaper
-            PixelArtwork(resource: 16080, frame: session.portrait).frame(width: 154, height: 199)
-            // Imag16080 frame9 is108px wide; preserve its native pixels.
-            PixelArtwork(resource: 16080, frame: 9).frame(width: 108, height: 199).offset(x: 154)
+            if let resource = art.portraitResource {
+                PixelArtwork(resource: resource, frame: art.portraitFrame).frame(width: 154, height: 199)
+            }
+            PixelArtwork(resource: art.backgroundResource, frame: art.backgroundFrame)
+                .frame(width: 108, height: 199).offset(x: 154)
             OriginalText(text: message(session), font: .plain12, width: 104)
                 .frame(width: 104, height: 168, alignment: .topLeading).clipped().offset(x: 146, y: 16)
         }.frame(width: 262, height: 199, alignment: .topLeading)

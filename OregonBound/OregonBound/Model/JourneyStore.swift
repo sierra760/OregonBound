@@ -291,7 +291,7 @@ struct JourneyStore {
             }
         }
         if let session = trip.originalTradeSession {
-            guard session.isValid, [.travel, .landmark, .river, .fork].contains(trip.phase),
+            guard session.isValid(in: trip.gameEdition), [.travel, .landmark, .river, .fork].contains(trip.phase),
                   trip.originalRiverOutcome == nil else {
                 throw GameRuleError("The saved trade offer is invalid.")
             }
