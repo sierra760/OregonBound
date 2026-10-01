@@ -44,6 +44,7 @@ struct GameRootView: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
     private let timer = Timer.publish(every: Double(OriginalActionScheduler.timerIntervalTicks) / 60, on: .main, in: .common).autoconnect()
+    private let conditionsTimer = Timer.publish(every: 15.0 / 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
         GeometryReader { geometry in
@@ -66,6 +67,7 @@ struct GameRootView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onReceive(timer) { _ in game.tick() }
+        .onReceive(conditionsTimer) { _ in game.pollConditions() }
         .onAppear {
             game.chooseGameData = chooseGameData
             BundleAssets.validateManifest()

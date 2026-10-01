@@ -149,6 +149,88 @@ struct RuntimeResourceTests {
         #expect(!CDConditionsPresentation.styles(for: trip, warningPhase: false).wagon)
     }
 
+    @MainActor private func conditionsController(_ root: URL, edition: GameEdition = .macintoshCD12) throws -> GameController {
+        let store = JourneyStore(directory: root, edition: edition)
+        try store.savePreferences(.init())
+        return GameController(store: store,
+            random: OriginalRandomStream(seed: 7),
+            audio: GameAudio(playback: OriginalAudioBackendTests.Output(), scheduleIdle: { _ in }))
+    }
+
+    @MainActor @Test func cdConditionsControllerPublishesStoppedWorldWithoutAdvancingTime() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = try conditionsController(root)
+        var trip = Journey(seed: 7, edition: .macintoshCD12)
+        trip.phase = .landmark; trip.inventory[.food] = 100
+        game.trip = trip
+        game.showConditions()
+        game.pollConditions()
+        let revision = game.cdConditions.revision
+        game.perform { $0.inventory[.food] = 99 }
+        #expect(game.cdConditions.revision == revision)
+        game.tick()
+        #expect(game.error == nil)
+        #expect(game.cdConditions.revision == revision + 1)
+        #expect(game.trip?.daysElapsed == trip.daysElapsed && game.random.seed == 7)
+        #expect(game.cdConditions.snapshot?.inventory[.food] == 99)
+        #expect(game.cdConditions.displayedSnapshot?.inventory[.food] == 100)
+        #expect(game.cdConditions.snapshot?.original?.cdWagonWeight == game.trip?.inventory.cdWagonWeight)
+        game.pollConditions()
+        #expect(game.cdConditions.displayedSnapshot?.inventory[.food] == 99)
+    }
+
+    @MainActor @Test func cdConditionsDailyPulsePublishesOnceAndBlockedDispatchFreezes() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = try conditionsController(root)
+        var trip = Journey(seed: 7, edition: .macintoshCD12)
+        trip.phase = .landmark; trip.inventory[.food] = 1000
+        trip.original?.weather.initialized = true; trip.original?.weather.category = 0x8a
+        try JourneyEngine.beginRest(days: 2, in: &trip)
+        game.trip = trip; game.showConditions()
+        let revision = game.cdConditions.revision
+        for _ in 0..<Int(trip.timing.timerThreshold) { game.tick() }
+        #expect(game.trip?.daysElapsed == trip.daysElapsed + 1)
+        #expect(game.cdConditions.revision == revision + UInt32(trip.timing.timerThreshold))
+        #expect(game.cdConditions.snapshot?.daysElapsed == trip.daysElapsed + 1)
+        #expect(game.cdConditions.displayedSnapshot?.daysElapsed == trip.daysElapsed)
+        let phase = game.cdConditions.warningPhase
+        let stoppedRevision = game.cdConditions.revision
+        game.applicationActive = false; game.tick(); game.pollConditions()
+        #expect(game.cdConditions.revision == stoppedRevision && game.cdConditions.warningPhase == phase)
+        game.applicationActive = true; game.showingAbout = true
+        game.tick(); game.pollConditions()
+        #expect(game.cdConditions.revision == stoppedRevision && game.cdConditions.warningPhase == phase)
+        game.showingAbout = false; game.pollConditions()
+        #expect(game.cdConditions.displayedSnapshot?.daysElapsed == trip.daysElapsed + 1)
+    }
+
+    @MainActor @Test func cdConditionsVisibilityReloadAndClassicIsolation() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = try conditionsController(root)
+        var trip = Journey(seed: 7, edition: .macintoshCD12)
+        trip.phase = .landmark; trip.inventory[.food] = 100
+        game.trip = trip; game.showConditions(); game.setConditionsVisible(false)
+        game.tick(); game.pollConditions()
+        #expect(!game.cdConditions.warningPhase && !game.cdConditions.isVisible)
+        game.setConditionsVisible(true)
+        #expect(game.cdConditions.warningPhase)
+        let revision = game.cdConditions.revision
+        trip.inventory[.food] = 150
+        try game.store.save(trip)
+        game.resume()
+        #expect(game.error == nil)
+        #expect(game.cdConditions.revision == revision + 1)
+        #expect(game.cdConditions.displayedSnapshot?.totalFood == 150)
+        #expect(!game.cdConditions.warningPhase)
+        let classic = try conditionsController(root, edition: .macintosh11)
+        classic.trip = Journey(seed: 7); classic.trip?.phase = .landmark
+        classic.showConditions(); classic.tick(); classic.pollConditions()
+        #expect(classic.cdConditions.snapshot == nil && classic.cdConditions.revision == 0)
+    }
+
     @Test func aboutIdentifiesTheIndependentApp() {
         #expect(OriginalAboutRules.program == "Oregon Bound")
         #expect(OriginalAboutRules.copyright == "Copyright 2026 Sierra Burkhart")

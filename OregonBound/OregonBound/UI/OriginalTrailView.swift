@@ -83,10 +83,22 @@ struct OriginalTrailView: View {
                     }
                 }
         }
+        .onAppear { if conditionsVisible { game.showConditions() } }
+        .onDisappear { game.setConditionsVisible(false) }
+        .onChange(of: conditionsVisible) { game.setConditionsVisible($0) }
     }
 
+    private var conditionsVisible: Bool { game.panel?.usesTrailPane != false }
+    private var conditionsTrip: Journey {
+        guard trip.gameEdition == .macintoshCD12,
+              let displayed = game.cdConditions.displayedSnapshot, displayed.id == trip.id else { return trip }
+        return displayed
+    }
     private var conditions: some View {
-        ZStack(alignment: .topLeading) {
+        let trip = conditionsTrip
+        let emphasis = trip.gameEdition == .macintoshCD12
+            ? CDConditionsPresentation.styles(for: trip, warningPhase: game.cdConditions.warningPhase) : nil
+        return ZStack(alignment: .topLeading) {
             text("Conditions", x: 0, y: 6, width: 119, font: .bold14, alignment: .center)
             text(trip.dateText, x: 0, y: 24, width: 119, alignment: .center)
             let weather = Self.weatherArtwork(edition: trip.gameEdition, category: weatherFrame)
@@ -107,16 +119,17 @@ struct OriginalTrailView: View {
             text("Wagon", x: 0, y: 168, width: 119, font: .bold12, alignment: .center)
             pair("Pace:", trip.pace.rawValue, y: 180)
             pair("Rations:", trip.rations.rawValue, y: 192)
-            pair("Food Left:", "\(trip.totalFood.formatted()) lbs.", y: 204)
-            pair("Health:", trip.healthLabel, y: 216)
+            pair("Food Left:", "\(trip.totalFood.formatted()) lbs.", y: 204, valueBold: emphasis?.food == true)
+            pair("Health:", trip.healthLabel, y: 216, valueBold: emphasis?.health == true)
             if trip.gameEdition == .macintoshCD12 {
                 let weight = trip.original?.cdWagonWeight ?? trip.inventory.cdWagonWeight
-                pair("Weight:", "\(OriginalStoreRules.grouped(weight)) lbs.", y: 228)
+                pair("Weight:", "\(OriginalStoreRules.grouped(weight)) lbs.", y: 228, valueBold: emphasis?.weight == true)
             }
-            pair("Wagon:", wagonStatus, y: 239)
+            pair("Wagon:", wagonStatus, y: 239, valueBold: emphasis?.wagon == true)
         }
     }
     private var wagonStatus: String {
+        let trip = conditionsTrip
         let flags = trip.original?.flags ?? 0
         if trip.originalRiverOutcome != nil { return "Crossing River" }
         if flags & 4 != 0 { return "Resting" }
@@ -124,7 +137,8 @@ struct OriginalTrailView: View {
         return flags & 8 != 0 ? "Delayed" : "Moving"
     }
     private var weatherFrame: Int {
-        min(trip.gameEdition == .macintoshCD12 ? 10 : 9, max(0, trip.originalWeatherCategory))
+        let trip = conditionsTrip
+        return min(trip.gameEdition == .macintoshCD12 ? 10 : 9, max(0, trip.originalWeatherCategory))
     }
     /// CD weather10 has a separate resource; frame10 of15600 is the thermometer.
     static func weatherArtwork(edition: GameEdition, category: Int) -> (resource: Int, frame: Int) {
@@ -133,16 +147,16 @@ struct OriginalTrailView: View {
     }
     private var weatherLines: [String] {
         let names = OriginalResources.strings(3012)
-        guard names.count >= (weatherFrame + 1) * 2 else { return [trip.weather.rawValue] }
+        guard names.count >= (weatherFrame + 1) * 2 else { return [conditionsTrip.weather.rawValue] }
         return Array(names[(weatherFrame * 2)...(weatherFrame * 2 + 1)]).filter { !$0.isEmpty }
     }
     private func text(_ value: String, x: Int, y: Int, width: Int, font: BitmapFont? = .plain12, alignment: Alignment = .leading) -> some View {
         OriginalText(text: value, font: font).frame(width: CGFloat(width), alignment: alignment).offset(x: CGFloat(x), y: CGFloat(y))
     }
-    private func pair(_ key: String, _ value: String, y: Int) -> some View {
+    private func pair(_ key: String, _ value: String, y: Int, valueBold: Bool = false) -> some View {
         ZStack(alignment: .topLeading) {
             text(key, x: 2, y: y, width: 115)
-            text(value, x: 2, y: y, width: 115, alignment: .trailing)
+            text(value, x: 2, y: y, width: 115, font: valueBold ? .bold12 : .plain12, alignment: .trailing)
         }
     }
     @ViewBuilder private func icon(_ id: Int, _ label: String, row: Int, right: Bool = false, action: @escaping () -> Void) -> some View {

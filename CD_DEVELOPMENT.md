@@ -88,3 +88,25 @@ update chooses new conditions. Health, hunting restrictions, native save/reload,
 and the Conditions artwork and label recognize the additional category. Classic
 saves retain their original weather range. Local renders verify the dedicated
 dust image and label with supplied CD data in both color modes.
+
+## Conditions snapshots and warnings
+
+CD Conditions now reads the last pane redraw's world snapshot. The model
+publishes after each eligible 75-tick pulse, including stopped journeys; the
+pane checks for publications every 15 ticks. Hidden panes consume publications
+without drawing. Modal or inactive dispatch leaves the presentation unchanged.
+These updates do not advance game time or consume random numbers themselves.
+
+Food at 100 pounds or less, health badness at 105 or greater, and cached wagon
+weight at 2,750 pounds or greater alternate between plain and bold values.
+Resting and delayed wagon statuses use the opposite phase. Labels stay plain.
+The original byte-versus-long revision comparison is preserved: after the 255th
+publication, subsequent pane polls redraw even without a new publication.
+
+Tests cover snapshot isolation, timer publication, visibility, reloads,
+dispatch blocking, thresholds, revision behavior, and classic isolation.
+Local native renders using supplied fonts match all four rows in both phases,
+at warning and safe boundaries, in both color modes (32 row comparisons).
+The full macOS suite passes 809 parameterized cases with 74 skipped, and the
+iPad simulator target builds. Live original-game warning timing comparison
+remains part of the outstanding foreground acceptance work.

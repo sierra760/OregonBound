@@ -11,11 +11,12 @@ struct CDConditionsPresentation {
     }
 
     private(set) var snapshot: Journey?
+    private(set) var displayedSnapshot: Journey?
     private(set) var revision: UInt32 = 0
     private(set) var warningPhase = false
     private var observedRevision: UInt8 = 0
     private var nextWarningPhase = false
-    private var visible = false
+    private(set) var isVisible = false
 
     /// Called when the model publishes, including timer pulses with no new day.
     mutating func publish(_ trip: Journey) {
@@ -28,11 +29,11 @@ struct CDConditionsPresentation {
     /// revision marker. Both source globals survive switching journeys.
     mutating func show(_ trip: Journey) {
         if snapshot?.id != trip.id { publish(trip) }
-        visible = true
+        isVisible = true
         redraw()
     }
 
-    mutating func hide() { visible = false }
+    mutating func hide() { isVisible = false }
 
     /// Called by the 15-tick pane timer. Hidden panes consume the revision
     /// without drawing; blocked dispatch does neither. The source compares a
@@ -41,12 +42,13 @@ struct CDConditionsPresentation {
     mutating func poll(active: Bool = true, modalBlocked: Bool = false) -> Bool {
         guard active, !modalBlocked, UInt32(observedRevision) != revision else { return false }
         observedRevision = UInt8(truncatingIfNeeded: revision)
-        guard visible, snapshot != nil else { return false }
+        guard isVisible, snapshot != nil else { return false }
         redraw()
         return true
     }
 
     private mutating func redraw() {
+        displayedSnapshot = snapshot
         warningPhase = nextWarningPhase
         nextWarningPhase.toggle()
     }

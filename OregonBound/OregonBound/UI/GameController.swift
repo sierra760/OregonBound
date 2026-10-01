@@ -26,6 +26,7 @@ enum GamePanel: String, Identifiable {
     #endif
     var retainedExportRecords: [OriginalTrailLogExport.Record] = []
     @Published var trip: Journey?
+    @Published private(set) var cdConditions = CDConditionsPresentation()
     @Published var panel: GamePanel? {
         didSet {
             // CD pane-close callbacks run before the incoming pane initializes.
@@ -154,6 +155,13 @@ enum GamePanel: String, Identifiable {
         guard applicationActive, !isOriginalModalPresented, var trip,
               [.travel, .landmark, .river, .fork, .hunting, .rafting].contains(trip.phase),
               trip.originalTradeSession == nil else { return }
+        // CODE17 publishes once at the end of every active model pulse, even
+        // when its day threshold was not reached or travel is stopped.
+        defer {
+            if let updated = self.trip, updated.gameEdition == .macintoshCD12 {
+                cdConditions.publish(updated)
+            }
+        }
         if trip.gameEdition == .macintoshCD12 {
             JourneyEngine.refreshWagonWeight(in: &trip)
             self.trip = trip
@@ -163,6 +171,21 @@ enum GamePanel: String, Identifiable {
         guard OriginalActionScheduler.timerPulse(counter: &dayTimerCounter, threshold: trip.timing.timerThreshold,
                                                  flags: (trip.original?.flags ?? 0) | 1 | (trip.originalRiverOutcome != nil ? 16 : 0)) else { return }
         perform { JourneyEngine.advanceActionDay(in: &$0) }
+    }
+
+    func showConditions() {
+        guard let trip, trip.gameEdition == .macintoshCD12 else { return }
+        cdConditions.show(trip)
+    }
+
+    func setConditionsVisible(_ visible: Bool) {
+        guard cdConditions.isVisible != visible else { return }
+        if visible { showConditions() } else { cdConditions.hide() }
+    }
+
+    func pollConditions() {
+        guard store.edition == .macintoshCD12 else { return }
+        cdConditions.poll(active: applicationActive, modalBlocked: isOriginalModalPresented)
     }
 
     func continueJourney() {
@@ -354,6 +377,10 @@ enum GamePanel: String, Identifiable {
             JourneyEngine.pauseTravel(in: &paused)
             paused.randomState = random.seed
             trip = paused
+            if paused.gameEdition == .macintoshCD12 {
+                cdConditions.publish(paused)
+                if cdConditions.isVisible { cdConditions.show(paused) }
+            }
             fileMenu.beginJourney()
             if paused.phase == .finished { fileMenu.beginEnding() }
             else if paused.originalRiverOutcome != nil { fileMenu.beginBlockingActivity() }
