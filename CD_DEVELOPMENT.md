@@ -177,3 +177,17 @@ Every compared native capture matches independent source compositing. The
 full native suite passes 843 parameterized cases (74 skipped); iPad builds.
 These are offscreen checks, separate from the pending original foreground
 comparison and full monochrome journey acceptance.
+
+CD rafting captures the selected display depth at scene creation. Monochrome
+uses `10000`/`10001` and a 51-pixel raft; color uses `20000`/`20001` and 52 pixels.
+The source intentionally advances monochrome progress once per three-tick
+update, versus twice for color. Mode-specific runs therefore need not consume
+the same random sequence or produce identical outcomes. Saved wagon identity
+and the saved inventory snapshot are unchanged by the display selection.
+
+Depth regressions cover complete no-collision runs in all three modes. A local
+source-data verifier completed 60 raft runs and checked 244,466 draw commands
+against the selected resource IDs and dimensions, including mirrored shores.
+The full native suite passes 846 parameterized cases (74 skipped), and iPad
+builds. Monochrome raft fill patterns and loss-panel paper remain in the styling
+work before the mode is exposed.

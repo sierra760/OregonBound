@@ -47,7 +47,13 @@ struct OriginalRaftArtwork: View {
     init(input: OriginalRaftSession.Input, random: OriginalRandomStream,
          onFinish: @escaping (OriginalRaftSession.Result) -> Void) {
         let tick = Self.tick
-        session = OriginalRaftSession(input: input,startTick: tick,edition: GameData.edition) { random.bounded($0) }
+        var displayInput = input
+        if GameData.edition == .macintoshCD12 {
+            // Depth is a property of the current display, not the saved wagon.
+            // CODE18:0580 advances monochrome progress once, color twice.
+            displayInput.pixelDepth = OriginalResources.colorMode.imageDepth.rawValue
+        }
+        session = OriginalRaftSession(input: displayInput,startTick: tick,edition: GameData.edition) { random.bounded($0) }
         session.setPaused(true,at: tick)
         self.random = random
         completion = onFinish

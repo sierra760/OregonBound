@@ -2,6 +2,37 @@ import Testing
 @testable import OregonBound
 
 struct OriginalRaftSessionTests {
+    @Test(arguments: [1, 4, 8])
+    func cdDepthSelectsAuthoredRaftGeometryAndSourceProgressRate(depth: Int) throws {
+        var value = input
+        value.inventory.append(0)
+        value.pixelDepth = depth
+        var progressRolls = 0
+        var laneDraw = 0
+        func random(_ bound: Int) -> Int {
+            if bound == 40 { progressRolls += 1; return 39 }
+            // Source lanes must differ by at least15. Rolls0/3 give23/2,
+            // keeping both rocks on the right and allowing the initial retry.
+            laneDraw += 1
+            return laneDraw.isMultiple(of: 2) ? 3 : 0
+        }
+        var session = OriginalRaftSession(input: value, startTick: 0, edition: .macintoshCD12, random: random)
+        for command in session.drawCommands {
+            #expect((depth == 1 ? [10000,10001] : [20000,20001]).contains(command.resource))
+            if command.id == -3 { #expect(command.height == (depth == 1 ? 51 : 52)) }
+        }
+        #expect(session.drawCommands.first { $0.id == -1 }?.mirrored == true)
+        session.advance(to: 0, mouseX: 0, random: random)
+        #expect(session.remaining == (depth == 1 ? 1339 : 1338))
+        #expect(session.nextTick == 3)
+        for tick in stride(from: 3, through: 4500, by: 3) where !session.isComplete {
+            session.advance(to: tick, mouseX: 0, random: random)
+        }
+        let result = try #require(session.result)
+        #expect(result.remainingInventory == value.inventory && result.drownedMembers.isEmpty)
+        #expect(progressRolls == (depth == 1 ? 1340 : 670))
+    }
+
     private var input: OriginalRaftSession.Input {
         .init(inventory: [3,10,100,1,1,1,1000],living: [true,true,true],names: ["A","B","C"],rain: 400)
     }

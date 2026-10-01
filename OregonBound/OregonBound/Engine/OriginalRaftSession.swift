@@ -200,13 +200,14 @@ struct OriginalRaftSession {
     }
     /// CODE5 paints the object list in reverse. Map is created last and painted first.
     var drawCommands: [DrawCommand] {
-        let artwork = edition == .macintoshCD12 ? 20000 : 19200
-        let shore = edition == .macintoshCD12 ? 20001 : 19201
+        let monochrome = edition == .macintoshCD12 && input.pixelDepth == 1
+        let artwork = edition == .macintoshCD12 ? (monochrome ? 10000 : 20000) : 19200
+        let shore = edition == .macintoshCD12 ? (monochrome ? 10001 : 20001) : 19201
         var commands = [DrawCommand(id: -10,resource: artwork,frame: 0,x: 416,y: 8,width: 88,height: 306),
                         DrawCommand(id: -2,resource: shore,frame: shoreFrame,x: 327,y: 9,width: 87,height: 111),
                         DrawCommand(id: -1,resource: shore,frame: shoreFrame,x: 7,y: 9,width: 87,height: 111,mirrored: true),
                         DrawCommand(id: -4,resource: artwork,frame: 1,x: markerX,y: markerY,width: 11,height: 11),
-                        DrawCommand(id: -3,resource: artwork,frame: direction+3,x: raftSpriteLeft,y: 210,width: 63,height: 52,masked: true)]
+                        DrawCommand(id: -3,resource: artwork,frame: direction+3,x: raftSpriteLeft,y: 210,width: 63,height: monochrome ? 51 : 52,masked: true)]
         let sizes = [(56,32),(53,29),(49,26),(45,24),(42,23),(40,20)]
         commands += rocks.reversed().map {
             let size = sizes[$0.frame-5]
