@@ -45,6 +45,7 @@
 		15DF7531F2F336D0CAB1F0C7 /* OriginalRandom.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7AE68A7DC3C659F3FA4C06EC /* OriginalRandom.swift */; };
 		16CE46BE5F6DB052F1ABB380 /* DayCycleEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE3EE9499AA30209A5C66434 /* DayCycleEngineTests.swift */; };
 		17655DB1F51606EF10EC716C /* OriginalHuntResultPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9E4134B23A54E6ADA16AF85 /* OriginalHuntResultPane.swift */; };
+		17E958C13329CD7C3F75A477 /* PreparedSoundTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05464A665AA4F9346ED698C7 /* PreparedSoundTests.swift */; };
 		1821E46BC3CE57270532ECCE /* OriginalRegistrationJourneyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCD6EF0FD8A4356B58871EA1 /* OriginalRegistrationJourneyTests.swift */; };
 		1837576F4A136EEBC386AF45 /* OriginalRaftPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF93E8D1BE61FD7A2AF25A38 /* OriginalRaftPane.swift */; };
 		18D0CE7D690B3D77B35B1B4A /* OriginalEndingReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 809BC02A705C2001D58FCCDC /* OriginalEndingReport.swift */; };
@@ -267,6 +268,7 @@
 		9A0193E5998EFA64D70A8D01 /* GameSceneContainerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78F53E09979A0EFBA534E6B6 /* GameSceneContainerView.swift */; };
 		9A8CA2EF1BFD2D0C12D9158E /* BinaryReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48B03BD9B5A72D97E9FB30D9 /* BinaryReader.swift */; };
 		9A91F60C6E9F5BA2FB588845 /* OriginalPreferencesPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F74A56C9BDBA8B255CDCEB5 /* OriginalPreferencesPane.swift */; };
+		9AC46BF29D59D77F5841C4A0 /* PreparedSoundLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1B63847FCC03BCC2ACFB64 /* PreparedSoundLibrary.swift */; };
 		9AF1984DBB02F1A8F9D88118 /* OriginalGameDefaultKeyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EF39E325B46DA59A59ADCF95 /* OriginalGameDefaultKeyTests.swift */; };
 		9B71C786B03071E62F24D1F6 /* OriginalTextPicture.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EC2D8BD6816AEF995EFEED5 /* OriginalTextPicture.swift */; };
 		9B7AF35BAFA8749FEC6249BF /* OriginalRandomStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F4F3A06C3F1EFF5D65D621 /* OriginalRandomStream.swift */; };
@@ -327,6 +329,7 @@
 		B0060235A15C9629B0BF6554 /* OriginalTitleAnimation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C4C7A72249E7189A2A413F /* OriginalTitleAnimation.swift */; };
 		B0B1E8D119899AE1C2DC4870 /* OriginalWagonContinuationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0E25E1022969DF2BE0AA22A /* OriginalWagonContinuationTests.swift */; };
 		B2341B393A85B1AA236BF238 /* OriginalAboutRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 56E02462958D64B2E3CFF9A7 /* OriginalAboutRules.swift */; };
+		B257473D79C88DEB0D220D5C /* PreparedSoundLibrary.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D1B63847FCC03BCC2ACFB64 /* PreparedSoundLibrary.swift */; };
 		B2602D9BA319435ED75FA495 /* ExtractionOutput.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE09FD9C58A90538450FD67B /* ExtractionOutput.swift */; };
 		B31B41DAAACB6BB79DDC177A /* OriginalHuntPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F7A16675B5D7F235E7EEBC7 /* OriginalHuntPane.swift */; };
 		B3469FA7019C59EA4B200D95 /* SimulationRunnerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = F02C5568AD262D6804FDDE8E /* SimulationRunnerTests.swift */; };
@@ -468,6 +471,7 @@
 		017DB3E35A6FA8CAD3129160 /* GameData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameData.swift; sourceTree = "<group>"; };
 		03CD0187DEDD92946CA1E3DD /* OriginalAudioPlayback.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalAudioPlayback.swift; sourceTree = "<group>"; };
 		04BE2D0E6EFFEB26C88A7B64 /* OriginalHuntTimePopupRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalHuntTimePopupRules.swift; sourceTree = "<group>"; };
+		05464A665AA4F9346ED698C7 /* PreparedSoundTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparedSoundTests.swift; sourceTree = "<group>"; };
 		05F99E6EAF447F440C94147A /* PlaythroughTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaythroughTests.swift; sourceTree = "<group>"; };
 		061ED31D466147E44DCB7E4F /* OriginalHostInformation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalHostInformation.swift; sourceTree = "<group>"; };
 		06D77AE80B1DD7CEB995E599 /* OriginalTextEditRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalTextEditRules.swift; sourceTree = "<group>"; };
@@ -544,6 +548,7 @@
 		4C3EE84CE8012F2E15368A2E /* PanelView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PanelView.swift; sourceTree = "<group>"; };
 		4CA87487DA24FC527BA8E4EF /* OriginalSystemFontTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalSystemFontTests.swift; sourceTree = "<group>"; };
 		4CEDC11C9383740E3641084D /* GameLoopConstants.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameLoopConstants.swift; sourceTree = "<group>"; };
+		4D1B63847FCC03BCC2ACFB64 /* PreparedSoundLibrary.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreparedSoundLibrary.swift; sourceTree = "<group>"; };
 		4EDBC5EBC634AB9DB980A772 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		507A6BA15AF3979443F8C618 /* OriginalGuidePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalGuidePane.swift; sourceTree = "<group>"; };
 		50D9E31AFFD219C87E59BFA7 /* SpriteKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SpriteKit.framework; path = System/Library/Frameworks/SpriteKit.framework; sourceTree = SDKROOT; };
@@ -911,6 +916,7 @@
 				B16353C0E783EC374FF466C9 /* MacResourceFork.swift */,
 				A703029AFE4E42F5CA3047FF /* PICTDecoder.swift */,
 				7305C3294E02129FED27CD92 /* PNGEncoder.swift */,
+				4D1B63847FCC03BCC2ACFB64 /* PreparedSoundLibrary.swift */,
 				08EA6DCEA6E60A6CE6E1E8C0 /* QuickDrawColorTable.swift */,
 				51B8491123C61E8D6C849393 /* RuntimeResourceExtractor.swift */,
 				144200978B7DC84FEF39F14D /* SoundExtractor.swift */,
@@ -1033,6 +1039,7 @@
 				C0E25E1022969DF2BE0AA22A /* OriginalWagonContinuationTests.swift */,
 				3EE3C17BE4F1B157D15BEA3C /* OriginalWindowFocusTests.swift */,
 				05F99E6EAF447F440C94147A /* PlaythroughTests.swift */,
+				05464A665AA4F9346ED698C7 /* PreparedSoundTests.swift */,
 				FF1E1C1EABCE862DAFE763F0 /* RasterPICTTests.swift */,
 				3C86469B615B60FCA44F1192 /* RuntimeResourceTests.swift */,
 				F02C5568AD262D6804FDDE8E /* SimulationRunnerTests.swift */,
@@ -1436,6 +1443,7 @@
 				D7BEAD79F719F6F42E962645 /* PNGEncoder.swift in Sources */,
 				64F8A146F3BFA71119D6E5AF /* PanelView.swift in Sources */,
 				C1FACF99F98431FFC856C9DA /* PlayerState.swift in Sources */,
+				B257473D79C88DEB0D220D5C /* PreparedSoundLibrary.swift in Sources */,
 				B6549A76C7DBD2F054D19192 /* QuickDrawColorTable.swift in Sources */,
 				DF2061FE2D745DC8B79BD080 /* RuntimeResourceExtractor.swift in Sources */,
 				E925E21ABFDDA8AE8B281538 /* SimulationRunner.swift in Sources */,
@@ -1607,6 +1615,7 @@
 				45D0C3C99CE4D10AE7F2B2EE /* PNGEncoder.swift in Sources */,
 				5F3E9CFDDA91456035A89793 /* PanelView.swift in Sources */,
 				3039DDB23FFE1000A648C607 /* PlayerState.swift in Sources */,
+				9AC46BF29D59D77F5841C4A0 /* PreparedSoundLibrary.swift in Sources */,
 				A3A155E3DF9186B3914DC319 /* QuickDrawColorTable.swift in Sources */,
 				56C70D959B82F451F296A131 /* RuntimeResourceExtractor.swift in Sources */,
 				DF72EA052DC76EEA19E97855 /* SimulationRunner.swift in Sources */,
@@ -1720,6 +1729,7 @@
 				B0B1E8D119899AE1C2DC4870 /* OriginalWagonContinuationTests.swift in Sources */,
 				DC1D3DEAD8A8B4CEC0297B7A /* OriginalWindowFocusTests.swift in Sources */,
 				EC10BCA80EC253E3C0EC8522 /* PlaythroughTests.swift in Sources */,
+				17E958C13329CD7C3F75A477 /* PreparedSoundTests.swift in Sources */,
 				D142EE75238696CA9233D682 /* RasterPICTTests.swift in Sources */,
 				B9EEB9F107E8D790EFA25324 /* RuntimeResourceTests.swift in Sources */,
 				B3469FA7019C59EA4B200D95 /* SimulationRunnerTests.swift in Sources */,

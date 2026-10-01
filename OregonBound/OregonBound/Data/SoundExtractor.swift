@@ -32,7 +32,19 @@ enum SoundExtractor {
         }
     }
 
+    struct Record: Codable {
+        let id: Int
+        let sampleCount: Int
+        let fixedSampleRate: UInt32
+        let path: String
+    }
+    struct Manifest: Codable {
+        let schemaVersion: Int
+        let sounds: [Record]
+    }
+
     struct Sound {
+        let fixedSampleRate: UInt32
         let sampleRate: Int
         let bitsPerSample: Int
         let pcm: Data
@@ -84,7 +96,7 @@ enum SoundExtractor {
         let truncated = samplesEnd > reader.count
         if truncated && strict { throw Failure.invalidSamples(id: id, reason: "Sample payload is truncated") }
         if truncated { samplesEnd = reader.count }
-        return Sound(sampleRate: sampleRate, bitsPerSample: 8,
+        return Sound(fixedSampleRate: fixedRate, sampleRate: sampleRate, bitsPerSample: 8,
                      pcm: try reader.data(samplesStart, samplesEnd - samplesStart), truncated: truncated)
     }
 
@@ -112,13 +124,20 @@ enum SoundExtractor {
 
     /// Writes sounds/snd_<id>.wav for every 'snd ' resource; returns the ids written.
     @discardableResult
-    static func extractSounds(trailFork: MacResourceFork, into output: ExtractionOutput, strict: Bool = false) throws -> [Int] {
+    static func extractSounds(trailFork: MacResourceFork, into output: ExtractionOutput, strict: Bool = false, includeMetadata: Bool = false) throws -> [Int] {
         var written: [Int] = []
+        var records: [Record] = []
         for resource in trailFork.resources(ofType: "snd ") {
             let sound = try parseFormat1(resource.data, resourceID: resource.id, strict: strict)
             let wav = wavData(sampleRate: sound.sampleRate, bitsPerSample: sound.bitsPerSample, channels: 1, pcm: sound.pcm)
             try output.write(wav, to: "sounds/snd_\(resource.id).wav")
+            records.append(Record(id: resource.id, sampleCount: sound.pcm.count,
+                                  fixedSampleRate: sound.fixedSampleRate, path: "sounds/snd_\(resource.id).wav"))
             written.append(resource.id)
+        }
+        if includeMetadata {
+            try output.writeJSON(Manifest(schemaVersion: 1, sounds: records.sorted { $0.id < $1.id }),
+                                 to: "sounds/manifest.json")
         }
         return written
     }

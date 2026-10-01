@@ -89,7 +89,7 @@ enum GameDataPreparation {
                 guard let candidate = selection.sources[role], candidate.fork.contains("snd ") else { continue }
                 try step("Decoding \(role.title) audio…") {
                     _ = try SoundExtractor.extractSounds(trailFork: candidate.fork,
-                            into: ExtractionOutput(root: output.url("sources/\(role.rawValue)")), strict: true)
+                            into: ExtractionOutput(root: output.url("sources/\(role.rawValue)")), strict: true, includeMetadata: true)
                 }
                 soundSources.append(role)
             }
@@ -135,7 +135,7 @@ enum GameDataPreparation {
             }
             try output.writeJSON(catalog, to: "resource_catalog.json")
             try output.writeJSON(lookup.index, to: "resource_lookup.json")
-            let manifest = Manifest(schemaVersion: 4, edition: selection.edition, preparedAt: Date(),
+            let manifest = Manifest(schemaVersion: 5, edition: selection.edition, preparedAt: Date(),
                                     catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", graphics: graphics, rasterPictures: rasterPictures, soundSources: soundSources, terrainSources: terrainSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
             try output.writeJSON(manifest, to: "prepared_import.json")
