@@ -1,9 +1,13 @@
-# Macintosh CD food-system verification
+# Macintosh CD development and verification
 
 The additional source under development is **Oregon Trail CD 1.2 (1993) for
 Macintosh**, as identified by the supplied disk. DOS releases called Deluxe use
 other formats. The broader CD implementation and acceptance work is still in
-progress; these checks cover its food system.
+progress. The CD source now supports its three display modes, separate food
+pools, additional artwork, and CD-specific runtime paths. Remaining whole-edition
+acceptance work is listed below.
+
+## CD food system
 
 CD journeys keep non-perishable food (capacity 2,000 pounds) and perishable food
 (capacity 1,000 pounds) separately. Stores and trades exchange non-perishable
@@ -33,10 +37,10 @@ observation of a 53-pound hunt followed by two rest updates: 985 stored food
 becomes 979 stored plus 29 perishable food, with one bullet used and 1,897 pounds
 of wagon load for the reference inventory.
 
-The optional driver below loads an existing **schema 7 prepared CD directory**
+The optional driver below loads an existing **schema 8 prepared CD directory**
 (the directory containing `prepared_import.json`), including its actual terrain
-and hunt geometry. It runs both route choices and both endings in each color
-mode, executes CD hunting, and validates inventory and random-state continuity
+and hunt geometry. It runs both route choices and both endings in all three
+display modes, executes CD hunting, and validates inventory and random-state continuity
 through native save/reload. It creates verification saves only in the output
 directory you specify. It does not contain or obtain original game data.
 
@@ -54,26 +58,40 @@ swiftc -parse-as-library -I "$products" scripts/verify_cd_food.swift \
 build/verify-cd-food /path/to/prepared-cd /tmp/oregon-cd-verification
 ```
 
-A successful run prints eight completed journeys. The current reference run
-per color mode finishes in 176/166/215/199 days for short-road, short-raft,
-long-road, and long-raft choices, with scores 2774/2787/1687/1394. Across both
-modes it exercises 44 hunts and 154 save/reloads. This is an automated player
-policy, not a recording of original-game input or proof of every CD feature.
+A successful run prints twelve completed journeys plus the cross-mode overland
+and save checks. The current reference run finishes in 176/166/215/199 days for
+short-road, short-raft, long-road, and long-raft choices in each mode. Color scores
+are 2774/2787/1687/1394; monochrome scores are 2774/2787/1687/973. Its longer rafting
+run can produce different losses, as in the original. The twelve journeys
+exercise 66 hunts and 231 save/reloads. Another 56 complete overland snapshots
+match across modes, and each mode loads the same native saves in four seasons.
+This is an automated player policy, not a recording of original-game input or
+proof of every CD feature.
 
-## Sidebar artwork
+## Display modes and controls
 
-Sidebar icons now request their `cicn` resource type explicitly. Several icon
-IDs also identify unrelated `Imag` panel graphics, so numeric ID alone is not a
-safe lookup. CD controls use the selected color family's oval frames and the
-original pressed icon offset; disabled controls show an empty oval. The full
-ribbon remains part of each button's mouse/touch target.
+Choose **256 colors**, **16 colors**, or **Black and white** in the CD edition's
+Artwork selector before pressing Play. The choice is captured for that session;
+it does not change a running journey or the saved source identity. Older CD
+imports remain playable in color. Selecting black and white with an older import
+shows a re-import instruction; import the same original files again to include
+the monochrome control resources. Classic Macintosh 1.1 stays in its existing mode.
 
-Synthetic tests cover colliding resource IDs, frame selection, both manifest
-orders, and missing typed resources. Local checks with supplied CD data compare
-all ten icons in normal, pressed, and disabled states in both color modes
-(60 renders) against the imported pixels and recovered positions. This covers
-sidebar artwork; monochrome presentation and complete interface acceptance
-remain in progress.
+Artwork uses explicit source pairs, since a universal resource-number offset
+would select incorrect images. Icon lookups specify `cicn` in color or `ICON` in
+black and white, avoiding collisions with unrelated images sharing an ID.
+Monochrome images keep their authored dimensions and top-left placement.
+Paper is white, map and thermometer ink is black, and pane outlines use the
+original port-aligned checker pattern. Optional System 7 inputs supply the
+scrollbar images; modal borders and active/disabled track drawing follow the
+recovered monochrome branches.
+
+CD sidebar, route, pace, ration, river, and Help controls share original oval
+frames and pressed icon positioning. Disabled controls hide the icon and erase
+alternate label pixels. The sidebar retains its wider ribbon mouse/touch target.
+Local checks compare 432 labeled control states and 90 sidebar states exactly
+against source images, font metrics, and patterns across all three modes.
+Another 40 System-control states match their recovered drawing rules and bitmaps.
 
 ## CD dust storms
 
@@ -112,8 +130,7 @@ Tests cover snapshot isolation, timer and arrival publication, visibility, reloa
 dispatch blocking, thresholds, revision behavior, and classic isolation.
 Local native renders using supplied fonts match all four rows in both phases,
 at warning and safe boundaries, in both color modes (32 row comparisons).
-The full macOS suite passes 810 parameterized cases with 74 skipped, and the
-iPad simulator target builds. Live original-game warning timing comparison
+Live original-game warning timing comparison
 remains part of the outstanding foreground acceptance work.
 
 ## Monochrome control resources
@@ -129,16 +146,15 @@ CD PNGs remain byte-identical after re-preparation.
 Schema 8 requires every cataloged icon to have its prepared frame. Older schema
 7 color imports and classic schema 6 imports remain usable. Color presentation
 excludes `ICON` entries so they cannot displace a color image with the same ID.
-This prepares the controls for monochrome support; runtime artwork bindings,
-layout, and display-mode selection are still in progress.
+The setup selector exposes monochrome after these resources and the runtime
+artwork paths are available.
 
-The internal monochrome session now requires schema 8 and selects explicit
+The monochrome session requires schema 8 and selects explicit
 mono/color artwork pairs plus typed `ICON` controls. Static pane bindings cover
 setup, stores, sidebars, weather (including same-ID dust), guide, talk/trade,
 maps, and endings. Local source-data checks resolve 198 selected artwork/control
 frames across the three CD display modes. Save fingerprints remain independent
-of display choice. Monochrome stays outside the setup selector until animated
-paths, authored geometry, ink/patterns, and full journeys are verified.
+of display choice.
 
 ## CD landmark scenes
 
@@ -160,9 +176,7 @@ The CD title now selects `9001`/`19001` explicitly and retains its static
 and captures all selected frame dimensions, including monochrome frame 11's
 24-pixel height. Only the 256-color mode applies the moving sky/ground palette.
 Offscreen SpriteKit renders match three title crops and nine initial travel
-compositions against source pixels at native Retina scale. The native suite
-passes 840 parameterized cases (74 skipped), and the iPad target builds.
-River, raft, hunting, and monochrome ink/layout acceptance remain outstanding.
+compositions against source pixels at native Retina scale.
 
 Monochrome rivers select `5310`, retain the source's 20 logical animation slots
 by clamping the last two to bitmap 17, and omit color-only snow aliases.
@@ -174,9 +188,7 @@ The color palette substitution is skipped for monochrome artwork.
 Local verification covers 36 river captures, all 60 monochrome hunting terrain
 views, 86 animal/projectile compositions, and 160 completed hunt settlements.
 Every compared native capture matches independent source compositing. The
-full native suite passes 843 parameterized cases (74 skipped); iPad builds.
-These are offscreen checks, separate from the pending original foreground
-comparison and full monochrome journey acceptance.
+checks are offscreen, separate from the pending original foreground comparison.
 
 CD rafting captures the selected display depth at scene creation. Monochrome
 uses `10000`/`10001` and a 51-pixel raft; color uses `20000`/`20001` and 52 pixels.
@@ -188,13 +200,26 @@ and the saved inventory snapshot are unchanged by the display selection.
 Depth regressions cover complete no-collision runs in all three modes. A local
 source-data verifier completed 60 raft runs and checked 244,466 draw commands
 against the selected resource IDs and dimensions, including mirrored shores.
-The full native suite passes 846 parameterized cases (74 skipped), and iPad
-builds. Monochrome raft fill patterns and loss-panel paper remain in the styling
-work before the mode is exposed.
+The integration driver captures this same selected depth for each complete journey.
 
 Monochrome rafting now paints the source's white sky, window-anchored `AA55`
 water pattern, white map separator, and white loss-panel paper. Pattern textures
 are cached per rendering profile. Three complete offscreen raft compositions
 match independent source compositing at Retina scale, and 33 loss-frame/paper
-regions match across the display modes. The full native suite passes 847
-parameterized cases (74 skipped); iPad builds.
+regions match across the display modes.
+
+
+## Current acceptance boundary
+
+Local verification includes 201 offscreen AppKit-hosted pane renders across the
+three modes, 186 exact artwork-region comparisons, and neutral ink throughout
+all 67 monochrome panes. Native controls are hosted in hidden windows for these
+checks; no original-game foreground interaction is implied. The final native run has 854 parameterized passes and 74 skips; Python has
+125 passes and 403 skips. The iPad simulator target builds. Tests requiring
+unbundled originals or reference captures skip when those inputs are absent.
+The fresh review of the complete monochrome phase found no required fixes.
+
+The broader CD effort still requires the remaining ambient/effect audio use-site
+audit, standalone On-line User's Guide treatment, remaining feature audit,
+interactive original/macOS/iPad acceptance, and final public delivery review.
+Original resources, private renders, and disk images are not included here.

@@ -23,13 +23,50 @@ func unwrap<T>(_ value: T?) throws -> T {
     }
     let root = URL(fileURLWithPath: CommandLine.arguments[1])
     let output = URL(fileURLWithPath: CommandLine.arguments[2])
-    for mode in [PreparedGameSession.ColorMode.color256, .color16] {
+    try verifyOverlandAndSharedSaves(root: root, output: output)
+    for mode in PreparedGameSession.ColorMode.allCases {
       let installation = try PreparedGameSession(root: root, colorMode: mode)
       GameData.activate(installation)
       try JourneyAcceptance(installation: installation, output: output).checkAllJourneys()
     }
   }
 }
+/// Compare complete overland snapshots before a minigame can introduce an
+/// authored display-depth difference. Saves share the source identity across modes.
+@MainActor private func verifyOverlandAndSharedSaves(root: URL, output: URL) throws {
+  let sessions = try PreparedGameSession.ColorMode.allCases.map { try PreparedGameSession(root: root, colorMode: $0) }
+  GameData.activate(sessions[0])
+  var initial = Journey(profession: .banker, seed: 73, edition: .macintoshCD12)
+  for (item, count) in [(Supply.oxen,8),(.food,1800),(.clothing,10),(.bullets,400),(.wheels,2),(.axles,2),(.tongues,2)] {
+    try JourneyEngine.buy(item, quantity: count, in: &initial)
+  }
+  var comparisons = 0
+  for month in [3,4,6,8] {
+    var reference: [Journey]?
+    var saved: Journey?
+    let directory = output.appendingPathComponent("shared-save-\(month)")
+    for session in sessions {
+      GameData.activate(session)
+      requireEqual(session.sourceFingerprint, sessions[0].sourceFingerprint)
+      var trip = initial
+      try JourneyEngine.depart(&trip)
+      if trip.phase == .departure { try JourneyEngine.chooseDeparture(month: month, in: &trip) }
+      var trace = [trip]
+      for _ in 0..<100 where trip.phase == .travel {
+        JourneyEngine.advanceDay(&trip)
+        trace.append(trip)
+      }
+      requireEqual(trip.phase, .river)
+      if let reference { requireEqual(trace, reference); comparisons += trace.count }
+      else { reference = trace }
+      let store = JourneyStore(directory: directory, edition: .macintoshCD12, session: session)
+      if let saved { requireEqual(try store.load(), saved) }
+      else { try store.save(trip); saved = trip }
+    }
+  }
+  print("Verified", comparisons, "complete overland snapshots and shared saves across all three display modes")
+}
+
 @MainActor final class JourneyAcceptance {
   let installation: PreparedGameSession
   let assets: CDHuntAssets
@@ -204,8 +241,10 @@ func unwrap<T>(_ value: T?) throws -> T {
 
   private func completeRaft(_ trip: inout Journey) throws {
     var random = OriginalRandom(seed: trip.randomState)
+    var input = JourneyEngine.originalRaftInput(trip)
+    input.pixelDepth = installation.colorMode.imageDepth.rawValue
     var raft = OriginalRaftSession(
-      input: JourneyEngine.originalRaftInput(trip), startTick: 0, edition: trip.gameEdition
+      input: input, startTick: 0, edition: trip.gameEdition
     ) { random.bounded($0) }
     for tick in stride(from: 0, through: 15000, by: 3) where !raft.isComplete {
       // Look ahead using the visible rock trajectories, without peeking at RNG.

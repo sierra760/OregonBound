@@ -2,6 +2,13 @@
 
 Oregon Bound is an independent Swift recreation of MECC's 1991 Macintosh color release of *The Oregon Trail* (version 1.1), inspired by the original program's logic, dialog layouts, bitmap fonts, animation frames and sounds.
 
+Macintosh **Oregon Trail CD 1.2 (1993)** support is also under development. It
+accepts the CD disk image or the “Oregon Trail CD” application with its “Oregon
+Data” folder, and offers the original 256-color, 16-color, and black-and-white
+artwork. See [CD development and verification](CD_DEVELOPMENT.md) for supported
+paths, checks using your own data, and remaining acceptance work. DOS Deluxe
+releases use different formats.
+
 **This repository contains no MECC or Apple files.** This repository provides the app that you need to run the game on modern hardware, but you must provide the original game files.  The graphics, text, fonts and sounds belong to the original game and to Apple's System 7.0, so the app decodes them from your own copies the first time it runs. Nothing is downloaded and nothing leaves your machine.
 
 ## What you need

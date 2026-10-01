@@ -6,8 +6,7 @@ import Foundation
 struct PreparedGameSession {
     enum ColorMode: String, CaseIterable {
         case color256, color16, monochrome
-        // Expose monochrome after the complete runtime presentation is wired.
-        static let selectableModes: [Self] = [.color256, .color16]
+        static let selectableModes: [Self] = [.color256, .color16, .monochrome]
         var title: String {
             switch self {
             case .color256: return "256 colors"
@@ -89,7 +88,7 @@ struct PreparedGameSession {
             throw Failure.invalid("alternate color mode requires Macintosh CD 1.2")
         }
         guard colorMode != .monochrome || manifest.schemaVersion >= 8 else {
-            throw Failure.invalid("monochrome controls require a schema 8 preparation")
+            throw Failure.invalid("black-and-white artwork is unavailable in this older import")
         }
         let catalog = try read(GameResourceCatalog.self, manifest.catalogPath)
         let roles = Set(catalog.sources.map(\.role))

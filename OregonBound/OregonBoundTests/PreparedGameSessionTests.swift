@@ -21,7 +21,7 @@ struct PreparedGameSessionTests {
         #expect(mono.displayImage(monochromeID: 999, colorID: 7) == nil)
         #expect(mono.displayImage(monochromeID: 7, colorID: 7, frame: 2) == nil)
         #expect(mono.sourceFingerprint == color.sourceFingerprint && mono.id != color.id)
-        #expect(!PreparedGameSession.ColorMode.selectableModes.contains(.monochrome))
+        #expect(PreparedGameSession.ColorMode.selectableModes == [.color256, .color16, .monochrome])
         let old = try PreparedSessionFixture.make()
         defer { try? FileManager.default.removeItem(at: old) }
         #expect(throws: (any Error).self) { try PreparedGameSession(root: old, colorMode: .monochrome) }

@@ -3,25 +3,44 @@ import Testing
 @testable import OregonBound
 
 struct GameDataSelectionTests {
-    @MainActor @Test func colorChoiceIsCapturedAtPlayAndClassicStaysUnchanged() throws {
+    @MainActor @Test(arguments: PreparedGameSession.ColorMode.allCases)
+    func colorChoiceIsCapturedAtPlayAndClassicStaysUnchanged(mode: PreparedGameSession.ColorMode) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let library = GameDataLibrary(root: root)
         for edition in GameEdition.allCases {
-            _ = try library.install(edition: edition) { _ = try PreparedSessionFixture.make(at: $0, edition: edition) }
+            _ = try library.install(edition: edition) { _ = try PreparedSessionFixture.make(at: $0, edition: edition, schemaVersion: 8, icons: true) }
         }
         var launched: PreparedGameSession?
         let state = GameDataState(library: library, legacyRoot: nil, directLaunch: false,
             resetAudio: {}, activate: { if case .prepared(let session) = $0 { launched = session } })
-        state.colorMode = .color16
+        state.colorMode = mode
         state.play(.installed(.macintoshCD12))
-        #expect(launched?.colorMode == .color16)
-        state.colorMode = .color256
-        #expect(launched?.colorMode == .color16)
-        state.showLibrary(); state.colorMode = .color16
+        #expect(launched?.colorMode == mode)
+        state.colorMode = mode == .color256 ? .monochrome : .color256
+        #expect(launched?.colorMode == mode)
+        state.showLibrary(); state.colorMode = .monochrome
         state.play(.installed(.macintosh11))
         #expect(launched?.colorMode == .color256)
     }
+    @MainActor @Test func olderImportOffersReimportForMonochromeAndRetainsColorPlay() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let library = GameDataLibrary(root: root)
+        _ = try library.install(edition: .macintoshCD12) { _ = try PreparedSessionFixture.make(at: $0) }
+        var launched: PreparedGameSession?
+        let state = GameDataState(library: library, legacyRoot: nil, directLaunch: false,
+            resetAudio: {}, activate: { if case .prepared(let session) = $0 { launched = session } })
+        state.colorMode = .monochrome
+        state.play(.installed(.macintoshCD12))
+        #expect(launched == nil && !state.isReady)
+        #expect(state.error?.contains("Re-import") == true)
+        #expect(state.choices.contains(.installed(.macintoshCD12)))
+        state.colorMode = .color256
+        state.play(.installed(.macintoshCD12))
+        #expect(launched?.colorMode == .color256 && state.isReady && state.error == nil)
+    }
+
     @Test func remembersChoiceWithoutChangingCurrentGenerations() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

@@ -28,7 +28,7 @@ struct GameDataSetupView: View {
                                     Text(mode.title).tag(mode)
                                 }
                             }.pickerStyle(.segmented).disabled(state.importing)
-                            Text("Choose the CD edition’s original color artwork.")
+                            Text("Choose the CD edition’s original color or black-and-white artwork.")
                                 .font(.callout).foregroundStyle(.secondary)
                         }
                         Button("Play") { if let choice = state.choice { state.play(choice) } }
