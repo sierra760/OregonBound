@@ -666,3 +666,47 @@ def find_all_sentinels(pixel_data: bytes) -> list[int]:
         positions.append(idx)
         pos = idx + 1          # allow overlapping (shouldn't happen, but safe)
     return positions
+
+
+def decode_bitmap_columns(data: bytes, start: int, row_bytes: int, height: int) -> tuple[bytes, int]:
+    """CD Display column codec: literals, byte runs and two-byte pattern runs.
+
+    The caller bounds data to the declared frame. Positive controls copy that
+    many bytes (not control + 1); zero consumes a control without emitting data.
+    Returns the packed one-bit backing store and absolute end offset.
+    """
+    if row_bytes <= 0 or height <= 0 or row_bytes * height > 64 * 1024 * 1024:
+        raise ValueError("Invalid bitmap backing store")
+    pixels = bytearray(row_bytes * height)
+    offset = start
+    for column in range(row_bytes):
+        row = 0
+        while row < height:
+            if offset < 0 or offset >= len(data):
+                raise ValueError("Truncated bitmap control")
+            control = data[offset]
+            control = control if control < 128 else control - 256
+            offset += 1
+            if control >= 0:
+                size, repeats = control, 1
+            elif control >= -64:
+                size, repeats = 1, -control
+            else:
+                size, repeats = 2, -control - 64
+            count = size * repeats
+            if row + count > height:
+                raise ValueError("Bitmap command exceeds column height")
+            if offset + size > len(data):
+                raise ValueError("Truncated bitmap pattern")
+            pattern = data[offset:offset + size]
+            offset += size
+            for value in pattern * repeats:
+                pixels[row * row_bytes + column] = value
+                row += 1
+    return bytes(pixels), offset
+
+
+def expand_bitmap(pixels: bytes, width: int, height: int, row_bytes: int) -> bytes:
+    """QuickDraw bits are MSB-first: one is black, zero is white."""
+    return bytes(0 if pixels[y * row_bytes + x // 8] & (0x80 >> (x % 8)) else 255
+                 for y in range(height) for x in range(width))

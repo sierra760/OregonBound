@@ -19,6 +19,7 @@ enum ImagDecoder {
     /// imag.decode_imag: length-prefixed frames as walked by the original
     /// Display loader (CODE 5:0x5b8c / 0x5ba2). Each frame carries a fresh
     /// 50-byte PixMap; pmTable == 0 means an inline color table follows.
+    /// CD bitmap frames use a 14-byte BitMap followed by column commands.
     static func decode(resource: ResourceInfo, data: Data, fallbackPalette: [UInt8],
                        fallbackSource: String) -> [DecodedImage] {
         let source = ByteSource(data)
@@ -33,20 +34,45 @@ enum ImagDecoder {
             var paletteInfo = PaletteInfo(source: fallbackSource, entryCount: 256)
             var inheritedPalette = false
             for frameIndex in 0..<frameCount {
-                if frameStart + 54 > source.count {
+                if frameStart + 18 > source.count {
                     pending.append(DecodeDiagnostic(
                         "error", "imag.truncated_frame_header",
-                        "Frame \(frameIndex) has no complete length and PixMap at \(frameStart)"))
+                        "Frame \(frameIndex) has no complete length and bitmap header at \(frameStart)"))
                     break
                 }
                 let frameLength = Int(try source.u32(frameStart))
-                if frameLength < 54 || frameStart + frameLength > source.count {
+                if frameLength < 18 || frameStart + frameLength > source.count {
                     pending.append(DecodeDiagnostic(
                         "error", "imag.invalid_frame_length",
                         "Frame \(frameIndex) length \(frameLength) at \(frameStart) exceeds its resource or header"))
                     break
                 }
                 let frameEnd = frameStart + frameLength
+                let rowFlags = try source.u16(frameStart + 8)
+                if rowFlags & 0x8000 == 0 {
+                    let rowBytes = Int(rowFlags & 0x3fff)
+                    let bounds = try source.rect(frameStart + 10)
+                    let width = bounds.width, height = bounds.height
+                    guard width > 0, height > 0, width <= rowBytes * 8,
+                          width * height <= maximumFrameBytes else {
+                        throw ReferenceDecodeError.value("Invalid bitmap dimensions in frame \(frameIndex)")
+                    }
+                    let pixelStart = frameStart + 18
+                    let (packed, endOffset) = try decodeBitmapColumns(
+                        source.prefix(frameEnd), start: pixelStart, rowBytes: rowBytes, height: height)
+                    let image = PNGEncoder.Image(
+                        width: width, height: height, colorType: .grayscale,
+                        pixels: expandBitmap(packed, width: width, height: height, rowBytes: rowBytes))
+                    records.append(DecodedImage(
+                        resource: resource, status: .ok, imagePath: nil,
+                        width: width, height: height, mode: "L", frameIndex: frameIndex,
+                        frameCount: frameCount, byteRanges: ["pixels": [pixelStart, endOffset]], image: image))
+                    frameStart = frameEnd
+                    continue
+                }
+                guard frameLength >= 54 else {
+                    throw ReferenceDecodeError.value("Truncated PixMap in frame \(frameIndex)")
+                }
                 let pixmap = try QuickDrawPixMap(parsing: source, at: frameStart + 4)
                 let width = pixmap.width, height = pixmap.height, rowBytes = pixmap.rowBytes
                 if !pixmap.isPixMap || pixmap.pixelSize != 8 || width <= 0 || height <= 0 || rowBytes < width {
@@ -156,6 +182,55 @@ enum ImagDecoder {
             }
         }
         return cropped
+    }
+
+    // MARK: - Bitmap column codec
+
+    /// CD Display: nonnegative controls copy that many literal bytes, -1...-64
+    /// repeat one byte, and -65...-128 repeat a pair (-control - 64) times.
+    /// The caller bounds the source to the current frame; output is row-major.
+    static func decodeBitmapColumns(_ data: ByteSource, start: Int, rowBytes: Int,
+                                    height: Int) throws -> (pixels: [UInt8], endOffset: Int) {
+        guard rowBytes > 0, height > 0, rowBytes <= maximumFrameBytes / height else {
+            throw ReferenceDecodeError.value("Invalid bitmap backing store")
+        }
+        var pixels = [UInt8](repeating: 0, count: rowBytes * height)
+        var offset = start
+        for column in 0..<rowBytes {
+            var row = 0
+            while row < height {
+                let control = Int(Int8(bitPattern: try data.byte(offset)))
+                offset += 1
+                let size: Int, repeats: Int
+                if control >= 0 { size = control; repeats = 1 }
+                else if control >= -64 { size = 1; repeats = -control }
+                else { size = 2; repeats = -control - 64 }
+                let count = size * repeats
+                guard count <= height - row else {
+                    throw ReferenceDecodeError.value("Bitmap command exceeds column height")
+                }
+                try data.requireUnpack(offset, size)
+                for _ in 0..<repeats {
+                    for index in 0..<size {
+                        pixels[row * rowBytes + column] = data.bytes[offset + index]
+                        row += 1
+                    }
+                }
+                offset += size
+            }
+        }
+        return (pixels, offset)
+    }
+
+    /// MSB-first QuickDraw bitmap, clipped to bounds. One is black, zero white.
+    static func expandBitmap(_ packed: [UInt8], width: Int, height: Int, rowBytes: Int) -> [UInt8] {
+        var pixels = [UInt8](repeating: 255, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width where packed[y * rowBytes + x / 8] & (0x80 >> (x % 8)) != 0 {
+                pixels[y * width + x] = 0
+            }
+        }
+        return pixels
     }
 
     // MARK: - Row codec (imag_codec.py)

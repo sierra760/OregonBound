@@ -10,6 +10,8 @@ from .imag_codec import (
     build_palette_from_clut,
     build_palette_from_ctable,
     decode_frame,
+    decode_bitmap_columns,
+    expand_bitmap,
     detect_inline_ctable,
     parse_pixmap,
 )
@@ -42,6 +44,7 @@ def decode_imag(
     length and copies a fresh 50-byte PixMap. The apparent eight-byte
     "sentinel" is really pmTable=-1 followed by pmReserved=0 in that PixMap.
     Compression dimensions describe only the linear backing-store layout.
+    CD bitmap frames instead carry a 14-byte BitMap and column commands.
     """
     records: list[DecodeImage] = []
     pending: list[DecodeDiagnostic] = []
@@ -55,20 +58,40 @@ def decode_imag(
         palette_info = PaletteInfo(source=fallback_source, entry_count=256)
         inherited_palette = False
         for frame_index in range(frame_count):
-            if frame_start + 54 > len(data):
+            if frame_start + 18 > len(data):
                 pending.append(DecodeDiagnostic(
                     "error", "imag.truncated_frame_header",
-                    f"Frame {frame_index} has no complete length and PixMap at {frame_start}",
+                    f"Frame {frame_index} has no complete length and bitmap header at {frame_start}",
                 ))
                 break
             frame_length = struct.unpack_from(">I", data, frame_start)[0]
-            if frame_length < 54 or frame_start + frame_length > len(data):
+            if frame_length < 18 or frame_start + frame_length > len(data):
                 pending.append(DecodeDiagnostic(
                     "error", "imag.invalid_frame_length",
                     f"Frame {frame_index} length {frame_length} at {frame_start} exceeds its resource or header",
                 ))
                 break
             frame_end = frame_start + frame_length
+            row_flags = struct.unpack_from(">H", data, frame_start + 8)[0]
+            if not row_flags & 0x8000:
+                row_bytes = row_flags & 0x3fff
+                top, left, bottom, right = struct.unpack_from(">hhhh", data, frame_start + 10)
+                width, height = right - left, bottom - top
+                if (width <= 0 or height <= 0 or width > row_bytes * 8
+                        or width * height > 64 * 1024 * 1024):
+                    raise ValueError(f"Invalid bitmap dimensions in frame {frame_index}")
+                pixel_start = frame_start + 18
+                packed, end_offset = decode_bitmap_columns(data[:frame_end], pixel_start, row_bytes, height)
+                image = Image.frombytes("L", (width, height), expand_bitmap(packed, width, height, row_bytes))
+                records.append(DecodeImage(
+                    resource=resource, status=DecodeStatus.OK, image_path=None,
+                    width=width, height=height, mode="L", frame_index=frame_index,
+                    frame_count=frame_count, byte_ranges={"pixels": [pixel_start, end_offset]}, image=image,
+                ))
+                frame_start = frame_end
+                continue
+            if frame_length < 54:
+                raise ValueError(f"Truncated PixMap in frame {frame_index}")
             pixmap = parse_pixmap(data, frame_start + 4)
             width, height, row_bytes = (int(pixmap[key]) for key in ("width", "height", "row_bytes"))
             if (not pixmap["is_pixmap"] or pixmap["pixel_size"] != 8
