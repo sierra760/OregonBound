@@ -28,6 +28,30 @@ struct RuntimeResourceTests {
             }}
         }
     }
+    @MainActor @Test func monochromeSystemModalKeepsItsSolidOuterRingAndInactiveGrayBands() throws {
+        for active in [true, false] {
+            for left in [9, 10] {
+                let top = 9
+                let renderer = ImageRenderer(content: ZStack(alignment: .topLeading) {
+                    Color.white
+                    OriginalSystemModalFrame(contentWidth: 12, contentHeight: 6, active: active, monochrome: true) {
+                        Color.white
+                    }.offset(x: CGFloat(left), y: CGFloat(top))
+                }.frame(width: 50, height: 42).coordinateSpace(name: OriginalWindowLayout.portSpace))
+                renderer.scale = 1
+                let bitmap = NSBitmapImageRep(cgImage: try #require(renderer.cgImage))
+                for y in 0..<42 { for x in 0..<50 {
+                    let dx = x-left, dy = y-top
+                    let distance = min(dx, dy, 27-dx, 21-dy)
+                    let black = distance == 0 || ((distance == 3 || distance == 4) && (active || (x+y).isMultiple(of: 2)))
+                    let color = try #require(bitmap.colorAt(x:x,y:y)?.usingColorSpace(.deviceRGB))
+                    #expect(abs(color.redComponent - (black ? 0 : 1)) < 0.000001)
+                    #expect(abs(color.greenComponent - color.redComponent) < 0.000001)
+                    #expect(abs(color.blueComponent - color.redComponent) < 0.000001)
+                }}
+            }
+        }
+    }
     #endif
 
     @Test(arguments: Array(0..<18))

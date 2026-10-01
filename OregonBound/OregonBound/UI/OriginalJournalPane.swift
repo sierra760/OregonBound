@@ -99,7 +99,7 @@ struct OriginalJournalPane: View {
     }
 }
 
-private struct OriginalJournalScrollControl: View {
+struct OriginalJournalScrollControl: View {
     let state: OriginalJournalScrollState
     let select: (Int) -> Void
     let activate: (OriginalClassicScrollBar.Part) -> Void
@@ -115,7 +115,7 @@ private struct OriginalJournalScrollControl: View {
         Canvas { context, _ in
             let enabled = state.maximum > 0
             context.fill(Path(CGRect(x: 0, y: 0, width: 16, height: 104)),
-                         with: .color(Color(white: 238.0 / 255)))
+                         with: .color(OriginalResources.colorMode == .monochrome ? .white : Color(white: 238.0 / 255)))
             if enabled, let track = OriginalScrollbarArtwork.track {
                 // QuickDraw patterns are anchored to the port, not each tile.
                 var tiled = context

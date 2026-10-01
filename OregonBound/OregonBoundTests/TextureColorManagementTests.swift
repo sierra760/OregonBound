@@ -5,6 +5,13 @@ import SpriteKit
 @testable import OregonBound
 
 struct TextureColorManagementTests {
+    @Test func monochromeScrollbarPatternUsesOriginalBitsAndNegativePortPhase() throws {
+        let image = try #require(TextureLoader.quickDrawPattern(rows: OriginalClassicScrollBarColors.trackPattern,
+            width: 5, height: 2, originX: -2, originY: -1))
+        #expect(Array(image.dataProvider!.data! as Data) == [0,255,255,255,0,255,255,0,255,255])
+        #expect(TextureLoader.quickDrawPattern(rows: [], width: 8, height: 8, originX: 0, originY: 0) == nil)
+    }
+
     @Test func quickDrawGrayUsesAbsolutePortPhase() throws {
         let odd = try #require(TextureLoader.quickDrawGray(width: 3, height: 2, originX: 9, originY: 36))
         let even = try #require(TextureLoader.quickDrawGray(width: 3, height: 2, originX: 10, originY: 36))
