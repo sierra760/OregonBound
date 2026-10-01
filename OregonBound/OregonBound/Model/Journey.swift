@@ -89,6 +89,22 @@ struct Inventory: Codable, Equatable {
         get { quantities["perishableFood", default: 0] }
         set { quantities["perishableFood"] = max(0, newValue) }
     }
+    static func itemCount(for edition: GameEdition) -> Int { edition == .macintoshCD12 ? 8 : 7 }
+    /// Original player words start at +46; CD appends perishable food at +54.
+    subscript(originalIndex index: Int) -> Int {
+        get {
+            precondition((0..<8).contains(index))
+            return index == 7 ? perishableFood : self[Supply.allCases[index]]
+        }
+        set {
+            precondition((0..<8).contains(index))
+            if index == 7 { perishableFood = newValue }
+            else { self[Supply.allCases[index]] = newValue }
+        }
+    }
+    func rawQuantities(for edition: GameEdition) -> [Int] {
+        (0..<Self.itemCount(for: edition)).map { self[originalIndex: $0] }
+    }
     subscript(_ supply: Supply) -> Int {
         get { quantities[supply.rawValue, default: 0] }
         set { quantities[supply.rawValue] = max(0, newValue) }

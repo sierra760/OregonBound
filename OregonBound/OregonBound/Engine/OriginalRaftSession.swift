@@ -72,7 +72,7 @@ struct OriginalRaftSession {
     var maximumRocks: Int { min(3,max(1,4-(input.rain-400)/150)) }
 
     init(input: Input, startTick: Int, edition: GameEdition = .macintosh11, random: (Int)->Int) {
-        precondition(input.inventory.count == 7 && (1...5).contains(input.living.count))
+        precondition(input.inventory.count == Inventory.itemCount(for: edition) && (1...5).contains(input.living.count))
         precondition(input.names.count == input.living.count && input.inventory.allSatisfy { $0 >= 0 })
         self.edition = edition
         self.input = input; inventory = input.inventory; living = input.living; nextTick = startTick
@@ -149,8 +149,8 @@ struct OriginalRaftSession {
         rocks.append(Rock(id: nextID,slot: slot,lane: lane,x: 189+2*lane)); nextID += 1
     }
     private mutating func resolveCollision(random: (Int)->Int) -> Collision {
-        var losses = Array(repeating: 0,count: 7)
-        for i in 1..<7 where inventory[i] != 0 {
+        var losses = Array(repeating: 0,count: inventory.count)
+        for i in 1..<inventory.count where inventory[i] != 0 {
             if random(100) < 50 { losses[i] = random(inventory[i]+1) }
         }
         for _ in 0..<((inventory[0]+1)/2) { if random(100) < 40 { losses[0] += 2 } }

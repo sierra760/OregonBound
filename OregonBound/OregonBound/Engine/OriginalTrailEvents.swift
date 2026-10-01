@@ -203,7 +203,9 @@ enum OriginalTrailEvents {
         if let text = OriginalJournalRules.weatherEvent(event) {
             trip.record(text, originalEvent: event); return
         }
-        if let text = OriginalJournalRules.supplyEvent(id: event,rawQuantities: quantities,cashCents: cash) {
+        // Older callers produce the seven common slots; CD appends an empty perishable slot.
+        let packet = trip.gameEdition == .macintoshCD12 && quantities.count == 7 ? quantities + [0] : quantities
+        if let text = OriginalJournalRules.supplyEvent(id: event,rawQuantities: packet,cashCents: cash,edition: trip.gameEdition) {
             trip.record(text, originalEvent: event); return
         }
         // CODE16:14e0/1b50 packs the raft member index into event53's count bits.

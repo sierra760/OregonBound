@@ -44,4 +44,11 @@ struct OriginalJournalRulesTests {
         #expect(OriginalJournalRules.currentWagonTemplate(event: 44) == "Everyone in your wagon has died.")
         #expect(OriginalJournalRules.weatherEvent(8) == "Severe storm.")
     }
+    @Test func cdFoodSupplyListDistinguishesBothPoolsAndSignedLossWords() {
+        #expect(OriginalJournalRules.supplyList(rawQuantities: [0,0,0,0,0,0,1,2], edition: .macintoshCD12)
+                == "1 pound of food, and 2 pounds of perishable food")
+        #expect(OriginalJournalRules.supplyList(rawQuantities: [0,0,0,0,0,0,-5,1], edition: .macintoshCD12)
+                == "1 pound of perishable food")
+    }
+
 }

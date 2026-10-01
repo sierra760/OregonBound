@@ -453,7 +453,7 @@ enum JourneyEngine {
         trip.ensureOriginalState()
         // CODE16:1146–11d0 commands10/11; CODE17:006a copies wagon before intro.
         trip.originalRaftState = .init(input: .init(
-            inventory: Supply.allCases.map { trip.inventory[$0] },living: trip.members.map(\.alive),
+            inventory: trip.inventory.rawQuantities(for: trip.gameEdition),living: trip.members.map(\.alive),
             names: trip.members.map(\.name),rain: Int(trip.original?.weather.rain ?? 0)))
         trip.destinationID = "oregon"
         trip.legDistance = 100
@@ -465,7 +465,7 @@ enum JourneyEngine {
 
     static func originalRaftInput(_ trip: Journey) -> OriginalRaftSession.Input {
         var input = trip.originalRaftState?.input ?? .init(
-            inventory: Supply.allCases.map { trip.inventory[$0] },living: trip.members.map(\.alive),
+            inventory: trip.inventory.rawQuantities(for: trip.gameEdition),living: trip.members.map(\.alive),
             names: trip.members.map(\.name),rain: Int(trip.original?.weather.rain ?? 0))
         // Rain is read at scene creation, after intro; inventory uses the earlier copy.
         input.rain = Int(trip.original?.weather.rain ?? 0)
@@ -484,7 +484,7 @@ enum JourneyEngine {
         }
         guard result.initialInventory == state.input.inventory,
               result.initialLiving == state.input.living,
-              result.remainingInventory.count == 7,
+              result.remainingInventory.count == Inventory.itemCount(for: trip.gameEdition),
               zip(result.remainingInventory,result.initialInventory).allSatisfy({ $0 >= 0 && $0 <= $1 }),
               Set(result.drownedMembers).count == result.drownedMembers.count,
               result.drownedMembers.allSatisfy({ state.input.living.indices.contains($0) && state.input.living[$0] })
@@ -492,8 +492,8 @@ enum JourneyEngine {
         state.preparedResult = result
         // Signed subtraction at CODE3:1ecc–1eee uses LIVE inventory, not startup copy.
         // Food consumed while rafting can therefore produce a negative loss word.
-        state.commandQuantities = Supply.allCases.enumerated().map { index,item in
-            Int(Int16(truncatingIfNeeded: trip.inventory[item]-result.remainingInventory[index]))
+        state.commandQuantities = result.remainingInventory.indices.map { index in
+            Int(Int16(truncatingIfNeeded: trip.inventory[originalIndex: index]-result.remainingInventory[index]))
         }
         trip.originalRaftState = state
     }
@@ -512,8 +512,8 @@ enum JourneyEngine {
         trip.originalRaftState = state
         // CODE16:146a–148a subtracts the earlier signed packet from CURRENT quantities.
         // Rest during the onshore wait is retained; rest before packet creation may be restored.
-        for (index,item) in Supply.allCases.enumerated() {
-            trip.inventory[item] = max(0,trip.inventory[item]-quantities[index])
+        for index in quantities.indices {
+            trip.inventory[originalIndex: index] = max(0,trip.inventory[originalIndex: index]-quantities[index])
         }
         if quantities.contains(where: { $0 != 0 }) { OriginalTrailEvents.record(66,quantities: quantities,in: &trip) }
         for member in result.drownedMembers.sorted() where trip.members[member].alive {

@@ -9,7 +9,8 @@ struct OriginalRaftSessionTests {
         var classicRandom = OriginalRandom(seed: 1234)
         var cdRandom = OriginalRandom(seed: 1234)
         var classic = OriginalRaftSession(input: input, startTick: 0) { classicRandom.bounded($0) }
-        var cd = OriginalRaftSession(input: input, startTick: 0, edition: .macintoshCD12) { cdRandom.bounded($0) }
+        var cdInput = input; cdInput.inventory.append(0)
+        var cd = OriginalRaftSession(input: cdInput, startTick: 0, edition: .macintoshCD12) { cdRandom.bounded($0) }
         for tick in stride(from: 0, through: 300, by: 3) {
             #expect(cd.drawCommands.map(\.resource) == classic.drawCommands.map { $0.resource == 19200 ? 20000 : 20001 })
             for (a, b) in zip(classic.drawCommands, cd.drawCommands) {
@@ -99,4 +100,23 @@ struct OriginalRaftSessionTests {
         let session = OriginalRaftSession(input: p,startTick: 0) { _ in defer { n += 1 }; return n == 0 ? 0 : 4 }
         #expect(session.maximumRocks == 1)
     }
+    @Test func cdCollisionDrawsAndLosesPerishableFoodBeforePeople() {
+        let cdInput = OriginalRaftSession.Input(inventory: [0,0,0,0,0,0,0,100],
+                                                living: [true], names: ["A"], rain: 400)
+        var startup = [0,4]
+        var session = OriginalRaftSession(input: cdInput, startTick: 0, edition: .macintoshCD12) { _ in startup.removeFirst() }
+        var bounds: [Int] = []
+        for tick in stride(from: 0, through: 300, by: 3) {
+            session.advance(to: tick, mouseX: nil) { bound in
+                bounds.append(bound)
+                return bound == 40 ? 39 : bound == 101 ? 25 : 0
+            }
+            if session.collision != nil { break }
+        }
+        #expect(session.collision?.losses == [0,0,0,0,0,0,0,25])
+        #expect(session.inventory[7] == 75)
+        #expect(Array(bounds.suffix(3)) == [100,101,100])
+        #expect(session.collision?.drownedMembers == [0])
+    }
+
 }

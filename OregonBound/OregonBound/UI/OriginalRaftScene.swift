@@ -241,9 +241,10 @@ struct OriginalRaftArtwork: View {
         text(strings[6],x: 25,baseline: baseline,font: font)
         let labels = OriginalResources.strings(3011)
         var lines: [String] = []
-        for (i,raw) in collision.losses.enumerated() where raw != 0 && labels.count >= 14 {
+        let itemCount = Inventory.itemCount(for: session.edition)
+        for (i,raw) in collision.losses.enumerated() where raw != 0 && labels.count >= itemCount * 2 {
             let quantity = i == 0 ? (raw+1)/2 : raw
-            lines.append("\(quantity) \(labels[i+(quantity == 1 ? 7 : 0)])")
+            lines.append("\(quantity) \(labels[i+(quantity == 1 ? itemCount : 0)])")
         }
         // Display leader first even though the random helper tests the leader last.
         for member in collision.drownedMembers.sorted() {
