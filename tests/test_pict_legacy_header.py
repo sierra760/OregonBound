@@ -44,3 +44,18 @@ def test_duplicate_repair_does_not_hide_invalid_picture():
     assert decoded(picture()[:55]) is None
     assert decoded(picture()[:-2]) is None
     assert decoded(picture()[:-2] + b'\0\x30' + b'\0'*8 + b'\0\xff') is None
+
+
+def test_repaired_picture_requires_native_success_without_platform_fallback():
+    from unittest.mock import patch
+
+    cases = [picture()[:-2], picture() + b'\0\0',
+             picture()[:-2] + b'\0\x30' + b'\0'*8 + b'\0\xff']
+    for data in cases:
+        with patch('scripts.graphics_extract.pict.subprocess.run',
+                   side_effect=AssertionError('platform fallback must not run')) as fallback:
+            result = convert_pict(ResourceInfo('synthetic', 'PICT', 1, '', len(data)), data)
+        assert result.status == DecodeStatus.FAILED
+        assert result.image is None
+        fallback.assert_not_called()
+        assert result.diagnostics[-1].code == 'pict.unsupported_encoding'

@@ -332,6 +332,12 @@ def convert_pict(resource: ResourceInfo, data: bytes, temp_dir: Path | None = No
                 image=image,
             )
 
+        if any(d.code == "pict.duplicate_legacy_header" for d in diagnostics):
+            diagnostics.append(DecodeDiagnostic("error", "pict.unsupported_encoding",
+                "Repaired legacy picture did not pass complete native decoding"))
+            return DecodeImage(resource, DecodeStatus.FAILED, None, width, height, None,
+                               diagnostics=diagnostics)
+
         pict_file_bytes = b"\x00" * 512 + normalized
         with tempfile.NamedTemporaryFile(suffix=".pict", delete=False, dir=temp_dir) as tmp:
             tmp_name = tmp.name
