@@ -46,8 +46,12 @@ private struct GuideScrollPosition: NSViewRepresentable {
 /// DITL6020/6170, CODE3:0234–0b98, and the original CDEF8/14 controls.
 struct OriginalGuidePane: View {
     @State private var guide: OriginalGuide
+    let audio: GameAudio
 
-    init(trip: Journey) { _guide = State(initialValue: OriginalGuide(locationID: trip.locationID, edition: GameData.edition)) }
+    init(trip: Journey, audio: GameAudio = .shared) {
+        self.audio = audio
+        _guide = State(initialValue: OriginalGuide(locationID: trip.locationID, edition: GameData.edition))
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -61,7 +65,7 @@ struct OriginalGuidePane: View {
                 page
             }
         }.frame(width: 262, height: 199).clipped()
-            .onDisappear { GameAudio.shared.perform(guide.close()) }
+
     }
 
     private var page: some View {
@@ -77,11 +81,11 @@ struct OriginalGuidePane: View {
             }
             Rectangle().fill(.black).frame(width: 198, height: 1).offset(x: 6, y: 32)
             OriginalText(text: guide.pageLabel, font: .plain12).offset(x: 93, y: 186)
-            OriginalGuideFold { GameAudio.shared.perform(guide.turn(forward: $0)) }.offset(x: 208)
-            OriginalGuideIndexTab { GameAudio.shared.perform(guide.openIndex()) }.offset(x: 241, y: 126)
+            OriginalGuideFold { audio.perform(guide.turn(forward: $0)) }.offset(x: 208)
+            OriginalGuideIndexTab { audio.perform(guide.openIndex()) }.offset(x: 241, y: 126)
             if guide.hasNarration {
                 Button {
-                    GameAudio.shared.perform(guide.toggleNarration(isAudioPlaying: GameAudio.shared.isPlaying))
+                    audio.perform(guide.toggleNarration(isAudioPlaying: audio.isPlaying))
                 } label: {
                     // DITL6020 item8 stretches cicn6003 into its 32×30 item rect.
                     OriginalResources.image(6003, type: "cicn")?

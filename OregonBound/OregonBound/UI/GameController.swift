@@ -26,7 +26,17 @@ enum GamePanel: String, Identifiable {
     #endif
     var retainedExportRecords: [OriginalTrailLogExport.Record] = []
     @Published var trip: Journey?
-    @Published var panel: GamePanel?
+    @Published var panel: GamePanel? {
+        didSet {
+            // CD pane-close callbacks run before the incoming pane initializes.
+            // Keep this synchronous: a disappearing SwiftUI view can run later
+            // and otherwise stop the new conversation's recording.
+            if store.edition == .macintoshCD12,
+               oldValue == .talk || (oldValue == .guide && panel != .guide) {
+                audio.clear()
+            }
+        }
+    }
     @Published var error: String?
     @Published var running = false
     @Published var creatingGame = false
@@ -45,11 +55,12 @@ enum GamePanel: String, Identifiable {
     @Published var preferences = OriginalPreferences.Configuration()
     @Published var management = OriginalPreferences.ManagementSession()
     @Published var managementPane: OriginalPreferences.ManagementItem?
-    @Published var sound = true { didSet { GameAudio.shared.enabled = sound } }
+    @Published var sound = true { didSet { audio.enabled = sound } }
     var applicationActive = true
     private var dayTimerCounter: UInt8 = 0
     let random: OriginalRandomStream
     let store: JourneyStore
+    let audio: GameAudio
     var chooseGameData: (() -> Void)?
     var canChooseGameData: Bool {
         trip == nil && !creatingGame && !isOriginalModalPresented && panel == nil && pendingDeparture == nil
@@ -58,14 +69,15 @@ enum GamePanel: String, Identifiable {
         guard canChooseGameData, let chooseGameData else { return }
         applicationActive = false
         running = false
-        GameAudio.shared.resetForSession()
+        audio.resetForSession()
         #if os(macOS)
         if OriginalApplicationDelegate.game === self { OriginalApplicationDelegate.game = nil }
         #endif
         chooseGameData()
     }
 
-    init(store: JourneyStore = JourneyStore(), random: OriginalRandomStream? = nil) {
+    init(store: JourneyStore = JourneyStore(), random: OriginalRandomStream? = nil, audio: GameAudio = .shared) {
+        self.audio = audio
         self.store = store; self.random = random ?? .shared; hasSave = store.hasSave
         do { preferences = try store.preferences() }
         catch { self.error = "The management options could not be read. \(error.localizedDescription)" }
@@ -115,11 +127,13 @@ enum GamePanel: String, Identifiable {
             if value.phase != oldPhase || value.locationID != oldLocation {
                 showingTravelMap = value.originalMapSuppressedLandmarkID == value.locationID
             }
+            // Close outgoing narration before queuing sounds for the new phase.
+            if value.phase != oldPhase { panel = nil; showingRouteDecision = false }
             if value.livingMembers.count < oldLiving && oldPhase != .rafting {
                 value.original?.flags &= ~2
                 if value.livingMembers.isEmpty {
                     memorialID = nil
-                    GameAudio.shared.enqueue(OriginalDeathPresentationRules.soundResource)
+                    audio.enqueue(OriginalDeathPresentationRules.soundResource)
                 } else { memorialID = UUID() }
             }
             let isBlocking = [.hunting, .rafting].contains(value.phase) || value.originalRiverOutcome != nil
@@ -132,7 +146,6 @@ enum GamePanel: String, Identifiable {
             }
             trip = value
             running = value.phase == .travel && (value.original?.flags ?? 0) & 2 != 0
-            if value.phase != oldPhase { panel = nil; showingRouteDecision = false }
             if value.canSave { persist() }
         } catch { self.error = error.localizedDescription; running = false }
     }
@@ -248,6 +261,7 @@ enum GamePanel: String, Identifiable {
             talkSelection = selection
         }
         self.panel = panel
+        if panel == .talk, let sound = talkSelection?.soundResourceID { audio.request(sound) }
     }
 
     func persist() {

@@ -56,7 +56,7 @@ struct OriginalTrailView: View {
                             OriginalTradePane(game: game, trip: trip).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
                         }
                     } else if panel == .guide {
-                        OriginalGuidePane(trip: trip).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
+                        OriginalGuidePane(trip: trip, audio: game.audio).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
                     } else if panel == .supplies {
                         OriginalStatusPane(trip: trip).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
                     } else if panel == .rest {

@@ -60,3 +60,7 @@ index entry and guide close, and can replay after completion. Turning past a
 book end leaves narration playing. Text and narration come from the imported
 resources; the repository includes neither. Other CD features still require
 verification and implementation before full CD support can be claimed.
+
+CD Talk uses the original 23 portrait mappings and 54 automatically played
+conversation recordings. See [CD conversations](CD_CONVERSATIONS.md) for resource
+selection, playback and verification boundaries.
