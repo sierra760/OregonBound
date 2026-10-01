@@ -191,3 +191,10 @@ against the selected resource IDs and dimensions, including mirrored shores.
 The full native suite passes 846 parameterized cases (74 skipped), and iPad
 builds. Monochrome raft fill patterns and loss-panel paper remain in the styling
 work before the mode is exposed.
+
+Monochrome rafting now paints the source's white sky, window-anchored `AA55`
+water pattern, white map separator, and white loss-panel paper. Pattern textures
+are cached per rendering profile. Three complete offscreen raft compositions
+match independent source compositing at Retina scale, and 33 loss-frame/paper
+regions match across the display modes. The full native suite passes 847
+parameterized cases (74 skipped); iPad builds.

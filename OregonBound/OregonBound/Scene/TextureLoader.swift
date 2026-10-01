@@ -9,6 +9,24 @@ private let textureLogger = Logger(subsystem: "com.sierraburkhart.OregonBound", 
 enum TextureLoader {
     private static let cache = NSCache<NSString, SKTexture>()
 
+    /// QuickDraw qd.gray is an opaque AA55 pattern anchored to the drawing
+    /// port, not the rectangle being painted. Set bits use black ink.
+    static func quickDrawGray(width: Int, height: Int, originX: Int, originY: Int) -> CGImage? {
+        guard width > 0, height > 0, width <= 16384, height <= 16384,
+              width * height <= 16 * 1024 * 1024 else { return nil }
+        let phase = (originX & 1) ^ (originY & 1)
+        var pixels = [UInt8](repeating: 255, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width where ((x & 1) ^ (y & 1) ^ phase) == 0 {
+                pixels[y * width + x] = 0
+            }
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData) else { return nil }
+        return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8,
+            bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: [],
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+    }
+
     /// Classic QuickDraw animal sprites use white as their transparent color key.
     /// Core Graphics color masks cannot be applied to an image that already has alpha.
     static func removingWhiteBackground(from source: CGImage) -> CGImage? {

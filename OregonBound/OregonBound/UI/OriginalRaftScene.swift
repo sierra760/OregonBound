@@ -188,14 +188,25 @@ struct OriginalRaftArtwork: View {
         node.anchorPoint = CGPoint(x: 0,y: 1); node.position = CGPoint(x: rect.minX,y: 322-rect.minY)
         node.size = rect.size; node.blendMode = .replace; parent.addChild(node)
     }
+    private var monochrome: Bool { session.edition == .macintoshCD12 && session.input.pixelDepth == 1 }
+    private func patternedWater() {
+        let key = "monochrome-water"
+        if textures[key] == nil, let image = TextureLoader.quickDrawGray(width: 405, height: 277, originX: 9, originY: 36) {
+            textures[key] = TextureLoader.texture(cgImage: image, renderingIn: view)
+        }
+        let node = SKSpriteNode(texture: textures[key])
+        node.anchorPoint = CGPoint(x: 0, y: 1); node.position = CGPoint(x: 9, y: 322 - 36)
+        node.size = CGSize(width: 405, height: 277); node.blendMode = .replace; artwork.addChild(node)
+    }
     private func render() {
         let profile = TextureLoader.renderingColorSpaceID(for: view)
         if profile != colorSpaceID { colorSpaceID = profile; textures.removeAll() }
         artwork.removeAllChildren(); lossPanel.removeAllChildren()
-        // CODE17:173a–1838; literal RGBColor globals from CODE21.
-        rectangle(CGRect(x: 88,y: 9,width: 239,height: 27),rgb: [9728,51456,65280],in: artwork)
-        rectangle(CGRect(x: 9,y: 36,width: 405,height: 277),rgb: [0,0,65280],in: artwork)
-        rectangle(CGRect(x: 415,y: 9,width: 1,height: 304),rgb: [65280,63085,35223],in: artwork)
+        // Classic CODE17:173a / CD CODE18:179c. Depth1 uses qd.white/qd.gray.
+        rectangle(CGRect(x: 88,y: 9,width: 239,height: 27),rgb: monochrome ? [65535,65535,65535] : [9728,51456,65280],in: artwork)
+        if monochrome { patternedWater() }
+        else { rectangle(CGRect(x: 9,y: 36,width: 405,height: 277),rgb: [0,0,65280],in: artwork) }
+        rectangle(CGRect(x: 415,y: 9,width: 1,height: 304),rgb: monochrome ? [65535,65535,65535] : [65280,63085,35223],in: artwork)
         rectangle(CGRect(x: 414,y: 9,width: 1,height: 304),rgb: [0,0,0],in: artwork)
         for command in session.drawCommands {
             let node = SKSpriteNode(texture: texture(command))
@@ -229,8 +240,8 @@ struct OriginalRaftArtwork: View {
         }
     }
     /// CODE17:19a6. Both borders and all text are original integer coordinates.
-    private func drawLoss(_ collision: OriginalRaftSession.Collision) {
-        let paper = [65280,63085,35223]
+    func drawLoss(_ collision: OriginalRaftSession.Collision) {
+        let paper = monochrome ? [65535,65535,65535] : [65280,63085,35223]
         rectangle(CGRect(x: 9,y: 150,width: 405,height: 150),rgb: [0,0,0],in: lossPanel)
         rectangle(CGRect(x: 10,y: 151,width: 403,height: 148),rgb: paper,in: lossPanel)
         rectangle(CGRect(x: 12,y: 153,width: 399,height: 144),rgb: [0,0,0],in: lossPanel)

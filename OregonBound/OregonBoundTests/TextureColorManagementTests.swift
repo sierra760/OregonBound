@@ -5,6 +5,14 @@ import SpriteKit
 @testable import OregonBound
 
 struct TextureColorManagementTests {
+    @Test func quickDrawGrayUsesAbsolutePortPhase() throws {
+        let odd = try #require(TextureLoader.quickDrawGray(width: 3, height: 2, originX: 9, originY: 36))
+        let even = try #require(TextureLoader.quickDrawGray(width: 3, height: 2, originX: 10, originY: 36))
+        #expect(Array(odd.dataProvider!.data! as Data) == [255,0,255,0,255,0])
+        #expect(Array(even.dataProvider!.data! as Data) == [0,255,0,255,0,255])
+        #expect(TextureLoader.quickDrawGray(width: 0, height: 2, originX: 0, originY: 0) == nil)
+    }
+
     @Test(arguments: [CGColorSpace.sRGB, CGColorSpace.displayP3])
     func monochromeBitmapConvertsToOpaqueRGBA(destination: CFString) throws {
         let source = try #require(CGImage(width: 4, height: 1, bitsPerComponent: 1, bitsPerPixel: 1,
