@@ -17,13 +17,18 @@ struct OriginalRaftArtwork: View {
             .onAppear { visible = true; scene.setModalDispatchBlocked(modalBlocked); scene.setActive(scenePhase == .active) }
             .onChange(of: scenePhase) { phase in scene.setActive(visible && phase == .active) }
             .onChange(of: modalBlocked) { value in scene.setModalDispatchBlocked(value) }
-            .onDisappear { visible = false; scene.setActive(false) }
+            .onDisappear { visible = false; scene.setActive(false); scene.close() }
     }
 }
 
 @MainActor final class OriginalRaftScene: SKScene {
     private(set) var session: OriginalRaftSession
     private let random: OriginalRandomStream
+    private let audio: GameAudio
+    private let clock: () -> Int
+    private let scheduleCompletion: (@escaping () -> Void) -> Void
+    private var ownsAudio: Bool
+    private var closed = false
     private let completion: (OriginalRaftSession.Result)->Void
     private var active = false
     private var modalDispatchBlocked = false
@@ -42,20 +47,29 @@ struct OriginalRaftArtwork: View {
     private var textures: [String:SKTexture] = [:]
     private var colorSpaceID: String?
     private var observers: [NSObjectProtocol] = []
-    private static var tick: Int { Int(ProcessInfo.processInfo.systemUptime*60) }
 
-    init(input: OriginalRaftSession.Input, random: OriginalRandomStream,
+    convenience init(input: OriginalRaftSession.Input, random: OriginalRandomStream, audio: GameAudio = .shared,
          onFinish: @escaping (OriginalRaftSession.Result) -> Void) {
-        let tick = Self.tick
+        let tick = Int(ProcessInfo.processInfo.systemUptime * 60)
         var displayInput = input
         if GameData.edition == .macintoshCD12 {
-            // Depth is a property of the current display, not the saved wagon.
-            // CODE18:0580 advances monochrome progress once, color twice.
             displayInput.pixelDepth = OriginalResources.colorMode.imageDepth.rawValue
         }
-        session = OriginalRaftSession(input: displayInput,startTick: tick,edition: GameData.edition) { random.bounded($0) }
-        session.setPaused(true,at: tick)
+        let session = OriginalRaftSession(input: displayInput, startTick: tick, edition: GameData.edition) { random.bounded($0) }
+        self.init(session: session, random: random, audio: audio, onFinish: onFinish)
+    }
+
+    init(session: OriginalRaftSession, random: OriginalRandomStream, audio: GameAudio,
+         clock: @escaping () -> Int = { Int(ProcessInfo.processInfo.systemUptime * 60) },
+         scheduleCompletion: @escaping (@escaping () -> Void) -> Void = { action in DispatchQueue.main.async { action() } },
+         onFinish: @escaping (OriginalRaftSession.Result) -> Void) {
+        self.session = session
+        self.session.setPaused(true, at: clock())
         self.random = random
+        self.audio = audio
+        self.clock = clock
+        self.scheduleCompletion = scheduleCompletion
+        ownsAudio = session.edition == .macintoshCD12
         completion = onFinish
         super.init(size: CGSize(width: 512,height: 322))
         scaleMode = .fill; backgroundColor = .black; isUserInteractionEnabled = true
@@ -77,19 +91,24 @@ struct OriginalRaftArtwork: View {
     }
     /// Unlike native application suspension, a classic modal only skips idle calls.
     func setModalDispatchBlocked(_ value: Bool) {
+        let wasBlocked = modalDispatchBlocked
         modalDispatchBlocked = value
         isPaused = !active || value
+        if wasBlocked && !value && active { redraw() }
     }
     func setActive(_ value: Bool) {
-        active = value; session.setPaused(!value,at: Self.tick); isPaused = !value || modalDispatchBlocked
+        guard !closed else { return }
+        let wasActive = active
+        active = value; session.setPaused(!value,at: clock()); isPaused = !value || modalDispatchBlocked
+        if value && !wasActive { redraw() }
     }
     override func didMove(to view: SKView) {
         observers.forEach(NotificationCenter.default.removeObserver)
-        observers = TextureLoader.observeRenderingColorSpace(in: view) { [weak self] in self?.render() }
+        observers = TextureLoader.observeRenderingColorSpace(in: view) { [weak self] in self?.redraw() }
         #if os(macOS)
         installMouseEvents(in: view)
         #endif
-        render(); isPaused = !active || modalDispatchBlocked
+        redraw(); isPaused = !active || modalDispatchBlocked
     }
     override func willMove(from view: SKView) {
         observers.forEach(NotificationCenter.default.removeObserver); observers.removeAll(); setActive(false)
@@ -101,7 +120,7 @@ struct OriginalRaftArtwork: View {
         guard active, !modalDispatchBlocked else { return }
         deliverPendingCompletion()
         guard !completed else { return }
-        let tick = Self.tick
+        let tick = clock()
         var x = touchX
         #if os(macOS)
         guard let view, let window = view.window, window.isVisible, window.occlusionState.contains(.visible) else {
@@ -120,25 +139,71 @@ struct OriginalRaftArtwork: View {
         }
         #endif
         session.setPaused(false,at: tick)
-        let stream = random
-        session.advance(to: tick,mouseX: x) { stream.bounded($0) }
+        advance(to: tick, mouseX: x)
         render()
+    }
+
+    /// One eligible idle, including audio before the session's movement deadline.
+    func advance(to tick: Int, mouseX: Int?) {
+        guard active, !modalDispatchBlocked, !closed else { return }
+        deliverPendingCompletion()
+        guard !completed else { return }
+        if session.edition == .macintoshCD12 {
+            apply(CDRaftAudio.idle(pauseSteps: session.pauseSteps, busy: audio.isPlaying,
+                                  hasDrowned: !(session.collision?.drownedMembers.isEmpty ?? true)))
+        }
+        let stream = random
+        session.advance(to: tick, mouseX: mouseX) { stream.bounded($0) }
         for event in session.takeEvents() {
             switch event {
             case .collision(let collision):
-                GameAudio.shared.clear(); GameAudio.shared.request(9006)
-                if !collision.drownedMembers.isEmpty { GameAudio.shared.request(9001) }
+                if session.edition == .macintoshCD12 { apply(CDRaftAudio.collision) }
+                else {
+                    audio.clear(); audio.request(9006)
+                    if !collision.drownedMembers.isEmpty { audio.request(9001) }
+                }
             case .finished(let result):
                 completed = true
-                DispatchQueue.main.async { [weak self] in
-                    self?.pendingCompletion = result
-                    self?.deliverPendingCompletion()
+                releaseAudio()
+                scheduleCompletion { [weak self] in
+                    guard let self, !self.closed else { return }
+                    self.pendingCompletion = result
+                    self.deliverPendingCompletion()
                 }
             }
         }
     }
+
+    /// An original draw event may replay the loss narration. Normal frame
+    /// rendering must not: it runs much more often than those logical redraws.
+    func redraw() {
+        if ownsAudio, active, !modalDispatchBlocked, !closed, session.pauseSteps > 0 {
+            apply(CDRaftAudio.redrawLoss(hasDrowned: !(session.collision?.drownedMembers.isEmpty ?? true)))
+        }
+        render()
+    }
+
+    func close() {
+        guard !closed else { return }
+        closed = true
+        active = false
+        isPaused = true
+        pendingCompletion = nil
+        releaseAudio()
+    }
+    private func releaseAudio() {
+        if ownsAudio { ownsAudio = false; audio.clear() }
+    }
+    private func apply(_ commands: [OriginalAudioQueue.Command]) {
+        for command in commands {
+            switch command {
+            case .stop: audio.clear()
+            case .start(let id): audio.request(id)
+            }
+        }
+    }
     private func deliverPendingCompletion() {
-        guard active, !modalDispatchBlocked, let result = pendingCompletion else { return }
+        guard active, !modalDispatchBlocked, !closed, let result = pendingCompletion else { return }
         pendingCompletion = nil
         completion(result)
     }

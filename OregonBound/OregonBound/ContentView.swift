@@ -140,7 +140,7 @@ struct GameRootView: View {
                 }
                 else if trip.phase == .rafting {
                     OriginalWindow {
-                        OriginalRaftPane(input: JourneyEngine.originalRaftInput(trip), random: game.random,
+                        OriginalRaftPane(input: JourneyEngine.originalRaftInput(trip), random: game.random, audio: game.audio,
                             onLand: { result in game.perform { try JourneyEngine.prepareRaftLanding(result: result, in: &$0) } },
                             onSubmit: { result in game.perform { try JourneyEngine.applyRaftLosses(result: result, in: &$0) } },
                             onFinish: { _ in game.perform { try JourneyEngine.completeRaftLanding(in: &$0) } })

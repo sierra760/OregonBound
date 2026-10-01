@@ -216,3 +216,18 @@ struct OriginalRaftSession {
         return commands
     }
 }
+
+/// CD CODE18:04a4–04e0 precedes the movement deadline. A collision's loss
+/// panel is first redrawn on the following idle, when pauseSteps is still100.
+enum CDRaftAudio {
+    static let collision: [OriginalAudioQueue.Command] = [.stop, .start(9006)]
+    static func idle(pauseSteps: Int, busy: Bool, hasDrowned: Bool) -> [OriginalAudioQueue.Command] {
+        if pauseSteps == 0 && !busy { return [.start(4006)] }
+        if pauseSteps == 100 { return redrawLoss(hasDrowned: hasDrowned) }
+        return []
+    }
+    /// CODE18:1cd8–1ce4, once per explicit loss-panel redraw, not per GPU frame.
+    static func redrawLoss(hasDrowned: Bool) -> [OriginalAudioQueue.Command] {
+        hasDrowned ? [.start(4001)] : []
+    }
+}

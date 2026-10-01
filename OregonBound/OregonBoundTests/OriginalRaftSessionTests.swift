@@ -2,6 +2,20 @@ import Testing
 @testable import OregonBound
 
 struct OriginalRaftSessionTests {
+
+    @Test func cdRaftAudioFollowsIdleAndLogicalRedrawBeforeMovement() {
+        for busy in [false, true] {
+            for drowned in [false, true] {
+                #expect(CDRaftAudio.idle(pauseSteps: 0, busy: busy, hasDrowned: drowned) == (busy ? [] : [.start(4006)]))
+                #expect(CDRaftAudio.idle(pauseSteps: 100, busy: busy, hasDrowned: drowned) == (drowned ? [.start(4001)] : []))
+                for pause in [-1, 1, 2, 99] {
+                    #expect(CDRaftAudio.idle(pauseSteps: pause, busy: busy, hasDrowned: drowned).isEmpty)
+                }
+                #expect(CDRaftAudio.redrawLoss(hasDrowned: drowned) == (drowned ? [.start(4001)] : []))
+            }
+        }
+        #expect(CDRaftAudio.collision == [.stop, .start(9006)])
+    }
     @Test(arguments: [1, 4, 8])
     func cdDepthSelectsAuthoredRaftGeometryAndSourceProgressRate(depth: Int) throws {
         var value = input

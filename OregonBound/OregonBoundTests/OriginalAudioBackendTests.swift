@@ -3,6 +3,128 @@ import Testing
 
 struct OriginalAudioBackendTests {
 
+    @MainActor @Test func cdRaftAmbienceChecksIdleBeforeMovementDeadline() {
+        let output = Output()
+        var idle: [() -> Void] = []
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let random = OriginalRandomStream(seed: 77)
+        let scene = OriginalRaftScene(session: Self.raftSession(), random: random, audio: audio, clock: { 0 }) { _ in }
+        scene.setActive(true)
+        scene.advance(to: 0, mouseX: nil)
+        #expect(output.started == [4006])
+        let remaining = scene.session.remaining, seed = random.seed
+        output.callbacks.last?()
+        while !idle.isEmpty { idle.removeFirst()() }
+        scene.advance(to: 1, mouseX: nil)
+        #expect(output.started == [4006, 4006])
+        #expect(scene.session.remaining == remaining && random.seed == seed)
+        scene.setModalDispatchBlocked(true)
+        output.callbacks.last?()
+        while !idle.isEmpty { idle.removeFirst()() }
+        scene.advance(to: 2, mouseX: nil)
+        #expect(output.started.count == 2)
+        scene.setModalDispatchBlocked(false)
+        scene.setActive(false); scene.advance(to: 2, mouseX: nil)
+        #expect(output.started.count == 2)
+        scene.setActive(true)
+        audio.enabled = false; scene.advance(to: 2, mouseX: nil)
+        #expect(output.started.count == 2)
+        audio.enabled = true; scene.advance(to: 2, mouseX: nil)
+        #expect(output.started.count == 3)
+        scene.close()
+        let stops = output.stops
+        audio.request(1017)
+        scene.close(); scene.setActive(true); scene.advance(to: 5000, mouseX: nil)
+        #expect(output.stops == stops && output.started.last == 1017)
+    }
+
+    @MainActor @Test func cdRaftDrowningWaitsForFirstLossRedraw() {
+        var deaths = 0
+        for seed in 1...6 {
+            let output = Output()
+            var idle: [() -> Void] = []
+            let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+            let scene = OriginalRaftScene(session: Self.raftSession(), random: OriginalRandomStream(seed: UInt32(seed)),
+                                          audio: audio, clock: { 0 }) { _ in }
+            scene.setActive(true)
+            var tick = 0
+            while scene.session.collision == nil && tick < 1500 {
+                scene.advance(to: tick, mouseX: nil); tick += 3
+            }
+            #expect(scene.session.collision != nil)
+            #expect(scene.session.pauseSteps == 100)
+            #expect(output.started.last == 9006 && !output.started.contains(9001) && !output.started.contains(4001))
+            let drowned = !(scene.session.collision?.drownedMembers.isEmpty ?? true)
+            if drowned { deaths += 1 }
+            scene.advance(to: tick - 2, mouseX: nil) // Nondue idle still performs first loss redraw.
+            #expect(scene.session.pauseSteps == 99)
+            output.callbacks.last?()
+            while !idle.isEmpty { idle.removeFirst()() }
+            #expect(output.started.last == (drowned ? 4001 : 9006))
+            if drowned {
+                output.callbacks.last?()
+                while !idle.isEmpty { idle.removeFirst()() }
+                let count = output.started.count
+                scene.advance(to: tick - 1, mouseX: nil)
+                #expect(output.started.count == count) // Ordinary frames do not repeat narration.
+                scene.redraw()
+                #expect(output.started.count == count + 1 && output.started.last == 4001)
+            }
+            scene.close()
+        }
+        #expect(deaths > 0)
+    }
+
+    @MainActor @Test func cdRaftCompletionClearsBeforeCallbackAndCancellationDiscardsIt() {
+        for cancel in [false, true] {
+            let output = Output()
+            let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+            var callbacks: [() -> Void] = []
+            var completions = 0
+            let scene = OriginalRaftScene(session: Self.raftSession(living: [false]), random: OriginalRandomStream(seed: 1),
+                audio: audio, clock: { 0 }, scheduleCompletion: { callbacks.append($0) }) { _ in
+                    #expect(!audio.isPlaying)
+                    completions += 1
+                    audio.request(1017)
+                }
+            scene.setActive(true); scene.advance(to: 0, mouseX: nil)
+            #expect(completions == 0 && !audio.isPlaying && callbacks.count == 1)
+            if cancel { scene.close(); audio.request(1000) }
+            callbacks.removeFirst()()
+            #expect(completions == (cancel ? 0 : 1))
+            let stops = output.stops
+            scene.close()
+            #expect(output.stops == stops && output.started.last == (cancel ? 1000 : 1017))
+        }
+    }
+
+    @MainActor @Test func classicRaftRetainsCollisionAudioWithoutCDAmbience() {
+        let output = Output()
+        var idle: [() -> Void] = []
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let scene = OriginalRaftScene(session: Self.raftSession(edition: .macintosh11),
+            random: OriginalRandomStream(seed: 1), audio: audio, clock: { 0 }) { _ in }
+        scene.setActive(true)
+        var tick = 0
+        while scene.session.collision == nil && tick < 1500 {
+            scene.advance(to: tick, mouseX: nil); tick += 3
+        }
+        #expect(scene.session.collision != nil && output.started == [9006])
+        let drowned = !(scene.session.collision?.drownedMembers.isEmpty ?? true)
+        output.callbacks.last?()
+        while !idle.isEmpty { idle.removeFirst()() }
+        #expect(output.started == (drowned ? [9006,9001] : [9006]))
+        let stops = output.stops
+        scene.close()
+        #expect(output.stops == stops)
+    }
+
+    private static func raftSession(living: [Bool] = [true,true,true,true,true], edition: GameEdition = .macintoshCD12) -> OriginalRaftSession {
+        var draws = [0,4]
+        return OriginalRaftSession(input: .init(inventory: Array(repeating: 0, count: Inventory.itemCount(for: edition)),
+            living: living, names: living.indices.map { "P\($0)" }, rain: 400), startTick: 0, edition: edition) { _ in draws.removeFirst() }
+    }
+
     @MainActor @Test(arguments: [0, 1, 2])
     func cdRiverScenePlaysSourceTimelineAndClosesBeforeResult(failure: Int) {
         let output = Output()

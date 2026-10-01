@@ -223,12 +223,28 @@ kinds, snow settings and display modes. All 175 prepared CD sounds still match
 independent source PCM hashes and exact sample rates. These checks verify scheduling
 and data; original audible playback comparison remains pending.
 
+## CD rafting audio
+
+Rafting uses its original water ambience, collision cue, and drowning recording.
+Ambience checks the shared channel before the movement deadline; drowning audio
+starts at the first loss-panel redraw after impact. Explicit redraws can replay
+that recording, while ordinary rendering does not. Modal/inactive scenes suspend
+new requests. Completion releases rafting audio before the landing pane opens,
+and cancelled scenes cannot deliver an old completion callback.
+
+The controller's audio instance flows through the preparation pane and scene.
+Classic collision sounds retain their existing behavior. Sixty complete local
+source-data runs across the three display modes matched 176,032 simulation and
+random-state snapshots, including 178 collisions, 127 drowning cues and 219
+ambient starts. This verifies data and scheduling; audible original comparison
+and interactive platform acceptance remain pending.
+
 ## Current acceptance boundary
 
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 862 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 867 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.
