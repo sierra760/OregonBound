@@ -575,16 +575,20 @@ enum JourneyEngine {
 
     static func scoreLines(_ trip: Journey) -> [ScoreLine] {
         guard trip.won else { return [] }
-        return [
+        var lines = [
             ScoreLine(id: "People arriving", points: trip.livingMembers.count * OriginalHealth.scorePerSurvivor(badness: trip.healthBadness)),
             ScoreLine(id: "Wagon", points: 50),
             ScoreLine(id: "Oxen", points: ((trip.inventory[.oxen] + 1) / 2) * 4),
             ScoreLine(id: "Spare wagon parts", points: (trip.inventory[.wheels] + trip.inventory[.axles] + trip.inventory[.tongues]) * 2),
             ScoreLine(id: "Clothing", points: trip.inventory[.clothing] * 2),
             ScoreLine(id: "Bullets", points: trip.inventory[.bullets] / 50),
-            ScoreLine(id: "Food", points: trip.inventory[.food] / 25),
-            ScoreLine(id: "Money", points: trip.cash / 500)
+            ScoreLine(id: trip.gameEdition == .macintoshCD12 ? "Non-perishable food" : "Food", points: trip.inventory[.food] / 25)
         ]
+        if trip.gameEdition == .macintoshCD12 {
+            lines.append(ScoreLine(id: "Perishable food", points: trip.inventory.perishableFood / 25))
+        }
+        lines.append(ScoreLine(id: "Money", points: trip.cash / 500))
+        return lines
     }
 
     // CODE 10: multiply subtotal by the occupation's half-unit factor, then round up.

@@ -43,11 +43,12 @@ struct OriginalEndingView: View {
     }
 }
 
-private struct OriginalScoreBreakdown: View {
+struct OriginalScoreBreakdown: View {
     let trip: Journey
     private var rows: [OriginalEndingPresentation.Row] {
         OriginalEndingPresentation.rows(trip, strings: OriginalResources.strings(3004))
     }
+    private var extraRowHeight: Int { trip.gameEdition == .macintoshCD12 ? 12 : 0 }
     private var subtotal: Int { rows.reduce(0) { $0 + $1.points } }
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -55,15 +56,15 @@ private struct OriginalScoreBreakdown: View {
                 right(row.label, edge: 340, y: 65 + row.id * 12)
                 right(String(row.points), edge: 400, y: 65 + row.id * 12)
             }
-            OriginalText(text: "+", font: .bold12).offset(x: 346, y: 149)
-            Rectangle().frame(width: 54, height: 1).offset(x: 346, y: 161)
-            right(String(subtotal), edge: 400, y: 163)
-            right(trip.profession.rawValue + " bonus", edge: 340, y: 177)
-            right(trip.profession.scoreMultiplierText, edge: 400, y: 177)
-            OriginalText(text: "x", font: .bold12).offset(x: 346, y: 177)
-            Rectangle().frame(width: 54, height: 1).offset(x: 346, y: 189)
-            right("Your Score = ", edge: 340, y: 191)
-            right(String(JourneyEngine.score(trip)), edge: 400, y: 191)
+            OriginalText(text: "+", font: .bold12).offset(x: 346, y: CGFloat(149 + extraRowHeight))
+            Rectangle().frame(width: 54, height: 1).offset(x: 346, y: CGFloat(161 + extraRowHeight))
+            right(String(subtotal), edge: 400, y: 163 + extraRowHeight)
+            right(trip.profession.rawValue + " bonus", edge: 340, y: 177 + extraRowHeight)
+            right(trip.profession.scoreMultiplierText, edge: 400, y: 177 + extraRowHeight)
+            OriginalText(text: "x", font: .bold12).offset(x: 346, y: CGFloat(177 + extraRowHeight))
+            Rectangle().frame(width: 54, height: 1).offset(x: 346, y: CGFloat(189 + extraRowHeight))
+            right("Your Score = ", edge: 340, y: 191 + extraRowHeight)
+            right(String(JourneyEngine.score(trip)), edge: 400, y: 191 + extraRowHeight)
         }
     }
     private func right(_ text: String, edge: CGFloat, y: Int) -> some View {
