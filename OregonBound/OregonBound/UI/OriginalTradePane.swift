@@ -71,9 +71,9 @@ struct OriginalTradePane: View {
         return ZStack(alignment: .topLeading) {
             originalPaper
             if let resource = art.portraitResource {
-                PixelArtwork(resource: resource, frame: art.portraitFrame).frame(width: 154, height: 199)
+                PixelArtwork(resource: resource, monochromeResource: trip.gameEdition == .macintoshCD12 ? 6180 + session.portrait : 6080, frame: art.portraitFrame).frame(width: 154, height: 199)
             }
-            PixelArtwork(resource: art.backgroundResource, frame: art.backgroundFrame)
+            PixelArtwork(resource: art.backgroundResource, monochromeResource: trip.gameEdition == .macintoshCD12 ? 6180 : 6080, frame: art.backgroundFrame)
                 .frame(width: 108, height: 199).offset(x: 154)
             OriginalText(text: message(session), font: .plain12, width: 104)
                 .frame(width: 104, height: 168, alignment: .topLeading).clipped().offset(x: 146, y: 16)

@@ -7,7 +7,12 @@ enum OriginalResources {
     static var manifest: GraphicsManifest? {
         manifestCache.value(for: "graphics", session: GameData.sessionID) { BundleAssets.loadManifest() }
     }
-    static var imageType: String { GameData.preparedSession?.imageType ?? "Imag" }
+    static var colorMode: PreparedGameSession.ColorMode { GameData.preparedSession?.colorMode ?? .color256 }
+    static var imageType: String { colorMode.imageType }
+    static var iconType: String { colorMode.iconType }
+    static func resource(monochrome: Int, color: Int) -> Int {
+        colorMode.resource(monochrome: monochrome, color: color)
+    }
     static func frames(_ resource: Int) -> [ManifestImage] {
         manifest?.images(forResourceId: resource).filter { $0.resource.type == imageType } ?? []
     }
@@ -47,7 +52,7 @@ enum OriginalResources {
     }
 
     static func image(_ resource: Int, type: String? = nil, frame: Int = 0) -> Image? {
-        guard let entry = manifest?.image(resource: resource, type: type, frame: frame),
+        guard let entry = manifest?.image(resource: resource, type: type ?? imageType, frame: frame),
               let path = GameData.resourceURL(entry.image_path) else { return nil }
         #if os(macOS)
         guard let image = NSImage(contentsOf: path) else { return nil }
@@ -61,13 +66,15 @@ enum OriginalResources {
 
 struct PixelArtwork: View {
     let resource: Int
+    var monochromeResource: Int? = nil
     var frame = 0
     var type: String? = nil
     var body: some View {
-        if let image = OriginalResources.image(resource, type: type, frame: frame) {
+        let selected = monochromeResource.map { OriginalResources.resource(monochrome: $0, color: resource) } ?? resource
+        if let image = OriginalResources.image(selected, type: type, frame: frame) {
             image.resizable().interpolation(.none).aspectRatio(contentMode: .fit)
         } else {
-            Text("Artwork unavailable (\(resource))").font(.caption).frame(maxWidth: .infinity, maxHeight: .infinity)
+            Text("Artwork unavailable (\(selected))").font(.caption).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }

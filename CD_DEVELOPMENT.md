@@ -131,3 +131,11 @@ Schema 8 requires every cataloged icon to have its prepared frame. Older schema
 excludes `ICON` entries so they cannot displace a color image with the same ID.
 This prepares the controls for monochrome support; runtime artwork bindings,
 layout, and display-mode selection are still in progress.
+
+The internal monochrome session now requires schema 8 and selects explicit
+mono/color artwork pairs plus typed `ICON` controls. Static pane bindings cover
+setup, stores, sidebars, weather (including same-ID dust), guide, talk/trade,
+maps, and endings. Local source-data checks resolve 198 selected artwork/control
+frames across the three CD display modes. Save fingerprints remain independent
+of display choice. Monochrome stays outside the setup selector until animated
+paths, authored geometry, ink/patterns, and full journeys are verified.

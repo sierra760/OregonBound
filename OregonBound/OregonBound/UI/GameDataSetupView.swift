@@ -24,7 +24,7 @@ struct GameDataSetupView: View {
                         }
                         if state.choice == .installed(.macintoshCD12) {
                             Picker("Artwork", selection: $state.colorMode) {
-                                ForEach(PreparedGameSession.ColorMode.allCases, id: \.self) { mode in
+                                ForEach(PreparedGameSession.ColorMode.selectableModes, id: \.self) { mode in
                                     Text(mode.title).tag(mode)
                                 }
                             }.pickerStyle(.segmented).disabled(state.importing)

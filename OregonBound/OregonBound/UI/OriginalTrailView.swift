@@ -8,8 +8,8 @@ struct OriginalTrailView: View {
         OriginalWindow {
             ZStack(alignment: .topLeading) {
                 originalPaper
-                PixelArtwork(resource: 15000).frame(width: 52, height: 304).originalPaneFrame(width: 52, height: 304)
-                PixelArtwork(resource: 15800).frame(width: 52, height: 304).originalPaneFrame(width: 52, height: 304).offset(x: 442)
+                PixelArtwork(resource: 15000, monochromeResource: 5000).frame(width: 52, height: 304).originalPaneFrame(width: 52, height: 304)
+                PixelArtwork(resource: 15800, monochromeResource: 5800).frame(width: 52, height: 304).originalPaneFrame(width: 52, height: 304).offset(x: 442)
                 icon(5000, "Map", row: 0) { game.open(.map) }
                 icon(6001, "Guide", row: 1) { game.open(.guide) }
                 icon(5005, "Status", row: 2) { game.open(.supplies) }
@@ -102,8 +102,8 @@ struct OriginalTrailView: View {
             text("Conditions", x: 0, y: 6, width: 119, font: .bold14, alignment: .center)
             text(trip.dateText, x: 0, y: 24, width: 119, alignment: .center)
             let weather = Self.weatherArtwork(edition: trip.gameEdition, category: weatherFrame)
-            PixelArtwork(resource: weather.resource, frame: weather.frame).frame(width: 32, height: 32).offset(x: 12, y: 44)
-            PixelArtwork(resource: 15600, frame: 10).frame(width: 28, height: 59).offset(x: 57, y: 42)
+            PixelArtwork(resource: weather.resource, monochromeResource: weather.resource == 20300 ? 20300 : 5600, frame: weather.frame).frame(width: 32, height: 32).offset(x: 12, y: 44)
+            PixelArtwork(resource: 15600, monochromeResource: 5600, frame: 10).frame(width: 28, height: 59).offset(x: 57, y: 42)
             let mercury = CGFloat(min(5, max(0, trip.originalTemperatureCategory)) * 6)
             Rectangle().fill(Color(red: 65280.0 / 65535, green: 0, blue: 1792.0 / 65535))
                 .frame(width: 2, height: mercury).offset(x: 69, y: 87 - mercury)
@@ -169,8 +169,8 @@ struct OriginalTrailView: View {
             Button(action: action) {
                 ZStack(alignment: .topLeading) {
                     ZStack {
-                        PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                        PixelArtwork(resource: id, type: "cicn").frame(width: 32, height: 32)
+                        PixelArtwork(resource: 10129, monochromeResource: 129).frame(width: 42, height: 46)
+                        PixelArtwork(resource: id, type: OriginalResources.iconType).frame(width: 32, height: 32)
                     }.frame(width: 42, height: 46).offset(x: 5, y: 2)
                 }
                 // The ribbon label is part of the sidebar artwork. Include it in
@@ -205,11 +205,11 @@ struct CDSidebarArtwork: View {
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            PixelArtwork(resource: 10129, frame: pressed && enabled ? 1 : 0,
+            PixelArtwork(resource: 10129, monochromeResource: 129, frame: pressed && enabled ? 1 : 0,
                          type: OriginalResources.imageType)
                 .frame(width: 42, height: 46).offset(x: 5, y: 2)
             if enabled {
-                PixelArtwork(resource: resource, type: "cicn")
+                PixelArtwork(resource: resource, type: OriginalResources.iconType)
                     .frame(width: 32, height: 32).offset(x: pressed ? 13 : 9, y: 9)
             }
         }.frame(width: 52, height: 60, alignment: .topLeading)

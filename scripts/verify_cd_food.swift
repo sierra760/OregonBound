@@ -23,7 +23,7 @@ func unwrap<T>(_ value: T?) throws -> T {
     }
     let root = URL(fileURLWithPath: CommandLine.arguments[1])
     let output = URL(fileURLWithPath: CommandLine.arguments[2])
-    for mode in PreparedGameSession.ColorMode.allCases {
+    for mode in [PreparedGameSession.ColorMode.color256, .color16] {
       let installation = try PreparedGameSession(root: root, colorMode: mode)
       GameData.activate(installation)
       try JourneyAcceptance(installation: installation, output: output).checkAllJourneys()

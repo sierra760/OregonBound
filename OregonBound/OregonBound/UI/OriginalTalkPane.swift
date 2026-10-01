@@ -10,9 +10,9 @@ struct OriginalTalkPane: View {
             originalPaper
             if let content = OriginalTalkRules.content(selection: selection,
                                                         strings: OriginalResources.strings(selection.resourceID)) {
-                PixelArtwork(resource: content.portraitResourceID, frame: content.portraitFrame).frame(width: 154, height: 199)
+                PixelArtwork(resource: content.portraitResourceID, monochromeResource: content.edition == .macintoshCD12 ? 6180 + content.portrait : 6080, frame: content.portraitFrame).frame(width: 154, height: 199)
                     .accessibilityHidden(true)
-                PixelArtwork(resource: content.backgroundResourceID, frame: content.backgroundFrame).frame(width: 108, height: 199).offset(x: 154)
+                PixelArtwork(resource: content.backgroundResourceID, monochromeResource: content.edition == .macintoshCD12 ? 6180 : 6080, frame: content.backgroundFrame).frame(width: 108, height: 199).offset(x: 154)
                     .accessibilityHidden(true)
                 OriginalText(text: content.text, font: .plain12, width: 104)
                     .frame(width: 104, height: 170, alignment: .topLeading).clipped().offset(x: 146, y: 15)

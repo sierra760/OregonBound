@@ -21,8 +21,8 @@ struct OriginalRiverOptions: View {
             }
             Button { help = true } label: {
                 ZStack {
-                    PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                    PixelArtwork(resource: 9999).frame(width: 32, height: 32)
+                    PixelArtwork(resource: 10129, monochromeResource: 129).frame(width: 42, height: 46)
+                    PixelArtwork(resource: 9999, type: OriginalResources.iconType).frame(width: 32, height: 32)
                 }
             }.buttonStyle(.plain).accessibilityLabel("River Crossing Help").offset(x: 192, y: 246)
             }.allowsHitTesting(!help && warning == nil).accessibilityHidden(help || warning != nil)
@@ -38,8 +38,8 @@ struct OriginalRiverOptions: View {
         Button { choose(method) } label: {
             HStack(spacing: 5) {
                 ZStack {
-                    PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                    PixelArtwork(resource: icon).frame(width: 32, height: 32)
+                    PixelArtwork(resource: 10129, monochromeResource: 129).frame(width: 42, height: 46)
+                    PixelArtwork(resource: icon, type: OriginalResources.iconType).frame(width: 32, height: 32)
                 }
                 OriginalText(text: text)
             }.frame(width: 240, height: 46, alignment: .leading).contentShape(Rectangle())

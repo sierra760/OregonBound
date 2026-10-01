@@ -17,7 +17,7 @@ struct OriginalOutfittingView: View {
         else {
             OriginalWindow {
                 ZStack(alignment: .topLeading) {
-                    PixelArtwork(resource: 19030).frame(width: 494, height: 304)
+                    PixelArtwork(resource: 19030, monochromeResource: 9030).frame(width: 494, height: 304)
                     label("Matt’s General Store", x: 168, y: 94, width: 321, font: .bold14, alignment: .center)
                     label("Max", x: 168, y: 120, width: 33, font: .bold12, alignment: .trailing)
                     label("Buy", x: 207, y: 120, width: 31, font: .bold12)

@@ -70,7 +70,7 @@ struct OriginalGuidePane: View {
 
     private var page: some View {
         ZStack(alignment: .topLeading) {
-            PixelArtwork(resource: 16010).frame(width: 23, height: 199).offset(x: 239)
+            PixelArtwork(resource: 16010, monochromeResource: 6010).frame(width: 23, height: 199).offset(x: 239)
             if let entry = OriginalResources.guide.first(where: { $0.id == guide.page - 1 }) {
                 OriginalText(text: entry.title, font: .bold14)
                     .frame(width: 198, height: 18, alignment: .topLeading).clipped().offset(x: 6, y: 10)
@@ -88,7 +88,7 @@ struct OriginalGuidePane: View {
                     audio.perform(guide.toggleNarration(isAudioPlaying: audio.isPlaying))
                 } label: {
                     // DITL6020 item8 stretches cicn6003 into its 32×30 item rect.
-                    OriginalResources.image(6003, type: "cicn")?
+                    OriginalResources.image(6003, type: OriginalResources.iconType)?
                         .resizable().interpolation(.none).frame(width: 32, height: 30)
                 }.buttonStyle(.plain).accessibilityLabel("Play or stop guide narration")
                     .offset(x: 205, y: 169)

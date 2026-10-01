@@ -20,7 +20,7 @@ struct OriginalMapArtwork: View {
     }
     var body: some View {
         ZStack(alignment: .topLeading) {
-            PixelArtwork(resource: 15200)
+            PixelArtwork(resource: 15200, monochromeResource: 5200)
             Canvas { context, _ in
                 for point in points {
                     context.fill(Path(CGRect(x: point.x, y: point.y, width: 2, height: 2)), with: .color(.red))

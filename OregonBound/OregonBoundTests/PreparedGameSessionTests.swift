@@ -3,10 +3,37 @@ import Testing
 @testable import OregonBound
 
 struct PreparedGameSessionTests {
+    @Test func monochromeUsesExplicitPairsTypedIconsAndNewPreparation() throws {
+        let root = try PreparedSessionFixture.make(schemaVersion: 8, icons: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let mono = try PreparedGameSession(root: root, colorMode: .monochrome)
+        let color = try PreparedGameSession(root: root)
+        #expect(mono.imageType == "Imag" && mono.colorMode.imageDepth == .monochrome)
+        #expect(mono.colorMode.iconType == "ICON" && color.colorMode.iconType == "cicn")
+        #expect(mono.colorMode.resource(monochrome: 129, color: 10129) == 129)
+        #expect(color.colorMode.resource(monochrome: 129, color: 10129) == 10129)
+        #expect(mono.colorMode.resource(monochrome: 20300, color: 20300) == 20300)
+        #expect(mono.displayImage(monochromeID: 7, colorID: 7) != nil)
+        #expect(mono.defaultGraphics.image(resource: 7, type: "ICON") != nil)
+        #expect(mono.defaultGraphics.image(resource: 7, type: "cicn") == nil)
+        #expect(mono.displayImage(monochromeID: 7, colorID: 999)?.resource.type == "Imag")
+        #expect(color.displayImage(monochromeID: 7, colorID: 999) == nil)
+        #expect(mono.displayImage(monochromeID: 999, colorID: 7) == nil)
+        #expect(mono.displayImage(monochromeID: 7, colorID: 7, frame: 2) == nil)
+        #expect(mono.sourceFingerprint == color.sourceFingerprint && mono.id != color.id)
+        #expect(!PreparedGameSession.ColorMode.selectableModes.contains(.monochrome))
+        let old = try PreparedSessionFixture.make()
+        defer { try? FileManager.default.removeItem(at: old) }
+        #expect(throws: (any Error).self) { try PreparedGameSession(root: old, colorMode: .monochrome) }
+        let classic = try PreparedSessionFixture.make(edition: .macintosh11, schemaVersion: 8)
+        defer { try? FileManager.default.removeItem(at: classic) }
+        #expect(throws: (any Error).self) { try PreparedGameSession(root: classic, colorMode: .monochrome) }
+    }
+
     @Test func schema8IconsStayTypedAndOutsideColorPresentation() throws {
         let root = try PreparedSessionFixture.make(schemaVersion: 8, icons: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        for mode in PreparedGameSession.ColorMode.allCases {
+        for mode in [PreparedGameSession.ColorMode.color256, .color16] {
             let session = try PreparedGameSession(root: root, colorMode: mode)
             #expect(session.image(type: "ICON", id: 7)?.resource.source_file == "cdApplication")
             #expect(session.image(type: "ICON", id: 7)?.image_path == "sources/cdApplication/images/ICON/icon_7.png")

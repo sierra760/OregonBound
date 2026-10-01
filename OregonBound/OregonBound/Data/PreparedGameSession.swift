@@ -5,9 +5,28 @@ import Foundation
 /// Pending resources remain visible; loading is not full gameplay certification.
 struct PreparedGameSession {
     enum ColorMode: String, CaseIterable {
-        case color256, color16
-        var title: String { self == .color16 ? "16 colors" : "256 colors" }
+        case color256, color16, monochrome
+        // Expose monochrome after the complete runtime presentation is wired.
+        static let selectableModes: [Self] = [.color256, .color16]
+        var title: String {
+            switch self {
+            case .color256: return "256 colors"
+            case .color16: return "16 colors"
+            case .monochrome: return "Black and white"
+            }
+        }
         var imageType: String { self == .color16 ? "Ima4" : "Imag" }
+        var iconType: String { self == .monochrome ? "ICON" : "cicn" }
+        func resource(monochrome: Int, color: Int) -> Int {
+            self == .monochrome ? monochrome : color
+        }
+        var imageDepth: GameResourceLookup.Depth {
+            switch self {
+            case .color256: return .color256
+            case .color16: return .color16
+            case .monochrome: return .monochrome
+            }
+        }
     }
     let colorMode: ColorMode
     var imageType: String { colorMode.imageType }
@@ -36,13 +55,23 @@ struct PreparedGameSession {
     /// Missing variants and frames never fall back to the other color family.
     var defaultGraphics: GraphicsManifest {
         GraphicsManifest(source_file: graphics.source_file, images: graphics.images.filter {
-            $0.resource.type != "ICON" &&
-                (!["Imag", "Ima4"].contains($0.resource.type) || $0.resource.type == imageType)
+            switch $0.resource.type {
+            case "ICON": return colorMode == .monochrome
+            case "cicn": return colorMode != .monochrome
+            case "Imag", "Ima4": return $0.resource.type == imageType
+            default: return true
+            }
         })
     }
 
     func displayImage(id: Int, frame: Int = 0) -> ManifestImage? {
         image(type: imageType, id: id, frame: frame)
+    }
+
+    /// Source image objects receive two independent IDs, including same-ID
+    /// pairs. A missing selected family never falls back to the other ID.
+    func displayImage(monochromeID: Int, colorID: Int, frame: Int = 0) -> ManifestImage? {
+        displayImage(id: colorMode.resource(monochrome: monochromeID, color: colorID), frame: frame)
     }
 
     init(root: URL, colorMode: ColorMode = .color256) throws {
@@ -58,6 +87,9 @@ struct PreparedGameSession {
               manifest.lookupPath == "resource_lookup.json" else { throw Failure.invalid("unsupported manifest schema or paths") }
         guard colorMode == .color256 || manifest.edition == .macintoshCD12 else {
             throw Failure.invalid("alternate color mode requires Macintosh CD 1.2")
+        }
+        guard colorMode != .monochrome || manifest.schemaVersion >= 8 else {
+            throw Failure.invalid("monochrome controls require a schema 8 preparation")
         }
         let catalog = try read(GameResourceCatalog.self, manifest.catalogPath)
         let roles = Set(catalog.sources.map(\.role))

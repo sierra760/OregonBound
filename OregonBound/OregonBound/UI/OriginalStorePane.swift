@@ -16,7 +16,7 @@ struct OriginalStorePane: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             Group {
-                PixelArtwork(resource: 19030).frame(width: 494, height: 304)
+                PixelArtwork(resource: 19030, monochromeResource: 9030).frame(width: 494, height: 304)
                 label(OriginalStoreRules.storeName(in: trip), x: 168, y: 94, width: 321, font: .bold14, alignment: .center)
                 label("Have", x: 168, y: 120, width: 33, font: .bold12, alignment: .trailing)
                 label("Buy", x: 207, y: 120, width: 31, font: .bold12)

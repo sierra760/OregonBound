@@ -21,7 +21,7 @@ struct OriginalEndingView: View {
                 originalPaper
                 if !trip.won {
                     OriginalDialogContents(resource: 9150) { _ in game.mainMenu() }
-                    PixelArtwork(resource: 19150).frame(width: 262, height: 155).offset(x: 111, y: 10)
+                    PixelArtwork(resource: 19150, monochromeResource: 9150).frame(width: 262, height: 155).offset(x: 111, y: 10)
                     Rectangle().strokeBorder(.black, lineWidth: 1).frame(width: 264, height: 157).offset(x: 110, y: 9)
                 } else if trip.originalEndingStage == .score || trip.originalEndingStage == .completed {
                     OriginalDialogContents(resource: qualifies ? 9100 : 9130, substitutions: [trip.dateText]) { _ in
@@ -34,7 +34,7 @@ struct OriginalEndingView: View {
                             .onChange(of: name) { value in if value.count > 26 { name = String(value.prefix(26)) } }
                     }
                 } else {
-                    PixelArtwork(resource: 19090).frame(width: 494, height: 304)
+                    PixelArtwork(resource: 19090, monochromeResource: 9090).frame(width: 494, height: 304)
                     OriginalButton(title: "Continue") { game.showOriginalScore() }
                         .frame(width: 80, height: 20).offset(x: 373, y: 270)
                 }

@@ -42,10 +42,10 @@ struct OriginalWindow<Content: View>: View {
             content.frame(width: 494, height: 304)
                 .originalPaneFrame(width: 494, height: 304)
                 .offset(x: OriginalWindowLayout.contentOrigin.x, y: OriginalWindowLayout.contentOrigin.y)
-            PixelArtwork(resource: 10128, frame: 0).frame(width: 498, height: 7).offset(x: 7)
-            PixelArtwork(resource: 10128, frame: 3).frame(width: 7, height: 322).offset(x: 505)
-            PixelArtwork(resource: 10128, frame: 2).frame(width: 498, height: 7).offset(x: 7, y: 315)
-            PixelArtwork(resource: 10128, frame: 1).frame(width: 7, height: 322)
+            PixelArtwork(resource: 10128, monochromeResource: 128, frame: 0).frame(width: 498, height: 7).offset(x: 7)
+            PixelArtwork(resource: 10128, monochromeResource: 128, frame: 3).frame(width: 7, height: 322).offset(x: 505)
+            PixelArtwork(resource: 10128, monochromeResource: 128, frame: 2).frame(width: 498, height: 7).offset(x: 7, y: 315)
+            PixelArtwork(resource: 10128, monochromeResource: 128, frame: 1).frame(width: 7, height: 322)
         }.frame(width: 512, height: 322)
     }
 }
@@ -91,10 +91,10 @@ struct OriginalRegistrationView: View {
             ZStack(alignment: .topLeading) {
                 Group {
                 originalPaper
-                PixelArtwork(resource: 19010, frame: 0).frame(width: 135, height: 112)
-                PixelArtwork(resource: 19010, frame: 2).frame(width: 135, height: 112).offset(x: 359)
-                PixelArtwork(resource: 19010, frame: 3).frame(width: 26, height: 26).offset(y: 278)
-                PixelArtwork(resource: 19010, frame: 4).frame(width: 26, height: 26).offset(x: 468, y: 278)
+                PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 0).frame(width: 135, height: 112)
+                PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 2).frame(width: 135, height: 112).offset(x: 359)
+                PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 3).frame(width: 26, height: 26).offset(y: 278)
+                PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 4).frame(width: 26, height: 26).offset(x: 468, y: 278)
                 OriginalText(text: "Name:").offset(x: 1)
                     .frame(width: 47, height: 18, alignment: .topLeading).offset(x: 162, y: 35)
                 nameField(0).offset(x: 213, y: 35)
@@ -114,8 +114,8 @@ struct OriginalRegistrationView: View {
                 }
                 Button { occupationHelp = true } label: {
                     ZStack {
-                        PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                        PixelArtwork(resource: 9999).frame(width: 32, height: 32)
+                        PixelArtwork(resource: 10129, monochromeResource: 129).frame(width: 42, height: 46)
+                        PixelArtwork(resource: 9999, type: OriginalResources.iconType).frame(width: 32, height: 32)
                     }
                 }.buttonStyle(.plain).accessibilityLabel("Occupation Help")
                     .frame(width: 42, height: 46).offset(x: 170, y: 182)

@@ -65,8 +65,8 @@ struct OriginalIconChoice: View {
         Button(action: action) {
             HStack(spacing: 5) {
                 ZStack {
-                    PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                    PixelArtwork(resource: icon).frame(width: 32, height: 32)
+                    PixelArtwork(resource: 10129, monochromeResource: 129).frame(width: 42, height: 46)
+                    PixelArtwork(resource: icon, type: OriginalResources.iconType).frame(width: 32, height: 32)
                 }
                 if !title.isEmpty { OriginalText(text: title) }
             }.frame(width: width, height: 46, alignment: .leading).contentShape(Rectangle())

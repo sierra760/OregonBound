@@ -38,7 +38,7 @@ struct PanelView: View {
             }
             Text("\(trip.livingMembers.count) of \(trip.members.count) people are alive. Health: \(trip.healthLabel).")
         case .map:
-            PixelArtwork(resource: 15200).frame(height: 155)
+            PixelArtwork(resource: 15200, monochromeResource: 5200).frame(height: 155)
             Text("\(trip.miles) miles traveled • \(trip.location.name)").bold()
             if trip.phase == .travel { Text("Next: \(trip.destination?.name ?? "Oregon") in \(trip.milesToNext) miles") }
             ScrollView(.horizontal) { HStack { ForEach(trip.visited, id: \.self) { Text(TrailCatalog.stop($0).name).font(.system(size: 10)).padding(4).background(.white) } } }
@@ -107,7 +107,7 @@ struct ShopView: View {
     var body: some View {
         VStack(spacing: 5) {
             HStack(alignment: .top, spacing: 12) {
-                PixelArtwork(resource: 16080).frame(width: 100, height: 95)
+                PixelArtwork(resource: 16080, monochromeResource: 6080).frame(width: 100, height: 95)
                 VStack(spacing: 6) {
                     Text(trip.locationID == "independence" ? "Matt’s General Store" : "\(trip.location.name) Store").bold()
                     Text("You have \(dollars(trip.cash))")
@@ -135,7 +135,7 @@ struct EndingView: View {
     let trip: Journey
     var body: some View {
         VStack(spacing: 8) {
-            if trip.won { PixelArtwork(resource: 19090).frame(height: 150) }
+            if trip.won { PixelArtwork(resource: 19090, monochromeResource: 9090).frame(height: 150) }
             else { Text("Your journey has ended").font(.system(size: 26, weight: .bold, design: .serif)).padding(.top, 25) }
             Text(trip.finishReason).bold().multilineTextAlignment(.center)
             if trip.won {
