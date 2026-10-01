@@ -50,3 +50,9 @@ This changes the artwork without changing the shared crossing scripts or timing.
 Raw frame reads clamp to the final available bitmap, matching the source loader.
 The classic image object retains 18 slots. Both color families use the authored
 mask geometry for caulking, ferry and ford sprites.
+
+Rafting resolves its map, marker, raft and rocks from CD `20000`, and shores from
+`20001`. Classic uses `19200`/`19201`; those IDs belong to hunting in the CD set.
+The source CD image objects request the first eleven frames. Their color geometry
+matches the classic rafting sprites. Binding the edition at scene creation keeps
+saved journey inputs and simulation randomness unchanged.

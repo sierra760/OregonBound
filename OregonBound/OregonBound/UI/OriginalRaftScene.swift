@@ -47,7 +47,7 @@ struct OriginalRaftArtwork: View {
     init(input: OriginalRaftSession.Input, random: OriginalRandomStream,
          onFinish: @escaping (OriginalRaftSession.Result) -> Void) {
         let tick = Self.tick
-        session = OriginalRaftSession(input: input,startTick: tick) { random.bounded($0) }
+        session = OriginalRaftSession(input: input,startTick: tick,edition: GameData.edition) { random.bounded($0) }
         session.setPaused(true,at: tick)
         self.random = random
         completion = onFinish

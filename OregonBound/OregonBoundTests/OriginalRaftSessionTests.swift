@@ -5,6 +5,25 @@ struct OriginalRaftSessionTests {
     private var input: OriginalRaftSession.Input {
         .init(inventory: [3,10,100,1,1,1,1000],living: [true,true,true],names: ["A","B","C"],rain: 400)
     }
+    @Test func cdUsesRaftResourcesWithoutChangingGeometryOrMotion() {
+        var classicRandom = OriginalRandom(seed: 1234)
+        var cdRandom = OriginalRandom(seed: 1234)
+        var classic = OriginalRaftSession(input: input, startTick: 0) { classicRandom.bounded($0) }
+        var cd = OriginalRaftSession(input: input, startTick: 0, edition: .macintoshCD12) { cdRandom.bounded($0) }
+        for tick in stride(from: 0, through: 300, by: 3) {
+            #expect(cd.drawCommands.map(\.resource) == classic.drawCommands.map { $0.resource == 19200 ? 20000 : 20001 })
+            for (a, b) in zip(classic.drawCommands, cd.drawCommands) {
+                #expect(a.frame == b.frame && a.x == b.x && a.y == b.y)
+                #expect(a.width == b.width && a.height == b.height)
+                #expect(a.masked == b.masked && a.mirrored == b.mirrored)
+            }
+            classic.advance(to: tick, mouseX: 150) { classicRandom.bounded($0) }
+            cd.advance(to: tick, mouseX: 150) { cdRandom.bounded($0) }
+        }
+        #expect(cd.remaining == classic.remaining)
+        #expect(cdRandom.seed == classicRandom.seed)
+    }
+
     @Test func initialLaneSentinelRetriesAndIsResetAfterInitialRock() {
         var values = [0,4]
         var bounds: [Int] = []
