@@ -112,6 +112,11 @@ struct JourneyStore {
                 throw GameRuleError("The saved game contains invalid inventory data.")
             }
             journey.ensureOriginalState()
+            // Earlier CD saves used seven slots; their completed outcome did not
+            // lose perishables. Preserve those losses without drawing again.
+            if savedEdition == .macintoshCD12 && journey.originalRiverOutcome?.losses.count == 7 {
+                journey.originalRiverOutcome?.losses.append(0)
+            }
             try validate(journey)
             guard journey.canSave else { throw GameRuleError("This save was interrupted during a minigame.") }
             return journey
@@ -257,9 +262,10 @@ struct JourneyStore {
         if let outcome = trip.originalRiverOutcome {
             guard trip.phase == .river, (1...4).contains(outcome.requestedMethodRaw), (1...3).contains(outcome.animationMethodRaw),
                   (0...2).contains(outcome.failureKind), (0...4).contains(outcome.status),
-                  (-328...983).contains(outcome.currentFactor), outcome.losses.count == 7,
-                  zip(Supply.allCases, outcome.losses).allSatisfy({ item, loss in
-                      (0...(item == .oxen ? 80 : item.capacity)).contains(loss)
+                  (-328...983).contains(outcome.currentFactor), outcome.losses.count == Inventory.itemCount(for: trip.gameEdition),
+                  outcome.losses.enumerated().allSatisfy({ index, loss in
+                      let limit = index == 0 ? 80 : index == 7 ? Inventory.perishableFoodCapacity : Supply.allCases[index].capacity
+                      return (0...limit).contains(loss)
                   }), Set(outcome.drownedMembers).count == outcome.drownedMembers.count,
                   outcome.drownedMembers.allSatisfy(trip.members.indices.contains),
                   outcome.presentationRandomTicks.map({ (0..<180).contains($0) }) ?? true else {
@@ -278,6 +284,7 @@ struct JourneyStore {
         }
         if let state = trip.original {
             guard state.badness <= 139, state.flags & 0xf1 == 0,
+                  state.cdWagonWeight.map({ trip.gameEdition == .macintoshCD12 && (0...4328).contains($0) }) ?? true,
                   state.weather.region < 6, state.weather.temperature <= 5,
                   (state.weather.category & 127) <= 9 else {
                 throw GameRuleError("The saved game contains invalid original simulation state.")

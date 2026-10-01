@@ -91,25 +91,27 @@ enum OriginalRiverRules {
     /// Supply inventory must reflect the ferry/guide payment before this call.
     static func resolve(method: CrossingMethod, destination: Int, dimensions: Dimensions,
                         rain: UInt16, inventory: [Int], living: [Bool],
-                        inheritedD7: Int = 6, draw: Draw) -> Outcome {
+                        inheritedD7: Int = 6, edition: GameEdition = .macintosh11,
+                        wagonWeight: Int? = nil, draw: Draw) -> Outcome {
         let choice = choose(method: method, destination: destination, dimensions: dimensions,
-                            rain: rain, inheritedD7: inheritedD7, draw: draw)
+                            rain: rain, inheritedD7: inheritedD7, edition: edition, draw: draw)
         return prepareResult(choice, destination: destination, dimensions: dimensions,
-                             rain: rain, inventory: inventory, living: living, draw: draw)
+                             rain: rain, inventory: inventory, living: living, edition: edition, wagonWeight: wagonWeight, draw: draw)
     }
 
     /// CODE18:034e runs before animation. Loss arrays are cleared at0e46.
     static func choose(method: CrossingMethod, destination: Int, dimensions: Dimensions,
-                       rain: UInt16, inheritedD7: Int = 6, draw: Draw) -> Outcome {
+                       rain: UInt16, inheritedD7: Int = 6, edition: GameEdition = .macintosh11, draw: Draw) -> Outcome {
         let requested = methodRaw(method)
         let depth = Int(dimensions.depthHalfFeet)
         // CODE18:0dcc–0de2 payment loop leaves D7=7 for ferry/guide.
         // Single-wagon options pane is root child ordinal6: CODE6:1c6c,
         // CODE18:0124, CODE5:2eea/3998. Preserve that inherited register.
-        let register = requested >= 3 ? 7 : inheritedD7
+        let register = requested >= 3 ? Inventory.itemCount(for: edition) : inheritedD7
         let factor = currentFactor(destination: destination, rain: rain, inheritedD7: register)
         var result = Outcome(requestedMethodRaw: requested, animationMethodRaw: requested,
-                             failureKind: 0, status: 0, currentFactor: factor, phase: .animation)
+                             failureKind: 0, status: 0, currentFactor: factor,
+                             losses: Array(repeating: 0, count: Inventory.itemCount(for: edition)), phase: .animation)
         func tip() { result.failureKind = 2; result.status = 2 }
         switch method {
         case .ford:
@@ -138,16 +140,21 @@ enum OriginalRiverRules {
     /// CODE3:228e calls CODE18:0256 at result creation, using live world state.
     /// The shared RNG can advance during queued rest while animation plays.
     static func prepareResult(_ choice: Outcome, destination: Int, dimensions: Dimensions,
-                              rain: UInt16, inventory: [Int], living: [Bool], draw: Draw) -> Outcome {
+                              rain: UInt16, inventory: [Int], living: [Bool], edition: GameEdition = .macintosh11,
+                              wagonWeight: Int? = nil, draw: Draw) -> Outcome {
         guard !choice.isPrepared else { return choice }
-        precondition(inventory.count == 7 && (1...5).contains(living.count))
+        precondition(inventory.count == Inventory.itemCount(for: edition) && (1...5).contains(living.count))
         var result = choice
         result.phase = .result
+        result.losses = Array(repeating: 0, count: inventory.count)
         let depth = Int(dimensions.depthHalfFeet)
         // CODE3:225a–228e invokes loss helper only for status1 or2.
         guard result.status == 1 || result.status == 2 else { return result }
-        func supplies(_ threshold: Int) {
-            for item in 1...6 where inventory[item] != 0 {
+        func supplies(_ baseThreshold: Int) {
+            // CD CODE19:1580 adds20 only to supply losses for loads over2750.
+            let overloaded = edition == .macintoshCD12 && (wagonWeight ?? Inventory.cdWagonWeight(rawQuantities: inventory)) > 2750
+            let threshold = baseThreshold + (overloaded ? 20 : 0)
+            for item in 1..<inventory.count where inventory[item] != 0 {
                 if draw(100, 0x1608) < threshold { result.losses[item] = draw(inventory[item] + 1, 0x1626) }
             }
         }

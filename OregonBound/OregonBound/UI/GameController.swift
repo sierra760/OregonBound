@@ -151,9 +151,13 @@ enum GamePanel: String, Identifiable {
     }
 
     func tick() {
-        guard applicationActive, !isOriginalModalPresented, let trip,
+        guard applicationActive, !isOriginalModalPresented, var trip,
               [.travel, .landmark, .river, .fork, .hunting, .rafting].contains(trip.phase),
               trip.originalTradeSession == nil else { return }
+        if trip.gameEdition == .macintoshCD12 {
+            JourneyEngine.refreshWagonWeight(in: &trip)
+            self.trip = trip
+        }
         // Each world keeps its initial speed (4 for Medium).
         // Bit1 marks an active original world; stored state keeps action bits.
         guard OriginalActionScheduler.timerPulse(counter: &dayTimerCounter, threshold: trip.timing.timerThreshold,

@@ -108,8 +108,11 @@ struct Inventory: Codable, Equatable {
     /// CD CODE17:2056. Pounds: wagon500, clothing3, bullets one tenth,
     /// wheels40, axles70, tongues50, and both food pools. Oxen are excluded.
     var cdWagonWeight: Int {
-        500 + self[.clothing] * 3 + self[.bullets] / 10 + self[.wheels] * 40
-            + self[.axles] * 70 + self[.tongues] * 50 + self[.food] + perishableFood
+        Self.cdWagonWeight(rawQuantities: rawQuantities(for: .macintoshCD12))
+    }
+    static func cdWagonWeight(rawQuantities q: [Int]) -> Int {
+        precondition(q.count == 8)
+        return 500 + q[1] * 3 + q[2] / 10 + q[3] * 40 + q[4] * 70 + q[5] * 50 + q[6] + q[7]
     }
     subscript(_ supply: Supply) -> Int {
         get { quantities[supply.rawValue, default: 0] }

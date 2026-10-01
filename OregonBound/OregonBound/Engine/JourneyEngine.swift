@@ -92,6 +92,13 @@ enum JourneyEngine {
         trip.original?.flags |= 2
     }
 
+    /// CD CODE17:23f6 refreshes load even when a pulse does not advance a day.
+    static func refreshWagonWeight(in trip: inout Journey) {
+        guard trip.gameEdition == .macintoshCD12 else { return }
+        trip.ensureOriginalState()
+        trip.original?.cdWagonWeight = trip.inventory.cdWagonWeight
+    }
+
     /// Compatibility entry point for an explicitly requested traveling day.
     /// The UI timer uses advanceActionDay so Time Out and pending rest survive.
     static func advanceDay(_ trip: inout Journey) {
@@ -180,6 +187,7 @@ enum JourneyEngine {
     @discardableResult
     private static func dailyNeeds(_ trip: inout Journey, resting: Bool, traveling: Bool = false, preservingFlags: Bool = false) -> OriginalHealth.Output? {
         guard trip.phase != .finished, !trip.livingMembers.isEmpty else { return nil }
+        refreshWagonWeight(in: &trip)
         initializeWeather(&trip)
         if !preservingFlags {
             if traveling { trip.original?.flags |= 2 } else { trip.original?.flags &= ~2 }
@@ -324,7 +332,7 @@ enum JourneyEngine {
         trip.record(OriginalJournalRules.decision(.crossing(OriginalRiverRules.methodRaw(method))))
         var random = OriginalRandom(seed: trip.randomState)
         let outcome = OriginalRiverRules.choose(method: method, destination: destination,
-            dimensions: dimensions, rain: trip.original!.weather.rain) {
+            dimensions: dimensions, rain: trip.original!.weather.rain, edition: trip.gameEdition) {
                 bound, _ in random.bounded(bound)
             }
         trip.randomState = random.seed
@@ -342,8 +350,9 @@ enum JourneyEngine {
         var random = OriginalRandom(seed: trip.randomState)
         let result = OriginalRiverRules.prepareResult(choice,
             destination: OriginalRiverRules.destinationIndex(trip), dimensions: OriginalRiverRules.dimensions(in: trip),
-            rain: trip.original!.weather.rain, inventory: Supply.allCases.map { trip.inventory[$0] },
-            living: trip.members.map(\.alive)) { bound, _ in random.bounded(bound) }
+            rain: trip.original!.weather.rain, inventory: trip.inventory.rawQuantities(for: trip.gameEdition),
+            living: trip.members.map(\.alive), edition: trip.gameEdition,
+            wagonWeight: trip.original?.cdWagonWeight ?? trip.inventory.cdWagonWeight) { bound, _ in random.bounded(bound) }
         trip.randomState = random.seed
         trip.originalRiverOutcome = result
         return result
@@ -358,8 +367,8 @@ enum JourneyEngine {
         trip.originalMapSuppressedLandmarkID = trip.locationID
         // CODE16:12f2–143e applies the completed loss record, not per-person
         // illness death handling: river deaths do not lower shared badness to105.
-        for (index, item) in Supply.allCases.enumerated() {
-            trip.inventory[item] = max(0, trip.inventory[item] - outcome.losses[index])
+        for index in outcome.losses.indices {
+            trip.inventory[originalIndex: index] = max(0, trip.inventory[originalIndex: index] - outcome.losses[index])
         }
         if outcome.losses.contains(where: { $0 != 0 }) {
             OriginalTrailEvents.record(66, quantities: outcome.losses, in: &trip)

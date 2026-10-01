@@ -13,10 +13,11 @@ struct OriginalRiverResultContent {
     let headingFont: HeadingFont
     let lossRuns: [Run]
 
-    init(outcome: OriginalRiverRules.Outcome, names: [String]) {
+    init(outcome: OriginalRiverRules.Outcome, names: [String], edition: GameEdition = .macintosh11,
+         strings: (Int) -> [String] = OriginalResources.strings) {
         isFailure = outcome.status == 1 || outcome.status == 2
         headingFont = isFailure ? .plain12 : .bold14
-        let text = OriginalResources.strings(3021)
+        let text = strings(3021)
         if !isFailure {
             let index = outcome.status == 3 ? 1 : outcome.status == 4 ? 2 : 0
             heading = text[index] + "." // DITL6320's authored ^0. template.
@@ -30,7 +31,7 @@ struct OriginalRiverResultContent {
             return
         }
         var runs = [Run(text: text[6], x: 10, y: 30)]
-        let nouns = OriginalResources.strings(3011)
+        let nouns = strings(3011)
         var row = 0
         func append(_ value: String) {
             runs.append(.init(text: value, x: 60, y: 30 + row * 12))
@@ -38,10 +39,10 @@ struct OriginalRiverResultContent {
         }
         for (index, raw) in outcome.losses.enumerated() where raw > 0 {
             let count = index == 0 ? (raw + 1) / 2 : raw
-            append(OriginalJournalRules.number(count) + " " + nouns[index + (count == 1 ? 7 : 0)])
+            append(OriginalJournalRules.number(count) + " " + nouns[index + (count == 1 ? Inventory.itemCount(for: edition) : 0)])
         }
         if outcome.drownedMembers.contains(0) {
-            append(OriginalResources.strings(1522)[24])
+            append(strings(1522)[24])
         } else {
             // Original walks the five slot flags, not their native array order.
             for index in 1..<max(1, min(5, names.count)) where outcome.drownedMembers.contains(index) {

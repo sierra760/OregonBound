@@ -14,7 +14,7 @@ enum OriginalTrailEvents {
         guard !trip.livingMembers.isEmpty else { return }
         // The CD timer computes load before the daily event dispatch. Spoilage
         // and this day's other losses cannot change the cached overload checks.
-        let cdWeight = trip.inventory.cdWagonWeight
+        let cdWeight = trip.original?.cdWagonWeight ?? trip.inventory.cdWagonWeight
         var randomBreakage: Action?
         if trip.original!.weather.snow > 3000 { apply(.snowbound, to: &trip, draw: draw) }
         if trip.original!.weather.temperature >= 3 && draw(100, 0x30d6) < 4 { apply(.snakebite, to: &trip, draw: draw) }

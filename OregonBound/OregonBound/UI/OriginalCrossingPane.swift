@@ -21,7 +21,7 @@ struct OriginalCrossingPane: View {
     var body: some View {
         Group {
             if outcome.isPrepared {
-                OriginalRiverResultPane(content: .init(outcome: outcome, names: trip.members.map(\.name))) {
+                OriginalRiverResultPane(content: .init(outcome: outcome, names: trip.members.map(\.name), edition: trip.gameEdition)) {
                     // Event2 installs a zero-interval timer. It does not apply
                     // losses synchronously inside a button or keyboard callback.
                     presentation?.requestDismissal(active: visible && scenePhase == .active,
