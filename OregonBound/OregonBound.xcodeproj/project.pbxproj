@@ -383,6 +383,7 @@
 		CFAA2873A9109AE8806EC637 /* OriginalAudioQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54D871D44BC000BD9C70CA57 /* OriginalAudioQueue.swift */; };
 		D068E8545B5C7E0AD80857CB /* OriginalAudioQueueTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DD1E2F5CB7E54968E45CB3B /* OriginalAudioQueueTests.swift */; };
 		D1091EA08CB859580C95BA3C /* OriginalWindowGeometry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 076D3D3ED153183C42858D57 /* OriginalWindowGeometry.swift */; };
+		D142EE75238696CA9233D682 /* RasterPICTTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF1E1C1EABCE862DAFE763F0 /* RasterPICTTests.swift */; };
 		D1DAB205D5AF291663AC67F7 /* OriginalSaveJournalExpansionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B152BE2759A52A612B88FB6 /* OriginalSaveJournalExpansionTests.swift */; };
 		D20A056A0AE85ACB5B43FAE3 /* OriginalSoundSampleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7813279A51334A7BEF95564C /* OriginalSoundSampleTests.swift */; };
 		D2897B5F139A76635F46DF9D /* OriginalJournalIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E091E7276B4045C1C5FAB49 /* OriginalJournalIntegrationTests.swift */; };
@@ -734,6 +735,7 @@
 		FA10B3811D2760A00BD19321 /* OriginalStorePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalStorePane.swift; sourceTree = "<group>"; };
 		FAC115831221D4A23137D7FE /* OriginalTalkRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalTalkRulesTests.swift; sourceTree = "<group>"; };
 		FE3EE9499AA30209A5C66434 /* DayCycleEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCycleEngineTests.swift; sourceTree = "<group>"; };
+		FF1E1C1EABCE862DAFE763F0 /* RasterPICTTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RasterPICTTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -1031,6 +1033,7 @@
 				C0E25E1022969DF2BE0AA22A /* OriginalWagonContinuationTests.swift */,
 				3EE3C17BE4F1B157D15BEA3C /* OriginalWindowFocusTests.swift */,
 				05F99E6EAF447F440C94147A /* PlaythroughTests.swift */,
+				FF1E1C1EABCE862DAFE763F0 /* RasterPICTTests.swift */,
 				3C86469B615B60FCA44F1192 /* RuntimeResourceTests.swift */,
 				F02C5568AD262D6804FDDE8E /* SimulationRunnerTests.swift */,
 				A5803BCE8088C72F1547B713 /* SourceDecoderTests.swift */,
@@ -1717,6 +1720,7 @@
 				B0B1E8D119899AE1C2DC4870 /* OriginalWagonContinuationTests.swift in Sources */,
 				DC1D3DEAD8A8B4CEC0297B7A /* OriginalWindowFocusTests.swift in Sources */,
 				EC10BCA80EC253E3C0EC8522 /* PlaythroughTests.swift in Sources */,
+				D142EE75238696CA9233D682 /* RasterPICTTests.swift in Sources */,
 				B9EEB9F107E8D790EFA25324 /* RuntimeResourceTests.swift in Sources */,
 				B3469FA7019C59EA4B200D95 /* SimulationRunnerTests.swift in Sources */,
 				4D0F70DBC6A0EC67C7A4A5EA /* SourceDecoderTests.swift in Sources */,

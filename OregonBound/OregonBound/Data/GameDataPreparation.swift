@@ -18,6 +18,7 @@ enum GameDataPreparation {
         let catalogPath: String
         let lookupPath: String
         let graphics: [String: String]
+        let rasterPictures: [String: String]
         let soundSources: [GameDataSourceRole]
         let terrainSources: [GameDataSourceRole]
         let pendingResources: [PendingResource]
@@ -51,6 +52,7 @@ enum GameDataPreparation {
                 try work()
             }
             var graphics: [String: String] = [:]
+            var rasterPictures: [String: String] = [:]
             var soundSources: [GameDataSourceRole] = []
             var terrainSources: [GameDataSourceRole] = []
             var pending: [PendingResource] = []
@@ -99,19 +101,32 @@ enum GameDataPreparation {
                 }
                 terrainSources.append(role)
             }
-            // Retain data whose native interpretation is still being recovered.
-            // These entries cannot be mistaken for decoded/verified graphics.
-            for role in selection.edition.requiredRoles {
-                guard let candidate = selection.sources[role] else { continue }
-                for resource in candidate.fork.resources {
-                    let deferredPicture = role == appRole && resource.type == "PICT" && !GraphicsExtractor.textPictureIds.contains(resource.id)
-                    guard deferredPicture else { continue }
-                    let path = "sources/\(role.rawValue)/pending/\(resource.type)_\(resource.id).bin"
-                    try output.write(resource.data, to: path)
-                    pending.append(PendingResource(role: role, type: resource.type, id: resource.id, path: path,
-                                                  reason: "Native raster PICT decoding pending"))
+            // Keep undecoded pictures explicit instead of replacing them with a
+            // platform fallback or treating unknown opcodes as a blank picture.
+            var pictures: [DecodedImage] = []
+            for resource in app.fork.resources where resource.type == "PICT" && !GraphicsExtractor.textPictureIds.contains(resource.id) {
+                try step("Decoding application picture \(resource.id)…") {
+                    var decoded = PICTDecoder.convert(resource: GraphicsExtractor.resourceInfo(resource, sourceFile: appRole.rawValue), data: resource.data)
+                    if decoded.status == .ok, let image = decoded.image {
+                        let path = "sources/\(appRole.rawValue)/images/PICT/pict_\(resource.id).png"
+                        try output.writePNG(image, to: path)
+                        decoded.imagePath = path
+                        pictures.append(decoded)
+                    } else {
+                        guard selection.edition == .macintoshCD12, resource.id == 10256,
+                              decoded.diagnostics.contains(where: { $0.code == "pict.unsupported_encoding" }) else {
+                            throw GraphicsExtractor.Failure.incomplete(decoded.diagnostics.map(\.message).joined(separator: "; "))
+                        }
+                        let path = "sources/\(appRole.rawValue)/pending/PICT_\(resource.id).bin"
+                        try output.write(resource.data, to: path)
+                        pending.append(PendingResource(role: appRole, type: resource.type, id: resource.id, path: path,
+                            reason: decoded.diagnostics.map(\.message).joined(separator: "; ")))
+                    }
                 }
             }
+            let picturesPath = "sources/\(appRole.rawValue)/raster_pictures.json"
+            try output.writeJSON(pictures, to: picturesPath)
+            rasterPictures[appRole.rawValue] = picturesPath
             if let system = selection.sources[.system] {
                 try step("Decoding optional System resources…") {
                     _ = try BitmapFontExtractor.extractSystemFonts(systemFork: system.fork, into: output, resourceForkSHA256: system.sha256)
@@ -120,8 +135,8 @@ enum GameDataPreparation {
             }
             try output.writeJSON(catalog, to: "resource_catalog.json")
             try output.writeJSON(lookup.index, to: "resource_lookup.json")
-            let manifest = Manifest(schemaVersion: 3, edition: selection.edition, preparedAt: Date(),
-                                    catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", graphics: graphics, soundSources: soundSources, terrainSources: terrainSources,
+            let manifest = Manifest(schemaVersion: 4, edition: selection.edition, preparedAt: Date(),
+                                    catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", graphics: graphics, rasterPictures: rasterPictures, soundSources: soundSources, terrainSources: terrainSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
             try output.writeJSON(manifest, to: "prepared_import.json")
             return Report(root: destination, manifest: manifest)
