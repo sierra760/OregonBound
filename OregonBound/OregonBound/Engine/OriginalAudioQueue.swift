@@ -5,6 +5,8 @@ struct OriginalAudioQueue {
     private(set) var current: Int?
     private(set) var pending: [Int] = []
     private var callbackComplete = false
+    /// Native channel status is idle as soon as completion arrives, before pump.
+    var isPlaying: Bool { current != nil && !callbackComplete }
 
     mutating func request(_ id: Int) -> [Command] {
         guard enabled else { return [] }

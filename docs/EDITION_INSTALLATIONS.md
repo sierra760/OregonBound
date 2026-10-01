@@ -52,3 +52,11 @@ game window because resource adoption is process-wide.
 
 Full CD gameplay remains under development; import, selection and title-screen
 adoption do not certify every original feature.
+
+The native guide uses the selected edition's 61 or 73 pages, title/text indexes
+and landmark entry pages. CD pages include the original narration control. It
+uses the shared sound queue, respects Sound On/Off, stops on page changes,
+index entry and guide close, and can replay after completion. Turning past a
+book end leaves narration playing. Text and narration come from the imported
+resources; the repository includes neither. Other CD features still require
+verification and implementation before full CD support can be claimed.
