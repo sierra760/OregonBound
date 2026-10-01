@@ -23,7 +23,7 @@ struct OriginalMapArtwork: View {
             PixelArtwork(resource: 15200, monochromeResource: 5200)
             Canvas { context, _ in
                 for point in points {
-                    context.fill(Path(CGRect(x: point.x, y: point.y, width: 2, height: 2)), with: .color(.red))
+                    context.fill(Path(CGRect(x: point.x, y: point.y, width: 2, height: 2)), with: .color(OriginalResources.colorMode == .monochrome ? .black : .red))
                 }
             }.allowsHitTesting(false)
         }.frame(width: 262, height: 119).accessibilityLabel("The Oregon Trail map")

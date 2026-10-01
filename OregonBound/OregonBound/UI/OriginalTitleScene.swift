@@ -52,7 +52,7 @@ final class OriginalTitleScene: SKScene {
             monochrome: OriginalResources.colorMode == .monochrome) { OriginalRandomStream.shared.bounded($0) }
         super.init(size: CGSize(width: 512, height: 322))
         scaleMode = .resizeFill
-        backgroundColor = SKColor(red: 1, green: 246.0 / 255, blue: 137.0 / 255, alpha: 1)
+        backgroundColor = OriginalResources.colorMode == .monochrome ? .white : SKColor(red: 1, green: 246.0 / 255, blue: 137.0 / 255, alpha: 1)
         isUserInteractionEnabled = false
     }
 

@@ -73,9 +73,10 @@ struct PixelArtwork: View {
     var body: some View {
         let selected = monochromeResource.map { OriginalResources.resource(monochrome: $0, color: resource) } ?? resource
         if let image = OriginalResources.image(selected, type: type, frame: frame) {
-            if preserveDimensions,
+            if preserveDimensions || OriginalResources.colorMode == .monochrome,
                let entry = OriginalResources.manifest?.image(resource: selected, type: type ?? OriginalResources.imageType, frame: frame) {
                 image.resizable().interpolation(.none).frame(width: CGFloat(entry.width), height: CGFloat(entry.height))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             } else {
                 image.resizable().interpolation(.none).aspectRatio(contentMode: .fit)
             }

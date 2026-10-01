@@ -18,13 +18,7 @@ struct OriginalJournalPane: View {
     private var tick: UInt32 { UInt32(truncatingIfNeeded: UInt64(ProcessInfo.processInfo.systemUptime * 60)) }
     var body: some View {
         ZStack(alignment: .topLeading) {
-            // CODE5:3a38–3a86: orange outer frame, black inner frame,
-            // then erase the original content rectangle in the paper color.
-            Rectangle().strokeBorder(Color(.sRGB, red: Double(0xf500) / 65535,
-                                            green: Double(0x9600) / 65535, blue: Double(0x1a00) / 65535), lineWidth: 1)
-                .frame(width: 266, height: 106).offset(x: -2, y: -2).allowsHitTesting(false)
-            Rectangle().strokeBorder(.black, lineWidth: 1)
-                .frame(width: 264, height: 104).offset(x: -1, y: -1).allowsHitTesting(false)
+            OriginalPaneFrame(width: 262, height: 102)
             Canvas { context, _ in
                 let start = min(scroll.topLine, rows.count)
                 let end = min(rows.count, start + OriginalJournalScrollState.visibleLines)

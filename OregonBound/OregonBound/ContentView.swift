@@ -2,7 +2,9 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 
-let trailPaper = Color(red: 1, green: 0.98, blue: 0.86)
+var trailPaper: Color {
+    OriginalResources.colorMode == .monochrome ? .white : Color(red: 1, green: 0.98, blue: 0.86)
+}
 
 struct TrailButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -262,7 +264,7 @@ struct GameRootView: View {
                     Button("OK") { game.error = nil }.keyboardShortcut(.defaultAction)
                 }.padding(22).frame(width: 340).background(trailPaper).overlay(Rectangle().stroke(.black, lineWidth: 2))
             }
-        }
+        }.coordinateSpace(name: OriginalWindowLayout.portSpace)
     }
 
     /// Center the CONTENT with the original integer division. The System window

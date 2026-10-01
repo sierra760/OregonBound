@@ -1,8 +1,35 @@
 import Foundation
 import Testing
+import SwiftUI
 @testable import OregonBound
 
 struct RuntimeResourceTests {
+    #if os(macOS)
+    @MainActor @Test func monochromePanePatternStaysAnchoredToItsPort() throws {
+        for (left, top) in [(4,4), (5,4), (4,5)] {
+            let renderer = ImageRenderer(content: ZStack(alignment: .topLeading) {
+                Color.white
+                OriginalPaneFrame(width: 8, height: 8, monochrome: true)
+                    .offset(x: CGFloat(left), y: CGFloat(top))
+            }.frame(width: 20, height: 20).coordinateSpace(name: OriginalWindowLayout.portSpace))
+            renderer.scale = 1
+            let bitmap = NSBitmapImageRep(cgImage: try #require(renderer.cgImage))
+            for y in 0..<20 { for x in 0..<20 {
+                let dx = x - left, dy = y - top
+                let outer = (-2..<10).contains(dx) && (-2..<10).contains(dy)
+                    && (dx == -2 || dx == 9 || dy == -2 || dy == 9)
+                let inner = (-1..<9).contains(dx) && (-1..<9).contains(dy)
+                    && (dx == -1 || dx == 8 || dy == -1 || dy == 8)
+                let black = inner || (outer && (x+y).isMultiple(of: 2))
+                let color = try #require(bitmap.colorAt(x: x, y: y)?.usingColorSpace(.deviceRGB))
+                #expect(abs(color.redComponent - (black ? 0 : 1)) < 0.000001)
+                #expect(abs(color.greenComponent - color.redComponent) < 0.000001)
+                #expect(abs(color.blueComponent - color.redComponent) < 0.000001)
+            }}
+        }
+    }
+    #endif
+
     @Test(arguments: Array(0..<18))
     func cdLandmarkFamiliesUseWeatherSnowAndSnakeException(index: Int) throws {
         for weather in [0, 1, 2, 10] {

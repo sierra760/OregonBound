@@ -110,7 +110,7 @@ struct OriginalTrailView: View {
             PixelArtwork(resource: weather.resource, monochromeResource: weather.resource == 20300 ? 20300 : 5600, frame: weather.frame).frame(width: 32, height: 32).offset(x: 12, y: 44)
             PixelArtwork(resource: 15600, monochromeResource: 5600, frame: 10).frame(width: 28, height: 59).offset(x: 57, y: 42)
             let mercury = CGFloat(min(5, max(0, trip.originalTemperatureCategory)) * 6)
-            Rectangle().fill(Color(red: 65280.0 / 65535, green: 0, blue: 1792.0 / 65535))
+            Rectangle().fill(OriginalResources.colorMode == .monochrome ? .black : Color(red: 65280.0 / 65535, green: 0, blue: 1792.0 / 65535))
                 .frame(width: 2, height: mercury).offset(x: 69, y: 87 - mercury)
             text("Hot\nWarm\nCold", x: 86, y: 52, width: 31)
             VStack(spacing: 0) {

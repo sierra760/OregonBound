@@ -1,9 +1,12 @@
 import SwiftUI
 
 // WIND1000:512×322. Source pane13:494×304 at(9,9); CODE5:3670–36f4 frame.
-let originalPaper = Color(red: 255 / 255, green: 246 / 255, blue: 137 / 255)
+var originalPaper: Color {
+    OriginalResources.colorMode == .monochrome ? .white : Color(red: 1, green: 246 / 255, blue: 137 / 255)
+}
 
 enum OriginalWindowLayout {
+    static let portSpace = "original-window-port"
     static let contentOrigin = CGPoint(x: 9, y: 9)
     // Initialized CODE5 rectangle table: center panes2/4/10/12 and lower pane3.
     static let centerOrigin = CGPoint(x: 64, y: 9)
@@ -11,18 +14,30 @@ enum OriginalWindowLayout {
     static let centerOffsetX = centerOrigin.x - contentOrigin.x
 }
 
-/// CODE5:3a12–3a86: color root-pane outlines, outside the authored content.
+/// CODE5:3a12–3a86: the outer monochrome pen uses the port's gray pattern.
 struct OriginalPaneFrame: View {
     let width: CGFloat
     let height: CGFloat
+    var monochrome = OriginalResources.colorMode == .monochrome
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            Rectangle().fill(Color(.sRGB, red: Double(0xf500) / 65535,
-                                   green: Double(0x9600) / 65535, blue: Double(0x1a00) / 65535))
-                .frame(width: width + 4, height: height + 4).offset(x: -2, y: -2)
-            Rectangle().fill(.black)
-                .frame(width: width + 2, height: height + 2).offset(x: -1, y: -1)
-            originalPaper.frame(width: width, height: height)
+        GeometryReader { geometry in
+            let origin = geometry.frame(in: .named(OriginalWindowLayout.portSpace)).origin
+            ZStack(alignment: .topLeading) {
+                if monochrome {
+                    if let pattern = TextureLoader.quickDrawGray(width: Int(width) + 4, height: Int(height) + 4,
+                                                                 originX: Int(origin.x) - 2, originY: Int(origin.y) - 2) {
+                        Image(decorative: pattern, scale: 1).interpolation(.none)
+                            .offset(x: -2, y: -2)
+                    }
+                } else {
+                    Rectangle().fill(Color(.sRGB, red: Double(0xf500) / 65535,
+                                           green: Double(0x9600) / 65535, blue: Double(0x1a00) / 65535))
+                        .frame(width: width + 4, height: height + 4).offset(x: -2, y: -2)
+                }
+                Rectangle().fill(.black)
+                    .frame(width: width + 2, height: height + 2).offset(x: -1, y: -1)
+                (monochrome ? Color.white : originalPaper).frame(width: width, height: height)
+            }
         }.frame(width: width, height: height, alignment: .topLeading)
             .allowsHitTesting(false).accessibilityHidden(true)
     }
@@ -47,6 +62,7 @@ struct OriginalWindow<Content: View>: View {
             PixelArtwork(resource: 10128, monochromeResource: 128, frame: 2).frame(width: 498, height: 7).offset(x: 7, y: 315)
             PixelArtwork(resource: 10128, monochromeResource: 128, frame: 1).frame(width: 7, height: 322)
         }.frame(width: 512, height: 322)
+            .coordinateSpace(name: OriginalWindowLayout.portSpace)
     }
 }
 
