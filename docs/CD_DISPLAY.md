@@ -43,3 +43,10 @@ dialog item without scaling. CD CODE5's title callback creates one frame with
 no animation callback; the classic edition retains its eleven animated tracks.
 The CD title therefore consumes no animation random draws. The retained `19000`
 frames in the CD files are not used by this title callback.
+
+River crossing sprites use selected bitmap dimensions. The CD image object has
+20 slots; snowy color crossings replace slots 1 and 2 with frames 18 and 19.
+This changes the artwork without changing the shared crossing scripts or timing.
+Raw frame reads clamp to the final available bitmap, matching the source loader.
+The classic image object retains 18 slots. Both color families use the authored
+mask geometry for caulking, ferry and ford sprites.

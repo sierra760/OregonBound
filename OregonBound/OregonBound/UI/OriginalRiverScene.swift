@@ -6,6 +6,7 @@ import SwiftUI
 struct OriginalRiverArtwork: View {
     let method: OriginalRiverAnimation.Method
     let outcome: OriginalRiverAnimation.Outcome
+    var snow = false
     var onComplete: () -> Void
     @State private var scene = OriginalRiverScene()
     @State private var visible = false
@@ -21,11 +22,12 @@ struct OriginalRiverArtwork: View {
             .onAppear {
                 visible = true
                 scene.setModalDispatchBlocked(modalBlocked)
-                scene.start(method: method, outcome: outcome, onComplete: onComplete)
+                scene.start(method: method, outcome: outcome, snow: snow, onComplete: onComplete)
                 scene.setActive(scenePhase == .active)
             }
-            .onChange(of: method) { value in scene.start(method: value, outcome: outcome, onComplete: onComplete) }
-            .onChange(of: outcome) { value in scene.start(method: method, outcome: value, onComplete: onComplete) }
+            .onChange(of: method) { value in scene.start(method: value, outcome: outcome, snow: snow, onComplete: onComplete) }
+            .onChange(of: outcome) { value in scene.start(method: method, outcome: value, snow: snow, onComplete: onComplete) }
+            .onChange(of: snow) { value in scene.start(method: method, outcome: outcome, snow: value, onComplete: onComplete) }
             .onChange(of: scenePhase) { phase in scene.setActive(visible && phase == .active) }
             .onChange(of: modalBlocked) { value in scene.setModalDispatchBlocked(value) }
             .onDisappear { visible = false; scene.setActive(false) }
@@ -36,6 +38,7 @@ final class OriginalRiverScene: SKScene {
     private var animation: OriginalRiverAnimation?
     private var method: OriginalRiverAnimation.Method?
     private var outcome: OriginalRiverAnimation.Outcome?
+    private var snow = false
     private var completion: (() -> Void)?
     private var completed = false
     private var active = false
@@ -61,12 +64,14 @@ final class OriginalRiverScene: SKScene {
     required init?(coder: NSCoder) { fatalError("OriginalRiverScene is created programmatically") }
     deinit { colorSpaceObservers.forEach(NotificationCenter.default.removeObserver) }
 
-    func start(method: OriginalRiverAnimation.Method, outcome: OriginalRiverAnimation.Outcome,
+    func start(method: OriginalRiverAnimation.Method, outcome: OriginalRiverAnimation.Outcome, snow: Bool = false,
                onComplete: @escaping () -> Void) {
         completion = onComplete
-        guard self.method != method || self.outcome != outcome || animation == nil else { return }
-        self.method = method; self.outcome = outcome
-        animation = OriginalRiverAnimation(method: method, outcome: outcome)
+        guard self.method != method || self.outcome != outcome || self.snow != snow || animation == nil else { return }
+        self.method = method; self.outcome = outcome; self.snow = snow
+        let sizes = OriginalResources.frames(15310).sorted { $0.frame_index < $1.frame_index }.map { ($0.width, $0.height) }
+        let frames = OriginalRiverAnimation.displayFrames(sizes: sizes, edition: GameData.edition, snow: snow)
+        animation = OriginalRiverAnimation(method: method, outcome: outcome, frames: frames)
         completed = false
         nextTick = nil
         render()

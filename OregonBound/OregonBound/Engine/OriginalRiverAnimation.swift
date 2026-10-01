@@ -42,33 +42,62 @@ struct OriginalRiverAnimation {
     static let frameSizes = [(262,155),(110,73),(108,70),(53,24),(38,19),(32,27),(18,13),
                              (67,53),(65,61),(107,71),(106,68),(109,58),(98,60),(100,61),
                              (104,60),(105,66),(101,67),(105,57)]
+    struct Frame: Equatable {
+        let index: Int
+        let width: Int
+        let height: Int
+    }
+    static var classicFrames: [Frame] {
+        displayFrames(sizes: frameSizes, edition: .macintosh11, snow: false)
+    }
+
+    /// The source image object has 18 classic slots or 20 CD slots. Frame reads
+    /// clamp to the final source bitmap. CD snow replaces slots, not script PCs.
+    static func displayFrames(sizes: [(Int, Int)], edition: GameEdition,
+                              snow: Bool, color: Bool = true) -> [Frame] {
+        guard !sizes.isEmpty else { return [] }
+        let count = edition == .macintoshCD12 ? 20 : 18
+        var frames = (0..<count).map { slot in
+            let index = min(slot, sizes.count - 1)
+            return Frame(index: index, width: sizes[index].0, height: sizes[index].1)
+        }
+        if edition == .macintoshCD12 && snow && color {
+            frames[1] = frames[18]
+            frames[2] = frames[19]
+        }
+        return frames
+    }
+
+    private let frames: [Frame]
     private let programs: [[Instruction]]
     private(set) var objects: [Object]
     private(set) var signal = 0 // A single shared scene word, NOT a set of flags.
     private(set) var updates = 0
     var isComplete: Bool { objects.isEmpty }
 
-    init(method: Method, outcome: Outcome) {
+    init(method: Method, outcome: Outcome, frames: [Frame] = Self.classicFrames) {
         let variant = method == .ford ? 2 : method == .caulk ? 0 : 1
         let mainScript = variant + (outcome == .success ? 7 : 10)
         let order = outcome == .success ? [mainScript, 1, 2, 0] : [3, 4, 5, 6, mainScript, 2, 0]
         let programs = Self.originalPrograms
-        self.init(programs: programs, creationOrder: programs.count == 13 ? order : [], maskedScripts: [mainScript])
+        self.init(programs: programs, creationOrder: programs.count == 13 ? order : [], maskedScripts: [mainScript], frames: frames)
         step() // CODE18:0x07e2–0x07f0 initializes once without redraw.
     }
 
     /// Internal initializer also permits focused VM tests independent of river outcomes.
-    init(programs: [[Instruction]], creationOrder: [Int], maskedScripts: Set<Int> = []) {
+    init(programs: [[Instruction]], creationOrder: [Int], maskedScripts: Set<Int> = [],
+         frames: [Frame] = Self.classicFrames) {
         self.programs = programs
-        objects = creationOrder.map { Object(script: $0, mode: maskedScripts.contains($0) ? -1 : 0) }
+        self.frames = frames
+        objects = (frames.isEmpty ? [] : creationOrder).map { Object(script: $0, mode: maskedScripts.contains($0) ? -1 : 0) }
     }
 
     var drawCommands: [DrawCommand] {
         objects.reversed().compactMap { object in
             guard object.visible, !object.deleted else { return nil }
-            let size = Self.frameSizes[object.frame]
-            return DrawCommand(object: object.script, frame: object.frame, x: object.x, y: object.y,
-                               width: size.0, height: size.1,
+            let frame = frames[object.frame]
+            return DrawCommand(object: object.script, frame: frame.index, x: object.x, y: object.y,
+                               width: frame.width, height: frame.height,
                                masked: object.mode == -1 && [7,9,12].contains(object.frame))
         }
     }
@@ -163,8 +192,8 @@ struct OriginalRiverAnimation {
     }
 
     private func wrappedFrame(_ frame: Int) -> Int {
-        if frame < 0 { return frame + Self.frameSizes.count }
-        if frame >= Self.frameSizes.count { return frame - Self.frameSizes.count }
+        if frame < 0 { return frame + frames.count }
+        if frame >= frames.count { return frame - frames.count }
         return frame
     }
 

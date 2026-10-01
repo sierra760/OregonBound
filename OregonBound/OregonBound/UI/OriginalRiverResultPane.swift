@@ -36,11 +36,12 @@ struct OriginalRiverResultPane: View {
 struct OriginalCrossingAnimationPane: View {
     let method: OriginalRiverAnimation.Method
     let outcome: OriginalRiverAnimation.Outcome
+    var snow = false
     let complete: () -> Void
 
     var body: some View {
         ZStack(alignment: .topLeading) {
-            OriginalRiverArtwork(method: method, outcome: outcome, onComplete: complete)
+            OriginalRiverArtwork(method: method, outcome: outcome, snow: snow, onComplete: complete)
                 .frame(width: 262, height: 155).originalPaneFrame(width: 262, height: 155)
             OriginalTextBox(text: OriginalResources.strings(3021)[3], width: 256, height: 17, centered: true)
                 .offset(x: 3, y: 12)
