@@ -128,12 +128,8 @@ struct OriginalRegistrationView: View {
                 ForEach(1..<5) { index in
                     nameField(index).offset(x: 305, y: CGFloat(156 + (index - 1) * 20))
                 }
-                Button { occupationHelp = true } label: {
-                    ZStack {
-                        PixelArtwork(resource: 10129, monochromeResource: 129).frame(width: 42, height: 46)
-                        PixelArtwork(resource: 9999, type: OriginalResources.iconType).frame(width: 32, height: 32)
-                    }
-                }.buttonStyle(.plain).accessibilityLabel("Occupation Help")
+                OriginalIconChoice(icon: 9999, title: "", width: 42) { occupationHelp = true }
+                    .accessibilityLabel("Occupation Help")
                     .frame(width: 42, height: 46).offset(x: 170, y: 182)
                 OriginalButton(title: "OK") {
                     do {

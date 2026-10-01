@@ -28,6 +28,25 @@ struct RuntimeResourceTests {
             }}
         }
     }
+    @MainActor @Test func disabledIconLabelErasesAlternatePortPixelsWithoutGrayInk() throws {
+        for left in [4, 5] {
+            let renderer = ImageRenderer(content: ZStack(alignment: .topLeading) {
+                Color.white
+                Color.black.frame(width: 8, height: 6)
+                    .overlay(CDDisabledControlTextPattern(paper: .white))
+                    .offset(x: CGFloat(left), y: 4)
+            }.frame(width: 18, height: 16).coordinateSpace(name: OriginalWindowLayout.portSpace))
+            renderer.scale = 1
+            let bitmap = NSBitmapImageRep(cgImage: try #require(renderer.cgImage))
+            for y in 0..<16 { for x in 0..<18 {
+                let inside = (left..<left+8).contains(x) && (4..<10).contains(y)
+                let black = inside && !(x+y).isMultiple(of: 2)
+                let color = try #require(bitmap.colorAt(x:x,y:y)?.usingColorSpace(.deviceRGB))
+                #expect(abs(color.redComponent - (black ? 0 : 1)) < 0.000001)
+            }}
+        }
+    }
+
     @MainActor @Test func monochromeSystemModalKeepsItsSolidOuterRingAndInactiveGrayBands() throws {
         for active in [true, false] {
             for left in [9, 10] {

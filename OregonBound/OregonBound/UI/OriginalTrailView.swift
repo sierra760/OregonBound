@@ -235,22 +235,14 @@ private struct CDSidebarButtonStyle: ButtonStyle {
     }
 }
 
-/// CD control drawing uses a typed color icon inside a two-frame oval. The
-/// pressed icon moves four pixels right; disabled controls show the empty oval.
+/// Preserve the wider ribbon hit target around the original42×46 control.
 struct CDSidebarArtwork: View {
     let resource: Int
     var pressed = false
     var enabled = true
-
     var body: some View {
-        ZStack(alignment: .topLeading) {
-            PixelArtwork(resource: 10129, monochromeResource: 129, frame: pressed && enabled ? 1 : 0,
-                         type: OriginalResources.imageType)
-                .frame(width: 42, height: 46).offset(x: 5, y: 2)
-            if enabled {
-                PixelArtwork(resource: resource, type: OriginalResources.iconType)
-                    .frame(width: 32, height: 32).offset(x: pressed ? 13 : 9, y: 9)
-            }
-        }.frame(width: 52, height: 60, alignment: .topLeading)
+        CDIconControlArtwork(resource: resource, pressed: pressed, enabled: enabled)
+            .offset(x: 5, y: 2)
+            .frame(width: 52, height: 60, alignment: .topLeading)
     }
 }
