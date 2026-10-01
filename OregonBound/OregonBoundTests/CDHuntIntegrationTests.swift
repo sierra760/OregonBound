@@ -4,6 +4,17 @@ import Testing
 @testable import OregonBound
 
 struct CDHuntIntegrationTests {
+    @Test func huntedFoodUsesIndependentOneThousandPoundPerishableCapacity() throws {
+        var trip = Journey(names: ["A", "B"], seed: 1234, edition: .macintoshCD12)
+        trip.phase = .travel; trip.locationID = "kansas"; trip.destinationID = "big-blue"; trip.legDistance = 83
+        trip.inventory[.food] = 2000; trip.inventory.perishableFood = 950; trip.inventory[.bullets] = 50
+        #expect(trip.totalFood == 2950 && trip.huntingFood == 950 && trip.huntingFoodCapacity == 1000)
+        try JourneyEngine.beginHunt(&trip)
+        try JourneyEngine.finishHunt(food: 500, shots: 1, in: &trip)
+        #expect(trip.inventory[.food] == 2000 && trip.inventory.perishableFood == 1000)
+        #expect(trip.journal.last?.text == "You brought back 50 pounds of food from hunting.")
+    }
+
     @MainActor @Test func sceneUsesCDRulesAndReseedsBeforeDeferringScenery() throws {
         let input = OriginalHuntSession.Input(destination: 2,month: 4,weatherCategory: 0,snow: true,
             mileage: 123,lastSuccessfulHuntMileage: 100,ammunition: 20,survivors: 5,currentFood: 0,
@@ -76,7 +87,9 @@ struct CDHuntIntegrationTests {
         let valid = OriginalHuntSession.Result(foodShot: 350,foodCarried: 0,shots: 1,lastSuccessfulHuntMileage: 0,carryLimit: limit)
         let result = try JourneyEngine.finishHunt(result: valid,in: &trip)
         #expect(result.foodCarried == limit && result.carryLimit == limit)
-        #expect(trip.inventory[.food] == 1750+limit && trip.inventory[.bullets] == 49)
+        #expect(trip.inventory[.food] == (edition == .macintoshCD12 ? 1750 : 1750+limit))
+        #expect(trip.inventory.perishableFood == (edition == .macintoshCD12 ? limit : 0))
+        #expect(trip.inventory[.bullets] == 49)
         #expect(trip.original?.restDays == 1 && trip.original?.lastSuccessfulHuntMileage == 123)
     }
     @Test func directCDSettlementUsesSoloAllowanceAndCancellationChargesNothing() throws {
@@ -89,6 +102,6 @@ struct CDHuntIntegrationTests {
         #expect(trip.original?.restDays == 0)
         try JourneyEngine.beginHunt(&trip)
         try JourneyEngine.finishHunt(food: 500,shots: 1,in: &trip)
-        #expect(trip.inventory[.food] == 225 && trip.inventory[.bullets] == 49)
+        #expect(trip.inventory[.food] == 100 && trip.inventory.perishableFood == 125 && trip.inventory[.bullets] == 49)
     }
 }

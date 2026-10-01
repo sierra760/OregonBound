@@ -22,6 +22,8 @@ enum OriginalHealth {
         var pendingEventPenalty: UInt8 = 0     // player+0x60
         var survivors: UInt8 = 5               // player+0x04
         var food: Int16 = 100                  // player+0x52
+        var perishableFood: Int16 = 0          // CD player+0x54
+        var edition: GameEdition = .macintosh11
         var clothing: Int16 = 10               // player+0x48
         var rations: UInt8 = 0                 // player+0x02: filling/meager/bare bones
         var pace: UInt8 = 0                    // world+0x04: steady/strenuous/grueling
@@ -54,6 +56,7 @@ enum OriginalHealth {
         let auxiliary: UInt8
         let pendingEventPenalty: UInt8
         let food: Int16
+        let perishableFood: Int16
         let members: [Member]
         let recoveredMemberIndices: [Int]
         /// Value stored by MOVE.B at 0x2438, before the >139 comparison.
@@ -81,7 +84,8 @@ enum OriginalHealth {
 
     static func transition(_ input: Input) -> Output {
         precondition((1...5).contains(input.survivors), "Requires a living original-size party")
-        precondition(input.food >= 0 && input.clothing >= 0)
+        precondition(input.food >= 0 && input.perishableFood >= 0 && input.clothing >= 0)
+        let availableFood = Int(input.food) + (input.edition == .macintoshCD12 ? Int(input.perishableFood) : 0)
         precondition(input.rations <= 2 && input.pace <= 2)
         precondition(input.temperature <= 5 && input.weather <= 9)
         precondition(input.members.count <= 5)
@@ -104,12 +108,12 @@ enum OriginalHealth {
         // Swift integer division truncates toward zero, as CODE 1:0x498c does.
         // In particular (0 -1)/2 must produce zero, not negative one.
         let auxiliary = UInt8(truncatingIfNeeded: (Int(input.auxiliary) - 1) / 2
-            + ((clothingPenalty > 0 || input.food == 0) ? 1 : 0))
+            + ((clothingPenalty > 0 || availableFood == 0) ? 1 : 0))
         let terms = Terms(
             retainedBadness: Int(min(input.badness, 139)) * 9 / 10,
             temperature: temperature < 3 ? 2 - temperature : temperature - 3,
             clothing: clothingPenalty,
-            rations: input.food > 0 ? 2 * Int(input.rations) : 16,
+            rations: availableFood > 0 ? 2 * Int(input.rations) : 16,
             paceAndWeather: (input.stateFlags & 0x0c == 0 ? 2 * (Int(input.pace) + 1) : 0)
                 + (input.weather >= 3 ? 1 : 0) + (input.weather >= 5 ? 1 : 0),
             auxiliary: Int(auxiliary),
@@ -118,10 +122,21 @@ enum OriginalHealth {
         )
         // Original MOVE.B occurs before comparison; do not clamp the Int sum.
         let stored = UInt8(truncatingIfNeeded: terms.sum)
-        let food = max(0, Int(input.food) - Int(input.survivors) * (3 - Int(input.rations)))
+        let need = Int(input.survivors) * (3 - Int(input.rations))
+        var food = Int(input.food), perishable = Int(input.perishableFood)
+        if input.edition == .macintoshCD12 {
+            // CD CODE17:2a36–2ab0: allocate one fifth to stored food, then
+            // cover either negative balance from the other supply before clamping.
+            food -= need / 5
+            perishable -= need - need / 5
+            if food < 0 { perishable = max(0, perishable + food); food = 0 }
+            if perishable < 0 { food = max(0, food + perishable); perishable = 0 }
+        } else {
+            food = max(0, food - need)
+        }
         return Output(
             badness: min(stored, 139), auxiliary: auxiliary, pendingEventPenalty: 0,
-            food: Int16(food), members: members, recoveredMemberIndices: recovered,
+            food: Int16(food), perishableFood: Int16(perishable), members: members, recoveredMemberIndices: recovered,
             storedBadnessBeforeThreshold: stored, thresholdCrossed: stored > 139, terms: terms
         )
     }

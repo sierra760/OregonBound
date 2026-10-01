@@ -310,7 +310,7 @@ struct GameRootView: View {
               snow: (trip.original?.weather.snow ?? 0) != 0, mileage: trip.miles,
               lastSuccessfulHuntMileage: trip.original?.lastSuccessfulHuntMileage ?? 0,
               ammunition: trip.inventory[.bullets], survivors: trip.livingMembers.count,
-              currentFood: trip.inventory[.food], foodCapacity: Supply.food.capacity,
+              currentFood: trip.huntingFood, foodCapacity: trip.huntingFoodCapacity,
               timeSetting: Int(trip.timing.huntSelector), originalDisplayFlag: true,
               edition: trip.gameEdition, rain: Int(trip.original?.weather.rain ?? 0))
     }

@@ -210,6 +210,7 @@ enum JourneyEngine {
             badness: state.badness, auxiliary: state.auxiliary,
             pendingEventPenalty: state.pendingEventPenalty,
             survivors: UInt8(trip.livingMembers.count), food: Int16(trip.inventory[.food]),
+            perishableFood: Int16(trip.inventory.perishableFood), edition: trip.gameEdition,
             clothing: Int16(trip.inventory[.clothing]), rations: trip.rations.originalIndex,
             pace: trip.pace.originalIndex, stateFlags: state.flags,
             temperature: state.weather.temperature, weather: state.weather.category,
@@ -220,6 +221,7 @@ enum JourneyEngine {
         state.badness = output.storedBadnessBeforeThreshold
         trip.original = state
         trip.inventory[.food] = Int(output.food)
+        if trip.gameEdition == .macintoshCD12 { trip.inventory.perishableFood = Int(output.perishableFood) }
         for i in trip.members.indices {
             trip.members[i].sickDays = Int(output.members[i].remainingDays)
             if output.members[i].condition == 255 { trip.members[i].illness = nil }
@@ -403,7 +405,7 @@ enum JourneyEngine {
         let input = OriginalHuntSession.Input(destination: 0, month: 1, weatherCategory: 0,
             snow: false, mileage: trip.miles, lastSuccessfulHuntMileage: trip.original?.lastSuccessfulHuntMileage ?? 0,
             ammunition: trip.inventory[.bullets], survivors: trip.livingMembers.count,
-            currentFood: trip.inventory[.food], foodCapacity: Supply.food.capacity,
+            currentFood: trip.huntingFood, foodCapacity: trip.huntingFoodCapacity,
             timeSetting: 3, originalDisplayFlag: true)
         let result = trip.gameEdition == .macintoshCD12
             ? CDHuntSession.settle(foodShot: food,shots: shots,input: input)
@@ -422,11 +424,11 @@ enum JourneyEngine {
         // CODE13:03b4 freezes carrying capacity at hunt startup;04c2/04cc
         // read live mileage and food after any interleaved resting days.
         let settled = OriginalHuntSession.Result(foodShot: result.foodShot,
-            foodCarried: min(result.foodShot, result.carryLimit, max(0, Supply.food.capacity - trip.inventory[.food])),
+            foodCarried: min(result.foodShot, result.carryLimit, max(0, trip.huntingFoodCapacity - trip.huntingFood)),
             shots: result.shots,
             lastSuccessfulHuntMileage: result.foodShot > 0 ? trip.miles : result.lastSuccessfulHuntMileage,
             carryLimit: result.carryLimit)
-        trip.inventory[.food] += settled.foodCarried
+        trip.huntingFood += settled.foodCarried
         trip.inventory[.bullets] -= settled.shots
         trip.phase = trip.miniGameReturnPhase
         trip.ensureOriginalState()

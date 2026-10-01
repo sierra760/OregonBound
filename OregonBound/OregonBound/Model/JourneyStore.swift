@@ -233,6 +233,7 @@ struct JourneyStore {
               trip.members.allSatisfy({ $0.health.isFinite && (0...100).contains($0.health) && (0...255).contains($0.sickDays) && !$0.name.isEmpty && $0.name.count <= 24 }),
               (3...8).contains(trip.departureMonth), (0...(65_536 * 366)).contains(trip.daysElapsed),
               ((trip.originalCashOverdraft == true ? -990_000 : 0)...1_000_000).contains(trip.cash), trip.inventory.valid,
+              trip.gameEdition == .macintoshCD12 || trip.inventory.perishableFood == 0,
               trip.legacyOxenLimit.map({ (40...80).contains($0) }) ?? true,
               trip.inventory[.oxen] <= (trip.legacyOxenLimit ?? Supply.oxen.capacity),
               (0...4000).contains(trip.miles), (0...500).contains(trip.legDistance), (0...trip.legDistance).contains(trip.legProgress),

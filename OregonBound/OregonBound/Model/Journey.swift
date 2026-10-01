@@ -83,11 +83,18 @@ enum Supply: String, Codable, CaseIterable, Identifiable {
 
 struct Inventory: Codable, Equatable {
     private var quantities: [String: Int] = [:]
+    static let perishableFoodCapacity = 1000
+    /// CD player+54. Absent in legacy saves; the existing food key stays stored food.
+    var perishableFood: Int {
+        get { quantities["perishableFood", default: 0] }
+        set { quantities["perishableFood"] = max(0, newValue) }
+    }
     subscript(_ supply: Supply) -> Int {
         get { quantities[supply.rawValue, default: 0] }
         set { quantities[supply.rawValue] = max(0, newValue) }
     }
     var valid: Bool { quantities.allSatisfy { key, value in
+        if key == "perishableFood" { return (0...Self.perishableFoodCapacity).contains(value) }
         guard let supply = Supply(rawValue: key) else { return false }
         // Previously released saves allowed40 display pairs. Preserve their raw
         // count80 on migration; new purchases still enforce original capacity40.
@@ -122,6 +129,15 @@ struct JournalEntry: Codable, Equatable, Identifiable {
 struct Journey: Codable, Equatable {
     var edition: GameEdition?
     var gameEdition: GameEdition { edition ?? .macintosh11 }
+    var totalFood: Int { inventory[.food] + (gameEdition == .macintoshCD12 ? inventory.perishableFood : 0) }
+    var huntingFoodCapacity: Int { gameEdition == .macintoshCD12 ? Inventory.perishableFoodCapacity : Supply.food.capacity }
+    var huntingFood: Int {
+        get { gameEdition == .macintoshCD12 ? inventory.perishableFood : inventory[.food] }
+        set {
+            if gameEdition == .macintoshCD12 { inventory.perishableFood = newValue }
+            else { inventory[.food] = newValue }
+        }
+    }
     var id = UUID()
     var profession: Profession
     var difficulty: Difficulty
