@@ -32,6 +32,46 @@ struct RasterPICTTests {
         return data
     }
 
+    private func legacyPicture(duplicate: Bool = true) -> Data {
+        var data = indexedPicture()
+        let header = words([65535, 65535, 0, 0, 0, 0, 3, 0, 1, 0, 0, 0])
+        data.replaceSubrange(16..<40, with: header)
+        if duplicate { data.insert(contentsOf: header.prefix(16), at: 16) }
+        return data
+    }
+
+    @Test func duplicateLegacyHeaderDecodesWithProvenance() throws {
+        let data = legacyPicture()
+        let normalized = try PICTDecoder.normalize(ByteSource(data))
+        let image = try #require(try PICTDecoder.convertIndexedPackBits(normalized.data))
+        #expect(image.pixels == [0,0,0,255,255,255,255,255,0,0,0,255])
+        #expect(normalized.diagnostics.map(\.code) == ["pict.duplicate_legacy_header"])
+        #expect(normalized.data.count == data.count - 16)
+        let record = PICTDecoder.convert(resource: ResourceInfo(sourceFile: "synthetic", resourceType: "PICT",
+            resourceId: 1, name: "", rawLength: data.count), data: data)
+        #expect(record.status == .ok)
+        #expect(record.byteRanges == ["pict": [0, data.count]])
+        #expect(record.resource.rawLength == data.count)
+        let standard = try PICTDecoder.normalize(ByteSource(legacyPicture(duplicate: false)))
+        #expect(standard.diagnostics.isEmpty)
+        #expect(try PICTDecoder.convertIndexedPackBits(standard.data) != nil)
+    }
+
+    @Test(arguments: ["prefix", "bounds", "reserved", "truncated", "missing_end", "extra_draw"])
+    func duplicateLegacyHeaderRejectsInvalidPicture(kind: String) throws {
+        var data = legacyPicture()
+        switch kind {
+        case "prefix": data[20] ^= 1
+        case "bounds": data[48] ^= 1
+        case "reserved": data[52] ^= 1
+        case "truncated": data = data.prefix(55)
+        case "missing_end": data.removeLast(2)
+        default: data.insert(contentsOf: words([0x30, 0, 0, 1, 3]), at: data.count - 2)
+        }
+        let normalized = try PICTDecoder.normalize(ByteSource(data))
+        #expect(try PICTDecoder.convertIndexedPackBits(normalized.data) == nil)
+    }
+
     @Test func indexedCommentsAndHighlightAreAccepted() throws {
         let image = try #require(try PICTDecoder.convertIndexedPackBits(ByteSource(indexedPicture())))
         #expect(image.pixels == [0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 255])

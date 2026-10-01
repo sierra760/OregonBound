@@ -60,8 +60,16 @@ def normalize_pict(data: bytes) -> tuple[bytes, list[DecodeDiagnostic]]:
     diagnostics: list[DecodeDiagnostic] = []
     working = bytearray(data)
     top, left, bottom, right = struct.unpack_from(">hhhh", working, 2)
+    # A legacy source picture repeats the first 16 bytes of its HeaderOp.
+    # Repair only that exact structural defect, never scan for a later bitmap.
+    expected = struct.pack(">iiiiii", -1, left << 16, top << 16, right << 16, bottom << 16, 0)
+    if (len(working) >= 56 and working[10:16] == bytes.fromhex("001102ff0c00")
+            and working[16:32] == expected[:16] and working[32:56] == expected):
+        del working[16:32]
+        diagnostics.append(DecodeDiagnostic("info", "pict.duplicate_legacy_header",
+            "Removed a duplicated legacy picture header prefix"))
     if top >= 0 and left >= 0:
-        return data, diagnostics
+        return bytes(working), diagnostics
 
     dt = max(0, -top)
     dl = max(0, -left)

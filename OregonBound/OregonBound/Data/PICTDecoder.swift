@@ -59,9 +59,26 @@ enum PICTDecoder {
             throw ReferenceDecodeError.value("PICT header requires \(headerLength) bytes; got \(data.count)")
         }
         let frame = try data.rect(2)
-        if frame.top >= 0 && frame.left >= 0 { return (data, []) }
-
         var working = data.bytes
+        var diagnostics: [DecodeDiagnostic] = []
+        // Some legacy pictures duplicate the first 16 bytes of HeaderOp. Match
+        // the entire fixed-bounds header before repairing; never scan for pixels.
+        var expected: [UInt8] = []
+        for value in [Int32(-1), Int32(frame.left) << 16, Int32(frame.top) << 16,
+                      Int32(frame.right) << 16, Int32(frame.bottom) << 16, Int32(0)] {
+            let bits = UInt32(bitPattern: value)
+            expected += [UInt8(bits >> 24), UInt8(truncatingIfNeeded: bits >> 16),
+                         UInt8(truncatingIfNeeded: bits >> 8), UInt8(truncatingIfNeeded: bits)]
+        }
+        if working.count >= 56, Array(working[10..<16]) == [0, 0x11, 2, 0xff, 0x0c, 0],
+           working[16..<32].elementsEqual(expected.prefix(16)),
+           working[32..<56].elementsEqual(expected) {
+            working.removeSubrange(16..<32)
+            diagnostics.append(DecodeDiagnostic("info", "pict.duplicate_legacy_header",
+                "Removed a duplicated legacy picture header prefix"))
+        }
+        if frame.top >= 0 && frame.left >= 0 { return (ByteSource(working), diagnostics) }
+
         let dt = max(0, -frame.top)
         let dl = max(0, -frame.left)
         writeRect(&working, at: 2, QuickDrawRect(top: frame.top + dt, left: frame.left + dl,
@@ -76,8 +93,8 @@ enum PICTDecoder {
                                                                   bottom: clip.bottom + dt, right: clip.right + dl))
             }
         }
-        return (ByteSource(working),
-                [DecodeDiagnostic("info", "pict.normalized_frame", "Shifted negative PICT frame to origin")])
+        diagnostics.append(DecodeDiagnostic("info", "pict.normalized_frame", "Shifted negative PICT frame to origin"))
+        return (ByteSource(working), diagnostics)
     }
 
     /// pict._scan_to_cliprgn: byte offset of the clip region size word, if a
