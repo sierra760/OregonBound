@@ -1,8 +1,10 @@
 # Macintosh CD hunting
 
 The CD edition has different hunting rules from Macintosh 1.1. Work on its
-session and renderer is in progress. `CDHuntRules` supplies the recovered
-initialization rules; it is not yet connected to `OriginalHuntScene`.
+pane integration and renderer is in progress. `CDHuntRules`, `CDHuntAnimal`, and
+`CDHuntSession` implement initialization and the hunting engine. `CDHuntAssets`
+binds the prepared terrain and frame geometry. These components are not yet
+connected to `OriginalHuntScene`.
 
 The CD chooses one of ten habitats using destination, accumulated rain, and a
 random stream seeded from unsigned 16-bit mileage. It then reseeds the shared
@@ -35,7 +37,26 @@ check loaded all 30 supplied terrain records through the runtime library and
 compared every entry permission and obstacle with the extracted data. Original
 resource bytes and those private fixtures are not part of this repository.
 
-Remaining hunting work includes the session, depth-dependent animal art and
-animation, terrain collision, projectile handling, carrying-limit settlement,
-and rendering/audio acceptance. Presence of extracted artwork is not proof that
-the corresponding gameplay has been implemented.
+The engine implements five-live/four-kill spawn checks, entry-side permissions,
+depth selection, terrain foot-strip collisions, stopped poses and shared timers,
+shot-startle behavior, projectile impact order, falling birds, Move, timeout,
+and 125/250-pound carrying limits. It retains the original repeated live-counter
+decrements during bird falls and frame-phase behavior. Native lifecycle pauses
+freeze the session; skipped modal updates do not catch up.
+
+Private simulations using the supplied assets completed 400 hunts across all ten
+habitats and huntable species, normal/snow terrain and color/monochrome artwork.
+Across 161,384 updates and 540 hits, every emitted image/frame reference resolved,
+draw dimensions fit the corresponding bitmap, and every session completed. This
+is engine and asset validation, not a rendered comparison with the original game.
+
+This work also corrected a shared RNG mismatch: `Random(1)` returns zero but must
+consume one QuickDraw draw. Both original wrappers take that path (classic CODE1
+jump table at075a selects0774 for one; CD CODE1:069e–06b8 sends one through the
+normal random call). Only zero skips the draw for the supported nonnegative
+bounds. A regression test first demonstrated the unchanged seed; shared-stream
+and full-suite tests now pass with the source-correct sequence.
+
+Remaining hunting work includes pane integration, the journey settlement
+boundary, rendering/audio acceptance, and the phase-end review. Presence of
+extracted artwork alone is not proof of implemented gameplay.
