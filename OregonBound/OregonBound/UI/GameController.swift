@@ -77,7 +77,7 @@ enum GamePanel: String, Identifiable {
     }
 
     func start(profession: Profession, difficulty: Difficulty, names: [String], month: Int) {
-        trip = Journey(profession: profession, difficulty: difficulty, names: names, departureMonth: month, seed: random.seed)
+        trip = Journey(profession: profession, difficulty: difficulty, names: names, departureMonth: month, seed: random.seed, edition: store.edition)
         trip?.originalTiming = preferences.beginJourney()
         fileMenu.beginSetup()
         creatingGame = false

@@ -51,6 +51,7 @@
 		18D0CE7D690B3D77B35B1B4A /* OriginalEndingReport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 809BC02A705C2001D58FCCDC /* OriginalEndingReport.swift */; };
 		1985A5FCC84A1B4590EF7669 /* DayCycleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8B72352E2AC445298955C11 /* DayCycleEngine.swift */; };
 		19FABE16A04B69DC4027C226 /* GameResourceCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB5F2D7F779A6D326BE79993 /* GameResourceCatalog.swift */; };
+		1A14DE764AAF8D9FC21AE387 /* EditionPersistenceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C209DA98747F784692FCF1B /* EditionPersistenceTests.swift */; };
 		1A6F70BAE9CC684B2258C583 /* GameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A7F5B3CDD705CCE64D14E1F /* GameState.swift */; };
 		1BCF0696F6D6366DC834E07D /* OriginalEndingPresentationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 265A2077F757D19E7B798705 /* OriginalEndingPresentationTests.swift */; };
 		1C58AD47261D56232B325B4A /* SubsystemConstants.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A14650F9DE752644582EF20 /* SubsystemConstants.swift */; };
@@ -524,6 +525,7 @@
 		28332FE5335C8AF776CCEBED /* SimulationRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulationRunner.swift; sourceTree = "<group>"; };
 		2B7E094B7F7F000DAA95AC21 /* OriginalRaftSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalRaftSession.swift; sourceTree = "<group>"; };
 		2BB0EC13FE7F9A1B5B855201 /* AnyCodable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnyCodable.swift; sourceTree = "<group>"; };
+		2C209DA98747F784692FCF1B /* EditionPersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditionPersistenceTests.swift; sourceTree = "<group>"; };
 		2C50EB70A64E7347B4924E1E /* OriginalSystemPushButtonRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalSystemPushButtonRulesTests.swift; sourceTree = "<group>"; };
 		2D965BC53CC7BE137C150F5D /* OriginalGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalGuide.swift; sourceTree = "<group>"; };
 		2DA6EA7960D9B59D12C12604 /* OriginalTravelScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalTravelScene.swift; sourceTree = "<group>"; };
@@ -965,6 +967,7 @@
 				5AD17715035F83C203D5826C /* ContinuityTests.swift */,
 				95506864D7409F939A7E2BA4 /* CoreRenderingTests.swift */,
 				FE3EE9499AA30209A5C66434 /* DayCycleEngineTests.swift */,
+				2C209DA98747F784692FCF1B /* EditionPersistenceTests.swift */,
 				CE1292E8B7B9FF201554EDBD /* GameDataInstallationTests.swift */,
 				727EBA53801F48CA1D48A510 /* GameDataPreparationTests.swift */,
 				6585E44838146544FCF9E283 /* GameDataSourceTests.swift */,
@@ -1662,6 +1665,7 @@
 				733E55B4224C37FB5C0ED92C /* ContinuityTests.swift in Sources */,
 				9BBC3E66FA1586DCFC51D060 /* CoreRenderingTests.swift in Sources */,
 				16CE46BE5F6DB052F1ABB380 /* DayCycleEngineTests.swift in Sources */,
+				1A14DE764AAF8D9FC21AE387 /* EditionPersistenceTests.swift in Sources */,
 				F98AD04838A0A742BC1E47A9 /* GameDataInstallationTests.swift in Sources */,
 				7E3E845A2AEAC8FC2ED3E4C9 /* GameDataPreparationTests.swift in Sources */,
 				76CCA3320358A980AF6D1BBE /* GameDataSourceTests.swift in Sources */,

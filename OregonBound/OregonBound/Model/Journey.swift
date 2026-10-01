@@ -120,6 +120,8 @@ struct JournalEntry: Codable, Equatable, Identifiable {
 }
 
 struct Journey: Codable, Equatable {
+    var edition: GameEdition?
+    var gameEdition: GameEdition { edition ?? .macintosh11 }
     var id = UUID()
     var profession: Profession
     var difficulty: Difficulty
@@ -164,7 +166,8 @@ struct Journey: Codable, Equatable {
     var miniGameReturnPhase: JourneyPhase = .travel
 
     init(profession: Profession = .banker, difficulty: Difficulty = .greenhorn,
-         names: [String] = ["Sierra", "Anna", "Jed", "Zeke", "Mary"], departureMonth: Int = 4, seed: UInt32) {
+         names: [String] = ["Sierra", "Anna", "Jed", "Zeke", "Mary"], departureMonth: Int = 4, seed: UInt32, edition: GameEdition = .macintosh11) {
+        self.edition = edition
         self.profession = profession
         self.difficulty = difficulty
         self.departureMonth = min(8, max(3, departureMonth))
