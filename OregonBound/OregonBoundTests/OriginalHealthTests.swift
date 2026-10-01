@@ -3,6 +3,33 @@ import Testing
 @testable import OregonBound
 
 struct OriginalHealthTests {
+    @Test func cdDustStormSurvivesDailyHealthAndSaveReload() throws {
+        var input = OriginalHealth.Input()
+        input.edition = .macintoshCD12; input.weather = 10
+        #expect(OriginalHealth.transition(input).terms.paceAndWeather == 4)
+        input.stateFlags = 8
+        #expect(OriginalHealth.transition(input).terms.paceAndWeather == 2)
+
+        var trip = Journey(seed: 51, edition: .macintoshCD12)
+        trip.phase = .landmark
+        trip.inventory[.food] = 1000; trip.inventory[.oxen] = 12
+        trip.original?.weather.initialized = true
+        trip.original?.weather.category = 0x8a
+        trip.original?.weather.rain = 4
+        try JourneyEngine.beginRest(days: 1, in: &trip)
+        let seed = trip.randomState
+        #expect(JourneyEngine.advanceActionDay(in: &trip))
+        #expect(trip.original?.weather.category == 10)
+        #expect(trip.weather == .storm)
+        #expect(trip.randomState == seed)
+        #expect(trip.totalFood == 985)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = JourneyStore(directory: root, edition: .macintoshCD12)
+        try store.save(trip)
+        #expect(try store.load() == trip)
+    }
+
     @Test(arguments: [0, 1, 2]) func cdConsumesBothFoodPoolsAndCoversEitherShortfall(rations: Int) {
         var input = OriginalHealth.Input()
         input.edition = .macintoshCD12

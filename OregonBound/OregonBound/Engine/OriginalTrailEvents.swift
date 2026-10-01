@@ -86,7 +86,12 @@ enum OriginalTrailEvents {
         case .snowbound:
             delay(draw(10, 0x354a) + 1, in: &trip); record(12, in: &trip)
         case .severeWeather:
-            if trip.original!.weather.temperature <= 1 {
+            // CD CODE17:41c8 checks dry ground before temperature. This helper
+            // consumes no random draws; its caller retains the severe-weather gate.
+            if trip.gameEdition == .macintoshCD12 && trip.original!.weather.rain < 5
+                && trip.original!.weather.snow == 0 && (4...11).contains(destinationIndex(trip)) {
+                delay(1, in: &trip); record(13, in: &trip); trip.original?.weather.category = 0x8a
+            } else if trip.original!.weather.temperature <= 1 {
                 delay(1, in: &trip); record(7, in: &trip); trip.original?.weather.category = 0x88
             } else if trip.original!.weather.temperature >= 4 {
                 delay(1, in: &trip); record(8, in: &trip); trip.original?.weather.category = 0x87
@@ -227,7 +232,7 @@ enum OriginalTrailEvents {
     static func record(_ event: Int, member: Int = 0, part: Supply = .wheels,
                        quantities: [Int] = [Int](repeating: 0, count: 7), cash: Int = 0,
                        in trip: inout Journey) {
-        if let text = OriginalJournalRules.weatherEvent(event) {
+        if let text = OriginalJournalRules.weatherEvent(event, edition: trip.gameEdition) {
             trip.record(text, originalEvent: event); return
         }
         // Older callers produce the seven common slots; CD appends an empty perishable slot.

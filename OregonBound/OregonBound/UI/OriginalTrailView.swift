@@ -89,7 +89,8 @@ struct OriginalTrailView: View {
         ZStack(alignment: .topLeading) {
             text("Conditions", x: 0, y: 6, width: 119, font: .bold14, alignment: .center)
             text(trip.dateText, x: 0, y: 24, width: 119, alignment: .center)
-            PixelArtwork(resource: 15600, frame: weatherFrame).frame(width: 32, height: 32).offset(x: 12, y: 44)
+            let weather = Self.weatherArtwork(edition: trip.gameEdition, category: weatherFrame)
+            PixelArtwork(resource: weather.resource, frame: weather.frame).frame(width: 32, height: 32).offset(x: 12, y: 44)
             PixelArtwork(resource: 15600, frame: 10).frame(width: 28, height: 59).offset(x: 57, y: 42)
             let mercury = CGFloat(min(5, max(0, trip.originalTemperatureCategory)) * 6)
             Rectangle().fill(Color(red: 65280.0 / 65535, green: 0, blue: 1792.0 / 65535))
@@ -123,7 +124,12 @@ struct OriginalTrailView: View {
         return flags & 8 != 0 ? "Delayed" : "Moving"
     }
     private var weatherFrame: Int {
-        min(9, max(0, trip.originalWeatherCategory))
+        min(trip.gameEdition == .macintoshCD12 ? 10 : 9, max(0, trip.originalWeatherCategory))
+    }
+    /// CD weather10 has a separate resource; frame10 of15600 is the thermometer.
+    static func weatherArtwork(edition: GameEdition, category: Int) -> (resource: Int, frame: Int) {
+        if edition == .macintoshCD12 && category == 10 { return (20300, 0) }
+        return (15600, min(9, max(0, category)))
     }
     private var weatherLines: [String] {
         let names = OriginalResources.strings(3012)

@@ -34,6 +34,56 @@ struct OriginalTrailEventsTests {
         return trip
     }
 
+    @Test(arguments: [3, 4, 11, 12])
+    func cdDustStormBoundariesPrecedeTemperature(destination: Int) {
+        for edition in [GameEdition.macintosh11, .macintoshCD12] {
+            for (rain, snow) in [(4,0), (5,0), (4,1)] {
+                for temperature in [0,2,5] {
+                    var trip = Journey(seed: 42, edition: edition)
+                    trip.destinationID = TrailCatalog.stops[destination + 1].id
+                    trip.original?.weather.rain = UInt16(rain)
+                    trip.original?.weather.snow = UInt16(snow)
+                    trip.original?.weather.temperature = UInt8(temperature)
+                    let dust = edition == .macintoshCD12 && rain < 5 && snow == 0 && (4...11).contains(destination)
+                    let rng = Draws([])
+                    OriginalTrailEvents.apply(.severeWeather, to: &trip, draw: rng.next)
+                    #expect(rng.sites.isEmpty)
+                    let category: UInt8 = dust ? 0x8a : temperature <= 1 ? 0x88 : temperature >= 4 ? 0x87 : 0
+                    #expect(trip.original?.weather.category == category)
+                    #expect(trip.delayDays == (category == 0 ? 0 : 1))
+                    if dust { #expect(trip.journal.last?.text == "Dust Storm.") }
+                }
+            }
+        }
+    }
+
+    @Test func cdDustStormRunsThroughNormalDispatchWithoutExtraDraws() {
+        var trip = Journey(seed: 42, edition: .macintoshCD12)
+        trip.inventory[.food] = 1000
+        trip.destinationID = TrailCatalog.stops[5].id
+        trip.original?.weather.temperature = 1
+        trip.original?.weather.rain = 4
+        let rng = Draws([99,0,99,99,99,99,99])
+        OriginalTrailEvents.run(&trip, draw: rng.next)
+        #expect(trip.original?.weather.category == 0x8a)
+        #expect(trip.journal.last?.text == "Dust Storm.")
+        #expect(rng.sites == [0x312c,0x3200,0x3216,0x322c,0x32a0,0x32de,0x3320])
+        #expect(rng.values.isEmpty)
+    }
+
+    @Test func dustOverrideLastsOneWeatherUpdateAndDoesNotAddPrecipitation() {
+        var state = OriginalDailyWeather.State()
+        state.category = 0x8a; state.rain = 4; state.temperature = 1
+        OriginalDailyWeather.update(&state, month: 4) { _ in Issue.record("Override must not draw"); return 0 }
+        #expect(state.category == 10 && state.rain == 3 && state.snow == 0)
+        #expect(state.rainIncrement == 0 && state.snowIncrement == 0)
+        var bounds: [Int] = []
+        OriginalDailyWeather.update(&state, month: 4) { bound in bounds.append(bound); return bound - 1 }
+        #expect(bounds == [3,41,1000])
+        #expect(state.category == 2)
+        #expect(OriginalHuntEligibility.evaluate(weatherCategory: 10, milesRemaining: 80, ammunition: 100) == .severeWeather)
+    }
+
     @Test func independentChecksInterleaveHelperDrawsAndTakeMaximumDelay() {
         var trip = prepared()
         trip.original?.weather.snow = 3001

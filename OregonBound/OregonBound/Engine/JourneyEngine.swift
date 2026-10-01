@@ -244,7 +244,7 @@ enum JourneyEngine {
         switch state.weather.category {
         case 3, 4: trip.weather = .rain
         case 5, 6, 8: trip.weather = .snow
-        case 7, 9: trip.weather = .storm
+        case 7, 9, 10: trip.weather = .storm
         case 1, 2: trip.weather = .cold // legacy display only; UI uses exact category getter
         default: trip.weather = .sunny
         }

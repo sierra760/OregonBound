@@ -30,7 +30,7 @@ enum OriginalHealth {
         /// Flags after the day's rest/delay counters have been processed.
         var stateFlags: UInt8 = 0              // world+0x05; 4 rest, 8 delay
         var temperature: UInt8 = 2             // world+0x22e, category 0...5
-        var weather: UInt8 = 0                 // world+0x22d, category 0...9
+        var weather: UInt8 = 0                 // world+0x22d, classic0...9/CD0...10
         /// Include all original slots, including deceased members (player+0x05).
         var members: [Member] = Array(repeating: Member(), count: 5)
     }
@@ -87,7 +87,7 @@ enum OriginalHealth {
         precondition(input.food >= 0 && input.perishableFood >= 0 && input.clothing >= 0)
         let availableFood = Int(input.food) + (input.edition == .macintoshCD12 ? Int(input.perishableFood) : 0)
         precondition(input.rations <= 2 && input.pace <= 2)
-        precondition(input.temperature <= 5 && input.weather <= 9)
+        precondition(input.temperature <= 5 && input.weather <= (input.edition == .macintoshCD12 ? 10 : 9))
         precondition(input.members.count <= 5)
 
         var members = input.members

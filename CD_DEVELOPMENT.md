@@ -74,3 +74,17 @@ all ten icons in normal, pressed, and disabled states in both color modes
 (60 renders) against the imported pixels and recovered positions. This covers
 sidebar artwork; monochrome presentation and complete interface acceptance
 remain in progress.
+
+## CD dust storms
+
+CD severe-weather events can become dust storms when accumulated rain is below
+5, there is no snow, and the destination index is 4 through 11 in the original
+route table. The dust check precedes temperature checks and uses no additional
+random draws. It delays travel by one day and records “Dust Storm.” in the
+journal. The original severe-weather trigger still controls when this check runs.
+
+The locked weather update retains dust for that update; the following weather
+update chooses new conditions. Health, hunting restrictions, native save/reload,
+and the Conditions artwork and label recognize the additional category. Classic
+saves retain their original weather range. Local renders verify the dedicated
+dust image and label with supplied CD data in both color modes.

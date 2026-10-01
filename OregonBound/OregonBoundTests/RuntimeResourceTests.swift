@@ -46,6 +46,19 @@ struct RuntimeResourceTests {
         }
     }
 
+    @Test func dustStormArtworkIsNotTheThermometerOrHail() {
+        let dust = OriginalTrailView.weatherArtwork(edition: .macintoshCD12, category: 10)
+        #expect(dust.resource == 20300 && dust.frame == 0)
+        for category in 0...9 {
+            let cd = OriginalTrailView.weatherArtwork(edition: .macintoshCD12, category: category)
+            let classic = OriginalTrailView.weatherArtwork(edition: .macintosh11, category: category)
+            #expect(cd.resource == 15600 && cd.frame == category)
+            #expect(classic == cd)
+        }
+        #expect(OriginalJournalRules.weatherEvent(13, edition: .macintoshCD12) == "Dust Storm.")
+        #expect(OriginalJournalRules.weatherEvent(13) == nil)
+    }
+
     @Test func aboutIdentifiesTheIndependentApp() {
         #expect(OriginalAboutRules.program == "Oregon Bound")
         #expect(OriginalAboutRules.copyright == "Copyright 2026 Sierra Burkhart")

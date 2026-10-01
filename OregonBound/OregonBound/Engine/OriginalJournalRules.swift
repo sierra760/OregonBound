@@ -63,7 +63,8 @@ enum OriginalJournalRules {
         return finishSentence(template.replacingOccurrences(of: "^2",with: supplies))
     }
 
-    static func weatherEvent(_ id: Int) -> String? {
+    static func weatherEvent(_ id: Int, edition: GameEdition = .macintosh11) -> String? {
+        if id == 13 && edition == .macintoshCD12 { return finishSentence("Dust Storm") }
         guard (0...12).contains(id) else { return nil }
         return finishSentence(string(1501,id+1))
     }

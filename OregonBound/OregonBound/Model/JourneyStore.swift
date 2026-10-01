@@ -286,7 +286,7 @@ struct JourneyStore {
             guard state.badness <= 139, state.flags & 0xf1 == 0,
                   state.cdWagonWeight.map({ trip.gameEdition == .macintoshCD12 && (0...4328).contains($0) }) ?? true,
                   state.weather.region < 6, state.weather.temperature <= 5,
-                  (state.weather.category & 127) <= 9 else {
+                  (state.weather.category & 127) <= (trip.gameEdition == .macintoshCD12 ? 10 : 9) else {
                 throw GameRuleError("The saved game contains invalid original simulation state.")
             }
         }
