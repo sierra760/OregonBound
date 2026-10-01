@@ -21,9 +21,11 @@ struct JourneyStore {
     let edition: GameEdition
     private let defaultPreferences: OriginalPreferences.Configuration?
     init(directory: URL? = nil, edition: GameEdition = GameData.edition,
-         defaultPreferences: OriginalPreferences.Configuration? = nil) {
+         defaultPreferences: OriginalPreferences.Configuration? = nil,
+         session: PreparedGameSession? = GameData.preparedSession) {
         self.edition = edition
-        self.defaultPreferences = defaultPreferences ?? (edition == .macintosh11 ? .init() : nil)
+        let preparedDefaults = session.flatMap { $0.edition == edition ? OriginalPreferences.Configuration(defaults: $0.preferenceDefaults) : nil }
+        self.defaultPreferences = defaultPreferences ?? preparedDefaults ?? (edition == .macintosh11 ? .init() : nil)
 
         if let directory { self.directory = Self.directory(for: edition, base: directory); return }
         #if DEBUG

@@ -18,6 +18,7 @@ struct PreparedGameSession {
     let lookup: GameResourceLookup
     let graphics: GraphicsManifest
     let sounds: PreparedSoundLibrary
+    let preferenceDefaults: ConfigurationExtractor.Defaults
     var edition: GameEdition { manifest.edition }
     var hasSystemResources: Bool { catalog.sources.contains { $0.role == .system } }
 
@@ -36,7 +37,7 @@ struct PreparedGameSession {
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(GameDataPreparation.Manifest.self,
             from: Data(contentsOf: PreparedResourceFile.url(root: root, path: "prepared_import.json")))
-        guard manifest.schemaVersion == 5, manifest.catalogPath == "resource_catalog.json",
+        guard manifest.schemaVersion == 6, manifest.catalogPath == "resource_catalog.json",
               manifest.lookupPath == "resource_lookup.json" else { throw Failure.invalid("unsupported manifest schema or paths") }
         let catalog = try read(GameResourceCatalog.self, manifest.catalogPath)
         let roles = Set(catalog.sources.map(\.role))
@@ -50,6 +51,17 @@ struct PreparedGameSession {
               storedIndex.edition == lookup.index.edition,
               storedIndex.entries == lookup.index.entries else { throw Failure.invalid("resource lookup does not match catalog") }
         let app: GameDataSourceRole = manifest.edition == .macintosh11 ? .classicApplication : .cdApplication
+        guard manifest.preferencesPath == "sources/\(app.rawValue)/preference_defaults.json" else {
+            throw Failure.invalid("preference defaults path")
+        }
+        let preferences = try read(ConfigurationExtractor.Profile.self, manifest.preferencesPath)
+        guard preferences.schemaVersion == 1, preferences.edition == manifest.edition,
+              preferences.role == app, preferences.resourceID == 1000,
+              let entry = catalog.entries.first(where: { $0.role == app && $0.type == "CONF" && $0.id == 1000 }),
+              entry.length == 1108, entry.sha256 == preferences.resourceSHA256 else {
+            throw Failure.invalid("preference defaults source")
+        }
+        preferenceDefaults = preferences.defaults
         let graphicsRoles: Set<GameDataSourceRole> = manifest.edition == .macintosh11
             ? [.classicApplication, .classicGraphics] : [.cdApplication, .graphics1, .graphics2, .graphics3, .graphics4]
         guard Set(manifest.graphics.keys) == Set(graphicsRoles.map(\.rawValue)),

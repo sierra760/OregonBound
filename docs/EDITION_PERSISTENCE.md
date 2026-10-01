@@ -27,9 +27,22 @@ versioned envelope with invalid metadata is an error, not a legacy fallback.
 
 The supplied classic and CD CONF1000 resources have byte-identical legends tables
 from offset 0x1c8 through the end of the resource. Their preference defaults differ.
-The CD store therefore requires explicit profile defaults when no preferences
-have been saved. CONF/profile integration must supply those defaults before
-normal CD play is enabled. Persistence identity does not establish that the CD
+Preparation schema 6 extracts the recovered hint, password, speed and hunt-time
+fields into an application-qualified preference profile. The session validates
+its edition, application role and CONF1000 digest against the catalog. A store
+captures defaults from a matching prepared session when constructed; an explicit
+configuration override takes precedence. Existing saved preferences take
+precedence over either source. A CD store without a profile or saved preferences
+reports missing defaults; classic retains its legacy fallback.
+
+The supported CONF1000 layout is 1108 bytes. Hint and password are MacRoman
+Pascal strings at 0x26 and 0x126; password length is 1–10 bytes. Speed at 0x135
+accepts 2, 4 or 8; hunt time at 0x136 accepts selectors 1–6. Both source parsing
+and prepared-profile decoding validate these settings. Other configuration
+fields are outside this decoder. Original data and extracted profiles stay local.
+
+Normal CD import/selection and full gameplay remain under development.
+Persistence identity and preference defaults do not establish that the CD
 simulation, scoring or management behavior has been fully implemented.
 
 This is native-port persistence. It does not claim compatibility with original

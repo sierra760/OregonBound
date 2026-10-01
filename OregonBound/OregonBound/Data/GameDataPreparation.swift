@@ -17,6 +17,7 @@ enum GameDataPreparation {
         let preparedAt: Date
         let catalogPath: String
         let lookupPath: String
+        let preferencesPath: String
         let graphics: [String: String]
         let rasterPictures: [String: String]
         let soundSources: [GameDataSourceRole]
@@ -44,6 +45,12 @@ enum GameDataPreparation {
         let appRole: GameDataSourceRole = selection.edition == .macintosh11 ? .classicApplication : .cdApplication
         guard let app = selection.sources[appRole] else { throw GameDataSourceCatalog.Failure.missing([appRole]) }
         try TextResourceExtractors.validate(app.fork)
+        guard let configuration = app.fork.resources.first(where: { $0.type == "CONF" && $0.id == 1000 }) else {
+            throw ReferenceDecodeError.value("Missing application CONF1000")
+        }
+        let preferences = try ConfigurationExtractor.Profile(schemaVersion: 1, edition: selection.edition,
+            role: appRole, resourceID: 1000, resourceSHA256: GameDataSourceCatalog.Candidate.digest(configuration.data),
+            defaults: ConfigurationExtractor.parse(configuration.data))
         return try GameDataInstallation.run(destination: destination, isCancelled: isCancelled) { staging in
             let output = ExtractionOutput(root: staging)
             func step(_ message: String, _ work: () throws -> Void) throws {
@@ -135,8 +142,10 @@ enum GameDataPreparation {
             }
             try output.writeJSON(catalog, to: "resource_catalog.json")
             try output.writeJSON(lookup.index, to: "resource_lookup.json")
-            let manifest = Manifest(schemaVersion: 5, edition: selection.edition, preparedAt: Date(),
-                                    catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", graphics: graphics, rasterPictures: rasterPictures, soundSources: soundSources, terrainSources: terrainSources,
+            let preferencesPath = "sources/\(appRole.rawValue)/preference_defaults.json"
+            try output.writeJSON(preferences, to: preferencesPath)
+            let manifest = Manifest(schemaVersion: 6, edition: selection.edition, preparedAt: Date(),
+                                    catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: graphics, rasterPictures: rasterPictures, soundSources: soundSources, terrainSources: terrainSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
             try output.writeJSON(manifest, to: "prepared_import.json")
             return Report(root: destination, manifest: manifest)

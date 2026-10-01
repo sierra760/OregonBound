@@ -11,7 +11,9 @@ struct PreparedGameSessionTests {
         for role in edition.requiredRoles {
             let records: [MacResource]
             switch role {
-            case .cdApplication, .graphics2: records = [.init(type: "Imag", id: 7, name: nil, attributes: 0, data: Data([0, 1]))]
+            case .cdApplication: records = [.init(type: "Imag", id: 7, name: nil, attributes: 0, data: Data([0, 1])),
+                .init(type: "CONF", id: 1000, name: nil, attributes: 0, data: ConfigurationDefaultsTests.fixture())]
+            case .graphics2: records = [.init(type: "Imag", id: 7, name: nil, attributes: 0, data: Data([0, 1]))]
             case .graphics3: records = [.init(type: "Ima4", id: 7, name: nil, attributes: 0, data: Data([0, 1]))]
             default: records = []
             }
@@ -44,7 +46,12 @@ struct PreparedGameSessionTests {
         }
         let rasterPath = "sources/cdApplication/raster_pictures.json"
         try output.writeJSON([ManifestImage](), to: rasterPath)
-        let manifest = GameDataPreparation.Manifest(schemaVersion: 5, edition: edition, preparedAt: Date(), catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", graphics: paths, rasterPictures: ["cdApplication": rasterPath], soundSources: [], terrainSources: [], pendingResources: [], unrecognizedSources: [])
+        let preferencesPath = "sources/cdApplication/preference_defaults.json"
+        let configuration = ConfigurationDefaultsTests.fixture()
+        try output.writeJSON(ConfigurationExtractor.Profile(schemaVersion: 1, edition: edition, role: .cdApplication,
+            resourceID: 1000, resourceSHA256: GameDataSourceCatalog.Candidate.digest(configuration),
+            defaults: ConfigurationExtractor.parse(configuration)), to: preferencesPath)
+        let manifest = GameDataPreparation.Manifest(schemaVersion: 6, edition: edition, preparedAt: Date(), catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: paths, rasterPictures: ["cdApplication": rasterPath], soundSources: [], terrainSources: [], pendingResources: [], unrecognizedSources: [])
         try output.writeJSON(manifest, to: "prepared_import.json")
         return root
     }
@@ -99,5 +106,42 @@ struct PreparedGameSessionTests {
         #expect(cache.value(for: "absent", session: first, load: load) == nil)
         #expect(cache.value(for: "image", session: second, load: load) == 2)
         #expect(cache.value(for: "absent", session: second, load: load) == 3)
+    }
+    @Test(arguments: ["schemaVersion", "edition", "role", "resourceID", "resourceSHA256", "missing", "path"])
+    func rejectsInvalidPreferenceProfile(field: String) throws {
+        let root = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let path = root.appendingPathComponent("sources/cdApplication/preference_defaults.json")
+        if field == "missing" {
+            try FileManager.default.removeItem(at: path)
+        } else if field == "path" {
+            let manifest = root.appendingPathComponent("prepared_import.json")
+            var value = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: manifest)) as? [String: Any])
+            value["preferencesPath"] = "../../preference_defaults.json"
+            try JSONSerialization.data(withJSONObject: value).write(to: manifest)
+        } else {
+            var value = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: path)) as? [String: Any])
+            let replacements: [String: Any] = ["schemaVersion": 2, "edition": GameEdition.macintosh11.rawValue,
+                "role": "graphics2", "resourceID": 1001, "resourceSHA256": "wrong"]
+            value[field] = replacements[field]
+            try JSONSerialization.data(withJSONObject: value).write(to: path)
+        }
+        #expect(throws: (any Error).self) { try PreparedGameSession(root: root) }
+    }
+    @Test func storeCapturesMatchingProfileAndPreservesSavedPreferences() throws {
+        let root = try fixture(); defer { try? FileManager.default.removeItem(at: root) }
+        let session = try PreparedGameSession(root: root)
+        let base = root.appendingPathComponent("player")
+        let store = JourneyStore(directory: base, edition: .macintoshCD12, session: session)
+        var expected = OriginalPreferences.Configuration(defaults: session.preferenceDefaults)
+        #expect(try store.preferences() == expected)
+        #expect(try JourneyStore(directory: base, edition: .macintosh11, session: session).preferences() == .init())
+        #expect(try JourneyStore(directory: base, edition: .macintoshCD12, defaultPreferences: .init(), session: session).preferences() == .init())
+        // Once captured, a store does not reread mutable prepared files.
+        try FileManager.default.removeItem(at: root.appendingPathComponent("sources/cdApplication/preference_defaults.json"))
+        #expect(try store.preferences() == expected)
+        expected.timing = .init(speed: .fast, huntTime: .seconds20)
+        #expect(expected.changePassword(old: "Key", new: "Another", hint: "Saved") == nil)
+        try store.savePreferences(expected)
+        #expect(try JourneyStore(directory: base, edition: .macintoshCD12, session: session).preferences() == expected)
     }
 }
