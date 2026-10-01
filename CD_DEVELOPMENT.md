@@ -59,3 +59,18 @@ per color mode finishes in 176/166/215/199 days for short-road, short-raft,
 long-road, and long-raft choices, with scores 2774/2787/1687/1394. Across both
 modes it exercises 44 hunts and 154 save/reloads. This is an automated player
 policy, not a recording of original-game input or proof of every CD feature.
+
+## Sidebar artwork
+
+Sidebar icons now request their `cicn` resource type explicitly. Several icon
+IDs also identify unrelated `Imag` panel graphics, so numeric ID alone is not a
+safe lookup. CD controls use the selected color family's oval frames and the
+original pressed icon offset; disabled controls show an empty oval. The full
+ribbon remains part of each button's mouse/touch target.
+
+Synthetic tests cover colliding resource IDs, frame selection, both manifest
+orders, and missing typed resources. Local checks with supplied CD data compare
+all ten icons in normal, pressed, and disabled states in both color modes
+(60 renders) against the imported pixels and recovered positions. This covers
+sidebar artwork; monochrome presentation and complete interface acceptance
+remain in progress.

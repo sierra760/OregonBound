@@ -47,7 +47,7 @@ enum OriginalResources {
     }
 
     static func image(_ resource: Int, type: String? = nil, frame: Int = 0) -> Image? {
-        guard let entry = manifest?.images(forResourceId: resource).first(where: { $0.frame_index == frame && (type == nil || $0.resource.type == type) }),
+        guard let entry = manifest?.image(resource: resource, type: type, frame: frame),
               let path = GameData.resourceURL(entry.image_path) else { return nil }
         #if os(macOS)
         guard let image = NSImage(contentsOf: path) else { return nil }
@@ -62,8 +62,9 @@ enum OriginalResources {
 struct PixelArtwork: View {
     let resource: Int
     var frame = 0
+    var type: String? = nil
     var body: some View {
-        if let image = OriginalResources.image(resource, frame: frame) {
+        if let image = OriginalResources.image(resource, type: type, frame: frame) {
             image.resizable().interpolation(.none).aspectRatio(contentMode: .fit)
         } else {
             Text("Artwork unavailable (\(resource))").font(.caption).frame(maxWidth: .infinity, maxHeight: .infinity)

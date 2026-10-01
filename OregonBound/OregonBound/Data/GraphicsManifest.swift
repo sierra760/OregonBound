@@ -31,6 +31,15 @@ struct GraphicsManifest: Codable {
     let source_file: String
     let images: [ManifestImage]
 
+    /// Numeric IDs are shared across resource types, including sidebar icons
+    /// and monochrome panel artwork. A requested type must never fall back.
+    func image(resource id: Int, type: String? = nil, frame: Int = 0) -> ManifestImage? {
+        images.first {
+            $0.resource.id == id && $0.frame_index == frame
+                && (type == nil || $0.resource.type == type)
+        }
+    }
+
     func images(forResourceId id: Int) -> [ManifestImage] {
         images.filter { $0.resource.id == id }
               .sorted { $0.frame_index < $1.frame_index }

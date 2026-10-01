@@ -139,22 +139,59 @@ struct OriginalTrailView: View {
             text(value, x: 2, y: y, width: 115, alignment: .trailing)
         }
     }
-    private func icon(_ id: Int, _ label: String, row: Int, right: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            ZStack(alignment: .topLeading) {
-                ZStack {
-                    PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                    PixelArtwork(resource: id).frame(width: 32, height: 32)
-                }.frame(width: 42, height: 46).offset(x: 5, y: 2)
-            }
-            // The ribbon label is part of the sidebar artwork. Include it in
-            // the same hit target instead of requiring a click on the picture.
-            .frame(width: 52, height: 60, alignment: .topLeading).contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel(label).offset(x: right ? 442 : 0, y: CGFloat(row * 60))
+    @ViewBuilder private func icon(_ id: Int, _ label: String, row: Int, right: Bool = false, action: @escaping () -> Void) -> some View {
+        if trip.gameEdition == .macintoshCD12 {
+            Button(action: action) { Color.clear.frame(width: 52, height: 60) }
+                .buttonStyle(CDSidebarButtonStyle(resource: id))
+                .accessibilityLabel(label)
+                .offset(x: right ? 442 : 0, y: CGFloat(row * 60))
+        } else {
+            Button(action: action) {
+                ZStack(alignment: .topLeading) {
+                    ZStack {
+                        PixelArtwork(resource: 10129).frame(width: 42, height: 46)
+                        PixelArtwork(resource: id, type: "cicn").frame(width: 32, height: 32)
+                    }.frame(width: 42, height: 46).offset(x: 5, y: 2)
+                }
+                // The ribbon label is part of the sidebar artwork. Include it in
+                // the same hit target instead of requiring a click on the picture.
+                .frame(width: 52, height: 60, alignment: .topLeading).contentShape(Rectangle())
+            }.buttonStyle(.plain).accessibilityLabel(label).offset(x: right ? 442 : 0, y: CGFloat(row * 60))
+        }
     }
     private func continueAction() {
         game.panel = nil
         if trip.phase == .river || trip.phase == .fork { game.showingRouteDecision = true }
         else { game.continueJourney() }
+    }
+}
+
+private struct CDSidebarButtonStyle: ButtonStyle {
+    let resource: Int
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        CDSidebarArtwork(resource: resource, pressed: configuration.isPressed, enabled: isEnabled)
+            .contentShape(Rectangle())
+    }
+}
+
+/// CD control drawing uses a typed color icon inside a two-frame oval. The
+/// pressed icon moves four pixels right; disabled controls show the empty oval.
+struct CDSidebarArtwork: View {
+    let resource: Int
+    var pressed = false
+    var enabled = true
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            PixelArtwork(resource: 10129, frame: pressed && enabled ? 1 : 0,
+                         type: OriginalResources.imageType)
+                .frame(width: 42, height: 46).offset(x: 5, y: 2)
+            if enabled {
+                PixelArtwork(resource: resource, type: "cicn")
+                    .frame(width: 32, height: 32).offset(x: pressed ? 13 : 9, y: 9)
+            }
+        }.frame(width: 52, height: 60, alignment: .topLeading)
     }
 }

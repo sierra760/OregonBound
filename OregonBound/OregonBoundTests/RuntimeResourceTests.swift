@@ -25,6 +25,27 @@ struct RuntimeResourceTests {
         }
     }
 
+    @Test(arguments: [5000, 5800, 5210])
+    func iconLookupDoesNotSelectSameNumberedArtwork(id: Int) {
+        func entry(_ type: String, _ frame: Int = 0) -> ManifestImage {
+            ManifestImage(resource: ManifestResource(source_file: "synthetic", type: type,
+                id: id, name: "", raw_length: 0), status: "decoded",
+                image_path: "\(type)-\(id)-\(frame).png", width: 32, height: 32,
+                mode: "RGBA", frame_index: frame, frame_count: 2, palette: nil)
+        }
+        for images in [[entry("Imag"), entry("cicn"), entry("Ima4"), entry("Imag", 1)],
+                       [entry("cicn"), entry("Ima4"), entry("Imag"), entry("Imag", 1)]] {
+            let manifest = GraphicsManifest(source_file: "synthetic", images: images)
+            #expect(manifest.image(resource: id, type: "cicn")?.image_path == "cicn-\(id)-0.png")
+            #expect(manifest.image(resource: id, type: "Ima4")?.image_path == "Ima4-\(id)-0.png")
+            #expect(manifest.image(resource: id, type: "Imag", frame: 1)?.image_path == "Imag-\(id)-1.png")
+            #expect(manifest.image(resource: id, type: "cicn", frame: 1) == nil)
+            #expect(manifest.image(resource: id, type: "ICON") == nil)
+            #expect(manifest.image(resource: id)?.image_path == images[0].image_path)
+            #expect(manifest.image(resource: id + 1, type: "cicn") == nil)
+        }
+    }
+
     @Test func aboutIdentifiesTheIndependentApp() {
         #expect(OriginalAboutRules.program == "Oregon Bound")
         #expect(OriginalAboutRules.copyright == "Copyright 2026 Sierra Burkhart")
