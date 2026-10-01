@@ -265,3 +265,16 @@ enum OriginalRiverMask {
         return exterior
     }
 }
+
+/// CD CODE19:0826–08e6. Counter zero is the first displayed VM update,
+/// following the separate nondrawing initialization update.
+enum CDRiverAudio {
+    static func commands(counter: Int, failureKind: Int, busy: Bool) -> [OriginalAudioQueue.Command] {
+        guard counter >= 0, (0...2).contains(failureKind) else { return [] }
+        if counter == 8 { return [.stop, .start(4008)] }
+        let last = failureKind == 0 ? 113 : failureKind == 1 ? 67 : 52
+        if counter == last { return [.stop, .start(failureKind == 0 ? 4010 : 4014)] }
+        if !busy && (16..<last).contains(counter) { return [.start(4009)] }
+        return []
+    }
+}

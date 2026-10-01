@@ -209,12 +209,26 @@ match independent source compositing at Retina scale, and 33 loss-frame/paper
 regions match across the display modes.
 
 
+## CD river audio
+
+Crossing animations play the original start, success, tipped-wagon and swamped-wagon
+cues. Water ambience starts only when the shared channel is idle and the crossing
+is within its source-defined interval. The scene preserves separate failure kinds,
+pauses updates during inactive/modal states, and clears crossing audio before the
+result pane opens. Classic crossing behavior is unchanged.
+
+Verification compares 906 decisions with the original CODE19 branch block and
+completes 54 source-backed native crossing scenes across all methods, failure
+kinds, snow settings and display modes. All 175 prepared CD sounds still match
+independent source PCM hashes and exact sample rates. These checks verify scheduling
+and data; original audible playback comparison remains pending.
+
 ## Current acceptance boundary
 
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The final native run has 854 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 862 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.

@@ -77,7 +77,7 @@ struct OriginalTrailView: View {
                         OriginalTradePane(game: game, trip: trip).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
                     }
                     if let outcome = trip.originalRiverOutcome {
-                        OriginalCrossingPane(trip: trip, outcome: outcome, prepareResult: game.prepareCrossingResult,
+                        OriginalCrossingPane(trip: trip, outcome: outcome, audio: game.audio, prepareResult: game.prepareCrossingResult,
                                              complete: game.finishCrossing)
                             .id("\(trip.locationID)-\(outcome.requestedMethodRaw)")
                             .offset(x: OriginalWindowLayout.centerOffsetX)

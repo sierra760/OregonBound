@@ -5,6 +5,7 @@ import Combine
 struct OriginalCrossingPane: View {
     let trip: Journey
     let outcome: OriginalRiverRules.Outcome
+    var audio: GameAudio = .shared
     let prepareResult: () -> Void
     let complete: () -> Void
     @State private var presentation: OriginalRiverResultPresentation?
@@ -29,7 +30,8 @@ struct OriginalCrossingPane: View {
                 }
             } else {
                 OriginalCrossingAnimationPane(method: method, outcome: outcome.failureKind == 0 ? .success : .failure,
-                                              snow: (trip.original?.weather.snow ?? 0) > 0) {
+                                              snow: (trip.original?.weather.snow ?? 0) > 0,
+                                              failureKind: outcome.failureKind, audio: audio) {
                     guard !outcome.isPrepared, !completed else { return }
                     prepareResult()
                 }

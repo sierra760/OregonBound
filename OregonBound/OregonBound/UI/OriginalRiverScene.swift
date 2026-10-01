@@ -7,6 +7,8 @@ struct OriginalRiverArtwork: View {
     let method: OriginalRiverAnimation.Method
     let outcome: OriginalRiverAnimation.Outcome
     var snow = false
+    var failureKind: Int?
+    var audio: GameAudio = .shared
     var onComplete: () -> Void
     @State private var scene = OriginalRiverScene()
     @State private var visible = false
@@ -22,19 +24,24 @@ struct OriginalRiverArtwork: View {
             .onAppear {
                 visible = true
                 scene.setModalDispatchBlocked(modalBlocked)
-                scene.start(method: method, outcome: outcome, snow: snow, onComplete: onComplete)
+                scene.start(method: method, outcome: outcome, snow: snow, failureKind: failureKind, audio: audio, onComplete: onComplete)
                 scene.setActive(scenePhase == .active)
             }
-            .onChange(of: method) { value in scene.start(method: value, outcome: outcome, snow: snow, onComplete: onComplete) }
-            .onChange(of: outcome) { value in scene.start(method: method, outcome: value, snow: snow, onComplete: onComplete) }
-            .onChange(of: snow) { value in scene.start(method: method, outcome: outcome, snow: value, onComplete: onComplete) }
+            .onChange(of: method) { value in scene.start(method: value, outcome: outcome, snow: snow, failureKind: failureKind, audio: audio, onComplete: onComplete) }
+            .onChange(of: outcome) { value in scene.start(method: method, outcome: value, snow: snow, failureKind: failureKind, audio: audio, onComplete: onComplete) }
+            .onChange(of: snow) { value in scene.start(method: method, outcome: outcome, snow: value, failureKind: failureKind, audio: audio, onComplete: onComplete) }
             .onChange(of: scenePhase) { phase in scene.setActive(visible && phase == .active) }
             .onChange(of: modalBlocked) { value in scene.setModalDispatchBlocked(value) }
-            .onDisappear { visible = false; scene.setActive(false) }
+            .onDisappear { visible = false; scene.setActive(false); scene.close() }
     }
 }
 
 final class OriginalRiverScene: SKScene {
+    private var audio: GameAudio
+    private var edition = GameEdition.macintosh11
+    private var failureKind = 0
+    private var audioCounter = 0
+    private var ownsAudio = false
     private var animation: OriginalRiverAnimation?
     private var method: OriginalRiverAnimation.Method?
     private var outcome: OriginalRiverAnimation.Outcome?
@@ -51,7 +58,9 @@ final class OriginalRiverScene: SKScene {
     private var sprites: [Int: SKSpriteNode] = [:]
     private let clip = SKCropNode()
 
-    override init() {
+    override convenience init() { self.init(audio: .shared) }
+    init(audio: GameAudio) {
+        self.audio = audio
         super.init(size: CGSize(width: 262, height: 155))
         scaleMode = .resizeFill
         backgroundColor = .black
@@ -65,18 +74,47 @@ final class OriginalRiverScene: SKScene {
     deinit { colorSpaceObservers.forEach(NotificationCenter.default.removeObserver) }
 
     func start(method: OriginalRiverAnimation.Method, outcome: OriginalRiverAnimation.Outcome, snow: Bool = false,
-               onComplete: @escaping () -> Void) {
+               failureKind: Int? = nil, audio: GameAudio? = nil, onComplete: @escaping () -> Void) {
         completion = onComplete
-        guard self.method != method || self.outcome != outcome || self.snow != snow || animation == nil else { return }
+        let kind = failureKind ?? (outcome == .success ? 0 : 2)
+        guard self.failureKind != kind || completed || self.method != method || self.outcome != outcome || self.snow != snow || animation == nil else { return }
         self.method = method; self.outcome = outcome; self.snow = snow
         let resource = OriginalResources.resource(monochrome: 5310, color: 15310)
         let sizes = OriginalResources.frames(resource).sorted { $0.frame_index < $1.frame_index }.map { ($0.width, $0.height) }
         let frames = OriginalRiverAnimation.displayFrames(sizes: sizes, edition: GameData.edition, snow: snow,
             color: OriginalResources.colorMode != .monochrome)
-        animation = OriginalRiverAnimation(method: method, outcome: outcome, frames: frames)
+        close()
+        if let audio { self.audio = audio }
+        start(animation: OriginalRiverAnimation(method: method, outcome: outcome, frames: frames),
+              failureKind: kind, edition: GameData.edition, onComplete: onComplete)
+        render()
+    }
+
+
+    /// The supplied VM has already run its nondrawing initialization update.
+    func start(animation: OriginalRiverAnimation, failureKind: Int, edition: GameEdition,
+               onComplete: @escaping () -> Void) {
+        close()
+        self.animation = animation
+        self.failureKind = failureKind
+        self.edition = edition
+        completion = onComplete
+        audioCounter = 0
+        ownsAudio = edition == .macintoshCD12
         completed = false
         nextTick = nil
-        render()
+    }
+
+    /// Closing is separate from suspension. Finish releases audio synchronously
+    /// before the next pane opens; later SwiftUI disappearance is harmless.
+    func close() {
+        if ownsAudio { ownsAudio = false; audio.clear() }
+        completed = true
+    }
+
+    private func finish() {
+        close()
+        completion?()
     }
 
     /// Unlike native application suspension, a classic modal only skips idle calls.
@@ -110,16 +148,29 @@ final class OriginalRiverScene: SKScene {
             return
         }
         #endif
-        let tick = UInt64(ProcessInfo.processInfo.systemUptime * 60)
+        advance(to: UInt64(ProcessInfo.processInfo.systemUptime * 60))
+        render()
+    }
+
+    /// Called only after the native visibility gate; also supports deterministic
+    /// scene tests without presenting a window or depending on wall-clock time.
+    func advance(to tick: UInt64) {
+        guard active, !modalDispatchBlocked, !completed, animation != nil else { return }
+        // CODE19 tests object-list emptiness before the timer deadline. Its final
+        // VM update still executes the audio block; the next idle closes it.
+        if edition == .macintoshCD12, animation?.isComplete == true { finish(); return }
         guard tick >= (nextTick ?? tick) else { return }
         animation?.step()
-        if animation?.isComplete == true {
-            completed = true
-            completion?()
-            return
-        }
-        render()
-        nextTick = UInt64(ProcessInfo.processInfo.systemUptime * 60) + UInt64(OriginalRiverAnimation.tickInterval)
+        if edition == .macintoshCD12 {
+            for command in CDRiverAudio.commands(counter: audioCounter, failureKind: failureKind, busy: audio.isPlaying) {
+                switch command {
+                case .stop: audio.clear()
+                case .start(let id): audio.request(id)
+                }
+            }
+            audioCounter += 1
+        } else if animation?.isComplete == true { finish(); return }
+        nextTick = tick + UInt64(OriginalRiverAnimation.tickInterval)
     }
 
     private func render() {

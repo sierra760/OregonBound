@@ -4,6 +4,32 @@ import Testing
 
 struct OriginalRiverAnimationTests {
     typealias VM = OriginalRiverAnimation
+
+    @Test(arguments: [0, 1, 2])
+    func cdCrossingAudioUsesDistinctFailureTimelines(failure: Int) {
+        let ending = failure == 0 ? 113 : failure == 1 ? 67 : 52
+        let endingSound = failure == 0 ? 4010 : 4014
+        for busy in [false, true] {
+            #expect(CDRiverAudio.commands(counter: 8, failureKind: failure, busy: busy) == [.stop, .start(4008)])
+            #expect(CDRiverAudio.commands(counter: ending, failureKind: failure, busy: busy) == [.stop, .start(endingSound)])
+            #expect(CDRiverAudio.commands(counter: 15, failureKind: failure, busy: busy).isEmpty)
+            #expect(CDRiverAudio.commands(counter: ending + 1, failureKind: failure, busy: busy).isEmpty)
+        }
+        let ambience = (0...150).filter {
+            CDRiverAudio.commands(counter: $0, failureKind: failure, busy: false) == [.start(4009)]
+        }
+        #expect(ambience == Array(16..<ending))
+        let interrupts = (0...150).filter {
+            !CDRiverAudio.commands(counter: $0, failureKind: failure, busy: true).isEmpty
+        }
+        #expect(interrupts == [8, ending])
+        #expect(CDRiverAudio.commands(counter: -1, failureKind: failure, busy: false).isEmpty)
+    }
+    @Test func invalidCDCrossingFailureDoesNotPlayGuessedAudio() {
+        for kind in [-1, 3, Int.max] {
+            #expect(CDRiverAudio.commands(counter: 8, failureKind: kind, busy: false).isEmpty)
+        }
+    }
     private func program(_ operations: [(Int,[Int])]) -> [VM.Instruction] {
         var offset = 0
         return operations.map { op, args in
