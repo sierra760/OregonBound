@@ -246,6 +246,7 @@
 		7D81457207C2C9D982DBD052 /* OriginalLegendsPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1308C674523FE486D5542853 /* OriginalLegendsPane.swift */; };
 		7E3E845A2AEAC8FC2ED3E4C9 /* GameDataPreparationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 727EBA53801F48CA1D48A510 /* GameDataPreparationTests.swift */; };
 		7E86466FC8902B13634F7082 /* OriginalLegendsRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = F58B28D9AD576F82478EAB3B /* OriginalLegendsRules.swift */; };
+		2931CFD148164AEEA5B65D4A /* CDNotificationRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289C696B96934C69A1B00ED0 /* CDNotificationRules.swift */; };
 		7F4CCF30A4E28E004E430CFB /* ConfigurationExtractor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20F559D4AC72C7502B64EBAE /* ConfigurationExtractor.swift */; };
 		8026B46F1FD05D0E208AF661 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4EDBC5EBC634AB9DB980A772 /* SwiftUI.framework */; };
 		80CD1AF071254C0DDB5E49ED /* OriginalManagementTextEdit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D1E68C10A5C8A66C28D55F7 /* OriginalManagementTextEdit.swift */; };
@@ -253,6 +254,7 @@
 		81B185409AB788005557F84B /* OriginalCalendar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BAFBBD5E5E446AF003A2C81 /* OriginalCalendar.swift */; };
 		81CE2C97132B8BDCC6C89D38 /* OriginalChoicePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = F146BDE04C6F7C26B5F655EC /* OriginalChoicePane.swift */; };
 		821B2595632617212BF7194B /* OriginalLegendsRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78ACD2405797AF7B2A6A0944 /* OriginalLegendsRulesTests.swift */; };
+		A4B863F6A3D74C3DBACDB235 /* CDNotificationRulesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07C55886D14E42BAA42F2450 /* CDNotificationRulesTests.swift */; };
 		8229A0F40F9068368E6A5D5E /* AnyCodable.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB0EC13FE7F9A1B5B855201 /* AnyCodable.swift */; };
 		82B4F5FE4AC65DE30C551FDD /* OriginalStatusPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E465C8B60CCA204103D46DCD /* OriginalStatusPane.swift */; };
 		82E4D6075BE820EAA9465B9E /* TerrainExtractorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1A0D327498ADD464656DBB1 /* TerrainExtractorTests.swift */; };
@@ -462,6 +464,7 @@
 		E4893B5BBBDDFDA0611FAA19 /* OriginalRandomStream.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71F4F3A06C3F1EFF5D65D621 /* OriginalRandomStream.swift */; };
 		E507E2BE47FC1137EBBD46DF /* GameResourceLookup.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3D28A2718EE3969E2F327A7 /* GameResourceLookup.swift */; };
 		E56D48A195C1C8389BE5FBE8 /* OriginalLegendsRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = F58B28D9AD576F82478EAB3B /* OriginalLegendsRules.swift */; };
+		B994303A963445079972EA92 /* CDNotificationRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 289C696B96934C69A1B00ED0 /* CDNotificationRules.swift */; };
 		E58C7A882ECDCB3940AAB9C6 /* OriginalTitleAnimation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12C4C7A72249E7189A2A413F /* OriginalTitleAnimation.swift */; };
 		E602E5984589BCBF43973C93 /* OriginalTextBox.swift in Sources */ = {isa = PBXBuildFile; fileRef = 63A2EB08B665FBA62FC10C21 /* OriginalTextBox.swift */; };
 		E8DFB06D8CA12FC8B842A59C /* OriginalRiverAnimation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DAAF5B79F0B257B7D5DDEA7 /* OriginalRiverAnimation.swift */; };
@@ -667,6 +670,7 @@
 		780F09B6EC7D65DED4906958 /* OriginalJournalRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalJournalRulesTests.swift; sourceTree = "<group>"; };
 		7813279A51334A7BEF95564C /* OriginalSoundSampleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalSoundSampleTests.swift; sourceTree = "<group>"; };
 		78ACD2405797AF7B2A6A0944 /* OriginalLegendsRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalLegendsRulesTests.swift; sourceTree = "<group>"; };
+		07C55886D14E42BAA42F2450 /* CDNotificationRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDNotificationRulesTests.swift; sourceTree = "<group>"; };
 		78EC8188B91BCF482009260E /* OriginalManagementAlertContents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalManagementAlertContents.swift; sourceTree = "<group>"; };
 		78F53E09979A0EFBA534E6B6 /* GameSceneContainerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameSceneContainerView.swift; sourceTree = "<group>"; };
 		798214C92D27DE4796393395 /* GraphicsManifest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GraphicsManifest.swift; sourceTree = "<group>"; };
@@ -808,6 +812,7 @@
 		F49176814B5EF30ABA91B5A9 /* OriginalActionScheduler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalActionScheduler.swift; sourceTree = "<group>"; };
 		F52E6FE66CFA460F5C09956E /* OriginalTextEditLineLayoutTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalTextEditLineLayoutTests.swift; sourceTree = "<group>"; };
 		F58B28D9AD576F82478EAB3B /* OriginalLegendsRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalLegendsRules.swift; sourceTree = "<group>"; };
+		289C696B96934C69A1B00ED0 /* CDNotificationRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDNotificationRules.swift; sourceTree = "<group>"; };
 		F8DAF996690B97C9C5738309 /* OriginalModalDispatch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalModalDispatch.swift; sourceTree = "<group>"; };
 		F9F2B6BE160A83210AC39CBE /* CDHuntSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDHuntSession.swift; sourceTree = "<group>"; };
 		FA10B3811D2760A00BD19321 /* OriginalStorePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalStorePane.swift; sourceTree = "<group>"; };
@@ -939,6 +944,7 @@
 				EAE950B41FD860671A2A08B5 /* OriginalJournalRules.swift */,
 				E75573D294BE1EB88CB04EB6 /* OriginalLegendsManagement.swift */,
 				F58B28D9AD576F82478EAB3B /* OriginalLegendsRules.swift */,
+				289C696B96934C69A1B00ED0 /* CDNotificationRules.swift */,
 				A719690DABED868050F5D975 /* OriginalManagementAlerts.swift */,
 				0D1E68C10A5C8A66C28D55F7 /* OriginalManagementTextEdit.swift */,
 				3F6ED06AB8E919DC5723B3D2 /* OriginalMap.swift */,
@@ -1092,6 +1098,7 @@
 				8DBDB86A1FDC78EB08152798 /* OriginalJourneySimulationTests.swift */,
 				988C182BBA032174462A8135 /* OriginalLegendsManagementTests.swift */,
 				78ACD2405797AF7B2A6A0944 /* OriginalLegendsRulesTests.swift */,
+				07C55886D14E42BAA42F2450 /* CDNotificationRulesTests.swift */,
 				9D182E3E859CBE103EE2DFC8 /* OriginalManagementAdapterTests.swift */,
 				0F963C32BFE8165035743640 /* OriginalManagementAlertsTests.swift */,
 				C833CFE8E71E2A9C209361D0 /* OriginalManagementTextEditTests.swift */,
@@ -1485,6 +1492,7 @@
 				BB4B8F302D633814AFB1268E /* OriginalLegendsManagement.swift in Sources */,
 				7D81457207C2C9D982DBD052 /* OriginalLegendsPane.swift in Sources */,
 				7E86466FC8902B13634F7082 /* OriginalLegendsRules.swift in Sources */,
+				2931CFD148164AEEA5B65D4A /* CDNotificationRules.swift in Sources */,
 				CC7208A70F9BC3041B7914D8 /* OriginalManagementAlertContents.swift in Sources */,
 				21AAACC1057385F8A92E80E6 /* OriginalManagementAlertKeyboard.swift in Sources */,
 				C55EF264BE0CABED2290B821 /* OriginalManagementAlerts.swift in Sources */,
@@ -1672,6 +1680,7 @@
 				6C1A172C26FCC1F57A14FEF4 /* OriginalLegendsManagement.swift in Sources */,
 				F18809471F1884AAE0ED3104 /* OriginalLegendsPane.swift in Sources */,
 				E56D48A195C1C8389BE5FBE8 /* OriginalLegendsRules.swift in Sources */,
+				B994303A963445079972EA92 /* CDNotificationRules.swift in Sources */,
 				E99A5872D7D32597E9BB6B0A /* OriginalManagementAlertContents.swift in Sources */,
 				38F3DE1B6CF934B54549B387 /* OriginalManagementAlertKeyboard.swift in Sources */,
 				DF2B57676F3858310E8FC9BA /* OriginalManagementAlerts.swift in Sources */,
@@ -1827,6 +1836,7 @@
 				158934D977CF2D15D3433BDA /* OriginalJourneySimulationTests.swift in Sources */,
 				43428035783AF8A633B21136 /* OriginalLegendsManagementTests.swift in Sources */,
 				821B2595632617212BF7194B /* OriginalLegendsRulesTests.swift in Sources */,
+				A4B863F6A3D74C3DBACDB235 /* CDNotificationRulesTests.swift in Sources */,
 				77C58A36DE3FF967A09F0A80 /* OriginalManagementAdapterTests.swift in Sources */,
 				A1EA5EBA934185B04FC07A1A /* OriginalManagementAlertsTests.swift in Sources */,
 				308AE27D8E3F7E856DEF64FF /* OriginalManagementTextEditTests.swift in Sources */,

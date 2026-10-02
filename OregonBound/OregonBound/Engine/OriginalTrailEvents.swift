@@ -232,13 +232,14 @@ enum OriginalTrailEvents {
     static func record(_ event: Int, member: Int = 0, part: Supply = .wheels,
                        quantities: [Int] = [Int](repeating: 0, count: 7), cash: Int = 0,
                        in trip: inout Journey) {
+        let notification = trip.gameEdition == .macintoshCD12 ? notification(event: event, part: part) : nil
         if let text = OriginalJournalRules.weatherEvent(event, edition: trip.gameEdition) {
-            trip.record(text, originalEvent: event); return
+            trip.record(text, originalEvent: event, cdNotification: notification); return
         }
         // Older callers produce the seven common slots; CD appends an empty perishable slot.
         let packet = trip.gameEdition == .macintoshCD12 && quantities.count == 7 ? quantities + [0] : quantities
         if let text = OriginalJournalRules.supplyEvent(id: event,rawQuantities: packet,cashCents: cash,edition: trip.gameEdition) {
-            trip.record(text, originalEvent: event); return
+            trip.record(text, originalEvent: event, cdNotification: notification); return
         }
         // CODE16:14e0/1b50 packs the raft member index into event53's count bits.
         // Preserve that literal record field, including the original misleading count.
@@ -247,6 +248,21 @@ enum OriginalTrailEvents {
         let partName = part == .wheels ? "wagon wheel" : part == .axles ? "wagon axle" : "wagon tongue"
         trip.record(template.replacingOccurrences(of: "^0",with: trip.members[member].name)
             .replacingOccurrences(of: "^2",with: partName)
-            .replacingOccurrences(of: "^6",with: trip.members[0].name), originalEvent: event)
+            .replacingOccurrences(of: "^6",with: trip.members[0].name), originalEvent: event, cdNotification: notification)
+    }
+
+    /// CODE17 sends a separate type14 packet after the journal write. Its code
+    /// and parameter are not always the journal opcode/member parameter.
+    private static func notification(event: Int, part: Supply) -> CDNotificationRules.Event? {
+        switch event {
+        case 0...13, 20, 21, 23, 24, 25, 28, 29, 63, 64, 65, 69:
+            return .init(code: event)
+        case 22: return .init(code: 23)
+        case 26, 27: return .init(code: 26, parameter: event - 26)
+        case 30...34:
+            return .init(code: 47, parameter: part == .wheels ? 3 : part == .axles ? 4 : 5)
+        case 37...42: return .init(code: 37, parameter: event - 34)
+        default: return nil
+        }
     }
 }

@@ -149,6 +149,9 @@ struct JournalEntry: Codable, Equatable, Identifiable {
     var text: String
     /// Nil in older native saves; never infer an original face from the prose.
     var originalBold: Bool? = nil
+    /// Emitted with a new CD model event; older/imported prose has no inferred
+    /// notification. Loading history must not redispatch these records.
+    var cdNotification: CDNotificationRules.Event? = nil
 }
 
 struct Journey: Codable, Equatable {
@@ -320,10 +323,12 @@ struct Journey: Codable, Equatable {
     var canHunt: Bool { canCamp && !livingMembers.isEmpty && huntEligibility == .allowed }
     var canSave: Bool { phase != .hunting && phase != .rafting }
 
-    mutating func record(_ text: String, originalEvent: Int? = nil) {
+    mutating func record(_ text: String, originalEvent: Int? = nil,
+                         cdNotification: CDNotificationRules.Event? = nil) {
         let face = originalEvent.map { OriginalSaveJournal.usesBoldFace(opcode: $0, actorWagonSlot: 0, localWagonSlot: 0) }
         journal.append(JournalEntry(id: (journal.last?.id ?? -1) + 1, day: daysElapsed,
-                                   text: OriginalJournalRules.finishSentence(text), originalBold: face))
+                                   text: OriginalJournalRules.finishSentence(text), originalBold: face,
+                                   cdNotification: gameEdition == .macintoshCD12 ? cdNotification : nil))
         if journal.count > 500 { journal.removeFirst(journal.count - 500) }
     }
 
