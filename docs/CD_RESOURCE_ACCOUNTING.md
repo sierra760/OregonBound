@@ -28,9 +28,25 @@ individual resource's identity, size, and hash.
 | `pltt`, `cctb`, `wctb`, `dctb` | Classic palette and control/window/dialog color-table metadata. Prepared scene pixels use decoded graphics palettes; native chrome supplies the platform presentation. |
 | `BNDL`, `FREF`, `ICN#`, `icl4`, `icl8`, `ics#`, `ics4`, `ics8` | Finder application/document associations and icon variants. Oregon Bound uses its own bundle identity and app icon. These are not in-game `ICON` resources. |
 | `SIZE`, `TMPL` | Classic application memory configuration and resource-editor templates. Inventoried; native memory management and decoders replace those roles. |
+| `DLGX` | Resorcerer dialog-editor metadata, including editing grids and margins. Inventoried; no game runtime decoder is required. This uppercase type is distinct from Apple's lowercase `dlgx` dialog extension. |
 | `hfdr`, `hmnu` | Classic Finder/menu Balloon Help metadata. Native help commands and accessibility are the intended treatment; exact text/interaction equivalence has not been certified. |
 | `PTHN`, `MNTY` | A second credits text/style pair. Structurally identified and inventoried; not decoded into a native screen. No explicit program load site was found. |
-| `DLGX`, `Crul` | Ancillary dialog-related/reader metadata, with full semantics still unresolved. Inventoried; no explicit program load site was found and no native feature is inferred from their presence. |
+| `Crul` | Ancillary reader metadata, with full semantics still unresolved. Inventoried; no explicit program load site was found and no native feature is inferred from its presence. |
+
+## Dialog-editor metadata
+
+The resource editor publisher's [Resorcerer demo](https://www.mathemaesthetics.com/DemoPage.html)
+contains separate type labels for uppercase `DLGX` editor extensions and lowercase
+`dlgx` dialog extensions. Its editor preferences and help describe `DLGX` storage
+for per-dialog editing information, including grids and margins.
+
+A local comparison of the [publisher's archive](https://www.mathemaesthetics.com/download/Res24OSXDemo.sit)
+finds the same structure in its 11 uppercase records and the game's three records:
+an 82-byte header followed by 12 bytes per item. The game records' counts match
+their corresponding dialog item lists. Together with the publisher's identified
+role and the loader audit below, this accounts for `DLGX` as editing metadata.
+Individual editor flags need not be decoded into game features. This finding
+does not resolve `Crul` or the alternate credits, or close foreground acceptance.
 
 ## Explicit loader audit
 
