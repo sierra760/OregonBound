@@ -9,7 +9,11 @@ import UniformTypeIdentifiers
         // These are real host-window events, even while a SwiftUI dialog covers
         // the game. Dropping an edge leaves File commands permanently stale
         // after dismissal. Modal command guards separately prevent dispatch.
+        let wasInactive = fileMenu.windowInactive
         fileMenu.activateWindow(active, stage: fileStage)
+        // CD CODE1:18ee clears on an actual deactivation edge, including when
+        // a modal is open. Coverage by a native in-canvas dialog is not an edge.
+        if store.edition == .macintoshCD12, !wasInactive, fileMenu.windowInactive { audio.clear() }
     }
 
     var fileStage: OriginalFileMenuRules.Stage {
@@ -98,7 +102,10 @@ import UniformTypeIdentifiers
     @discardableResult
     func prepareLoadGame(fromAttractButton: Bool) -> Bool {
         guard !isOriginalModalPresented, fileMenu.permits(.load) else { return false }
-        if fromAttractButton { fileMenu.leaveAttractViaButton() }
+        if fromAttractButton {
+            prepareAttractLoadAudio()
+            fileMenu.leaveAttractViaButton()
+        }
         return true
     }
     func requestLoadGame(fromAttractButton: Bool = false) {

@@ -35,3 +35,31 @@ enum OriginalLegendsRules {
         }
     }
 }
+
+/// CD title/Legends timers count distinct advancing host ticks. The interval
+/// belongs to the opening; Sound On changes only the busy check until reentry.
+struct CDAttractPresentation {
+    private(set) var page: OriginalLegendsRules.AttractPage
+    private(set) var interval: Int
+    private var lastTick: UInt32
+    private var counter = 0
+
+    init(page: OriginalLegendsRules.AttractPage = .title, sound: Bool, at tick: UInt32) {
+        self.page = page
+        interval = sound ? 300 : (page == .title ? 600 : 3600)
+        lastTick = tick
+    }
+
+    mutating func poll(at tick: UInt32, sound: Bool, busy: Bool) -> Bool {
+        guard tick > lastTick else { return false }
+        lastTick = tick
+        counter += 1
+        guard counter >= interval else { return false }
+        counter = 0
+        return !sound || !busy
+    }
+
+    mutating func advance(sound: Bool, at tick: UInt32) {
+        self = .init(page: page.next, sound: sound, at: tick)
+    }
+}

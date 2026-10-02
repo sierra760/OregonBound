@@ -11,6 +11,73 @@ enum GamePanel: String, Identifiable {
 }
 
 @MainActor final class GameController: ObservableObject {
+    @Published private(set) var cdAttractPage = OriginalLegendsRules.AttractPage.title
+    private var cdAttract: CDAttractPresentation?
+    private var attractOpening: UUID?
+    private var startupAudioRequested = false
+    enum AttractAction { case poll, advance, travel, load }
+
+    /// Startup audio precedes the first page's idle-channel check. Reappearing
+    /// after a journey does not replay startup or recreate an existing page.
+    func showAttract() {
+        guard trip == nil, !creatingGame else { return }
+        if !startupAudioRequested {
+            startupAudioRequested = true
+            audio.request(9007)
+        }
+        refreshOriginalLegends()
+        guard store.edition == .macintoshCD12, cdAttract == nil else { return }
+        cdAttract = .init(sound: sound, at: clock())
+        cdAttractPage = .title
+        attractOpening = UUID()
+        requestAttractTheme()
+    }
+
+    private func requestAttractTheme() {
+        if sound, applicationActive, !fileMenu.windowInactive, !audio.isPlaying { audio.request(2000) }
+    }
+
+    func closeAttract() {
+        guard cdAttract != nil else { return }
+        cdAttract = nil
+        attractOpening = nil
+        audio.clear()
+    }
+
+    private func advanceAttract() {
+        guard cdAttract != nil else { return }
+        audio.clear()
+        cdAttract?.advance(sound: sound, at: clock())
+        attractOpening = UUID()
+        cdAttractPage = cdAttract!.page
+        if cdAttractPage == .legends { refreshOriginalLegends() }
+        requestAttractTheme()
+    }
+
+    func attractAction() -> (AttractAction) -> Void {
+        let opening = attractOpening
+        return { [weak self] action in
+            guard let self, let opening, self.attractOpening == opening,
+                  self.applicationActive, !self.fileMenu.windowInactive,
+                  !self.isOriginalModalPresented else { return }
+            switch action {
+            case .poll:
+                if self.cdAttract?.poll(at: self.clock(), sound: self.sound, busy: self.audio.isPlaying) == true {
+                    self.advanceAttract()
+                }
+            case .advance: self.advanceAttract()
+            case .travel: self.beginRegistration()
+            case .load: self.requestLoadGame(fromAttractButton: true)
+            }
+        }
+    }
+
+    /// The Legends Load button clears before the chooser, even on cancellation.
+    /// The title's button and the File menu do not make that request.
+    func prepareAttractLoadAudio() {
+        if cdAttract?.page == .legends { audio.clear() }
+    }
+
     enum SetupDialog { case welcome, buyingAdvice, departure }
     @Published private(set) var setupDialog: SetupDialog?
     private var setupDialogID: UUID?
@@ -193,6 +260,7 @@ enum GamePanel: String, Identifiable {
     var retainedExportRecords: [OriginalTrailLogExport.Record] = []
     @Published var trip: Journey? {
         didSet {
+            if trip != nil { closeAttract() }
             if oldValue?.id != trip?.id || (oldValue?.phase == .rafting && trip?.phase != .rafting) {
                 raftScene?.close()
                 raftScene = nil
@@ -223,7 +291,12 @@ enum GamePanel: String, Identifiable {
     }
     @Published var error: String?
     @Published var running = false
-    @Published var creatingGame = false { didSet { reconcileLandmark(); reconcileSetupDialog() } }
+    @Published var creatingGame = false {
+        didSet {
+            if creatingGame { closeAttract() }
+            reconcileLandmark(); reconcileSetupDialog()
+        }
+    }
     @Published var showingRouteDecision = false { didSet { reconcileLandmark() } }
     @Published var showingIntroduction = false
     @Published var showingTravelMap = false { didSet { reconcileLandmark() } }
@@ -252,6 +325,7 @@ enum GamePanel: String, Identifiable {
     }
     func requestGameData() {
         guard canChooseGameData, let chooseGameData else { return }
+        closeAttract()
         applicationActive = false
         running = false
         audio.resetForSession()

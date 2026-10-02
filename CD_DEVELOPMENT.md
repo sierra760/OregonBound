@@ -292,12 +292,35 @@ CD credits text/scroll rendering and access to the alternate gesture on iPad
 remain outstanding; this phase verifies audio scheduling, not complete About
 fidelity or foreground listening.
 
+## CD title and Legends sequence
+
+The initial sound is requested once before the first title page opens. CD title
+and Legends pages request the theme only when the channel is idle. Sound-enabled
+pages check every 300 distinct host ticks and wait for current playback before
+advancing; muted title and Legends openings use 600 and 3600 ticks respectively.
+Changing Sound On preserves the interval captured by the current opening.
+
+The controller owns these pages, their timers and callback identities. Modal
+coverage suspends dispatch; ordinary background clicks advance immediately.
+Setup, a loaded journey and game-data selection retire the old audio before
+incoming content can play. The Legends Load button clears its recording before
+the chooser, including cancellation. Actual window deactivation clears CD audio;
+covering the game with an in-canvas modal does not synthesize that event.
+Classic title/Legends timing is unchanged.
+
+Native tests cover busy boundaries, mute changes, modal coverage, cancelled load,
+stale callbacks, window activation, setup/load/data transitions and both editions.
+Private checks match 32 source creation-interval/timer cases and 60 source-data
+transitions across three display modes and sound settings. Startup/theme PCM and
+rates match the source. Twelve offscreen native captures verify the selected
+pages render; original screen equivalence and foreground listening remain open.
+
 ## Current acceptance boundary
 
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 919 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 927 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.

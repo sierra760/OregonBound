@@ -74,7 +74,6 @@ struct GameRootView: View {
         .onAppear {
             game.chooseGameData = chooseGameData
             BundleAssets.validateManifest()
-            GameAudio.shared.request(9007)
             #if os(macOS)
             OriginalApplicationDelegate.game = game
             #endif

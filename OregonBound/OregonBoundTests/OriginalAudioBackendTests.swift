@@ -3,6 +3,137 @@ import Foundation
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    @MainActor @Test func cdAttractWaitsForStartupAndBusyThemeAtEachTimerBoundary() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 0, idle: [() -> Void] = []
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), random: OriginalRandomStream(seed: 7), audio: audio, clock: { tick })
+        game.showAttract()
+        game.showAttract()
+        let titleAction = game.attractAction()
+        #expect(output.started == [9007] && game.cdAttractPage == .title)
+        for now in UInt32(1)...300 { tick = now; titleAction(.poll) }
+        #expect(game.cdAttractPage == .title && output.started == [9007])
+        output.callbacks.last?(); while !idle.isEmpty { idle.removeFirst()() }
+        for now in UInt32(301)...599 { tick = now; titleAction(.poll) }
+        #expect(game.cdAttractPage == .title)
+        tick = 600; titleAction(.poll)
+        #expect(game.cdAttractPage == .legends && output.started == [9007,2000])
+        titleAction(.advance); titleAction(.travel)
+        #expect(game.cdAttractPage == .legends && !game.creatingGame)
+        let legendsAction = game.attractAction()
+        for now in UInt32(601)...900 { tick = now; legendsAction(.poll) }
+        #expect(game.cdAttractPage == .legends)
+        legendsAction(.advance)
+        #expect(game.cdAttractPage == .title && output.started == [9007,2000,2000])
+        game.attractAction()(.travel)
+        #expect(game.creatingGame && game.setupDialog == .welcome)
+        #expect(output.started == [9007,2000,2000,10001] && audio.isPlaying)
+        legendsAction(.advance); titleAction(.poll)
+        #expect(output.started.last == 10001 && audio.isPlaying && game.random.seed == 7)
+        game.completeDeparture(.exitGame)
+        game.showAttract()
+        #expect(output.started == [9007,2000,2000,10001,2000]) // Startup is session-scoped.
+    }
+
+    @MainActor @Test func cdAttractMuteAndModalCoveragePreserveCapturedTimer() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        game.sound = false; game.showAttract()
+        let action = game.attractAction()
+        for now in UInt32(1)...599 { tick = now; action(.poll) }
+        game.showingIntroduction = true
+        for now in UInt32(600)...900 { tick = now; action(.poll) }
+        #expect(game.cdAttractPage == .title && output.started.isEmpty)
+        game.showingIntroduction = false
+        game.applicationActive = false
+        for now in UInt32(901)...1000 { tick = now; action(.poll) }
+        game.applicationActive = true; game.sound = true
+        tick = 1001; action(.poll)
+        #expect(game.cdAttractPage == .legends && output.started == [2000])
+        let legends = game.attractAction()
+        game.presentAbout()
+        for now in UInt32(1002)...1500 { tick = now; legends(.poll) }
+        #expect(game.cdAttractPage == .legends)
+        game.aboutAction()(.close)
+        for now in UInt32(1501)...1799 { tick = now; legends(.poll) }
+        #expect(game.cdAttractPage == .legends)
+        tick = 1800; legends(.poll)
+        #expect(game.cdAttractPage == .title && output.started == [2000,2000,2000])
+    }
+
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func attractLoadButtonsAndOwnerRetirementFollowTheirPage(edition: GameEdition) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let store = JourneyStore(directory: root, edition: edition, defaultPreferences: .init())
+        var tick: UInt32 = 0
+        let game = GameController(store: store, audio: audio, clock: { tick })
+        game.showAttract()
+        #expect(game.prepareLoadGame(fromAttractButton: true))
+        #expect(audio.isPlaying && output.started == [9007])
+        game.attractAction()(.advance)
+        if edition == .macintoshCD12 {
+            #expect(game.prepareLoadGame(fromAttractButton: false))
+            #expect(audio.isPlaying)
+            #expect(game.prepareLoadGame(fromAttractButton: true))
+            #expect(!audio.isPlaying && game.cdAttractPage == .legends)
+            // Cancelled chooser does not recreate or reset the underlying page.
+            game.fileChooserPresented = true
+            tick = 500; game.attractAction()(.poll)
+            game.fileChooserPresented = false
+            for now in UInt32(501)...800 { tick = now; game.attractAction()(.poll) }
+            #expect(game.cdAttractPage == .title && output.started == [9007,2000,2000])
+        }
+        let stale = game.attractAction()
+        var trip = Journey(seed: 3, edition: edition); trip.phase = .landmark; trip.locationID = "kearney"
+        try store.save(trip)
+        game.resume()
+        #expect(game.trip?.id == trip.id && game.error == nil)
+        if edition == .macintoshCD12 { #expect(!audio.isPlaying) }
+        for now in UInt32(801)...864 { tick = now; game.pollLandmarkAudio() }
+        stale(.advance); stale(.travel)
+        if edition == .macintoshCD12 { #expect(output.started.last == 1003 && audio.isPlaying) }
+        #expect(game.trip?.id == trip.id && !game.creatingGame)
+    }
+
+    @MainActor @Test func realWindowDeactivationClearsCDAttractOnceAndStopsItsDispatch() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        game.showAttract()
+        game.gameWindowActivationChanged(false)
+        #expect(!audio.isPlaying)
+        let stops = output.stops
+        for now in UInt32(1)...600 { tick = now; game.attractAction()(.poll) }
+        #expect(game.cdAttractPage == .title && output.started == [9007])
+        game.gameWindowActivationChanged(false)
+        #expect(output.stops == stops)
+        game.gameWindowActivationChanged(true)
+        for now in UInt32(601)...900 { tick = now; game.attractAction()(.poll) }
+        #expect(game.cdAttractPage == .legends && output.started == [9007,2000])
+        let old = game.attractAction()
+        var selectedData = false
+        game.chooseGameData = { selectedData = true }
+        game.requestGameData()
+        old(.advance); old(.travel)
+        #expect(selectedData && !audio.isPlaying && !game.creatingGame)
+    }
+
 
     @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
     func aboutOwnsOpeningAndRetiresOnlyItsOwnCallbacks(edition: GameEdition) {
