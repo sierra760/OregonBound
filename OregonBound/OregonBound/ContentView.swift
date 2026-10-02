@@ -98,7 +98,7 @@ struct GameRootView: View {
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                 game.resume(from: url)
-            } catch { game.error = error.localizedDescription }
+            } catch { game.handleLoadGameFailure(error) }
         }
         .fileExporter(isPresented: $game.showingExportDialog, document: game.exportDocument,
             contentType: game.exportIsJourney ? .json : .plainText, defaultFilename: game.exportFilename) { result in

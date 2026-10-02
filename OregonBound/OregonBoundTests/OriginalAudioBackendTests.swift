@@ -3,6 +3,83 @@ import Foundation
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    @MainActor @Test(arguments: [0,1,2]) func cdReturnFromSetupJourneyOrEndingShowsLegends(kind: Int) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        game.showAttract()
+        #expect(game.cdAttractPage == .title)
+        if kind == 0 { game.beginRegistration(); game.completeDeparture(.exitGame) }
+        else {
+            var trip = Journey(seed: 7, edition: .macintoshCD12)
+            trip.phase = kind == 1 ? .landmark : .finished
+            game.trip = trip
+            if kind == 1 { game.completeDeparture(.exitGame) } else { game.mainMenu() }
+        }
+        game.showAttract()
+        #expect(game.cdAttractPage == .legends)
+        #expect(output.started.filter { $0 == 9007 }.count == 1)
+    }
+
+    @MainActor @Test func cdCancelledTitleLoadOpensLegendsButExistingLegendsKeepsTimer() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        game.sound = false; game.showAttract()
+        let title = game.attractAction()
+        game.cancelLoadGameSelection()
+        #expect(game.cdAttractPage == .legends && game.error == nil)
+        title(.advance); title(.travel)
+        #expect(game.cdAttractPage == .legends && !game.creatingGame)
+        let legends = game.attractAction()
+        for now in UInt32(1)...100 { tick = now; legends(.poll) }
+        game.cancelLoadGameSelection()
+        for now in UInt32(101)...3599 { tick = now; legends(.poll) }
+        #expect(game.cdAttractPage == .legends)
+        tick = 3600; legends(.poll)
+        #expect(game.cdAttractPage == .title)
+    }
+
+    @MainActor @Test func cdFailedLoadReturnsToLegendsAfterErrorAcknowledgment() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        game.showAttract()
+        let title = game.attractAction()
+        game.resume(from: root.appendingPathComponent("missing.json"))
+        #expect(game.error != nil && game.cdAttractPage == .title)
+        game.error = nil
+        #expect(game.cdAttractPage == .legends && output.started == [9007,2000])
+        title(.advance)
+        #expect(game.cdAttractPage == .legends && audio.isPlaying)
+    }
+
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func fileImporterCancellationIsNotAnErrorAndLiveJourneyCannotBeRetired(edition: GameEdition) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = GameController(store: JourneyStore(directory: root, edition: edition,
+            defaultPreferences: .init()), audio: GameAudio(playback: Output(), scheduleIdle: { _ in }))
+        game.showAttract()
+        game.handleLoadGameFailure(NSError(domain: NSCocoaErrorDomain, code: NSUserCancelledError))
+        #expect(game.error == nil)
+        #expect(game.cdAttractPage == (edition == .macintoshCD12 ? .legends : .title))
+        let trip = Journey(seed: 2, edition: edition)
+        game.trip = trip
+        game.cancelLoadGameSelection()
+        #expect(game.trip?.id == trip.id)
+    }
+
     @MainActor @Test func cdAttractWaitsForStartupAndBusyThemeAtEachTimerBoundary() {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

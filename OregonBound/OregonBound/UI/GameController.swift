@@ -27,8 +27,7 @@ enum GamePanel: String, Identifiable {
         }
         refreshOriginalLegends()
         guard store.edition == .macintoshCD12, cdAttract == nil else { return }
-        cdAttract = .init(sound: sound, at: clock())
-        cdAttractPage = .title
+        cdAttract = .init(page: cdAttractPage, sound: sound, at: clock())
         attractOpening = UUID()
         requestAttractTheme()
     }
@@ -76,6 +75,26 @@ enum GamePanel: String, Identifiable {
     /// The title's button and the File menu do not make that request.
     func prepareAttractLoadAudio() {
         if cdAttract?.page == .legends { audio.clear() }
+    }
+
+    /// CODE1's return-to-main path selects Legends. An existing Legends pane
+    /// keeps its opening and partially elapsed timer (CODE10's duplicate check).
+    func returnToAttractLegends() {
+        guard store.edition == .macintoshCD12, trip == nil, !creatingGame else { return }
+        if cdAttract?.page == .title { advanceAttract() }
+        else if cdAttract == nil { cdAttractPage = .legends }
+    }
+
+    func cancelLoadGameSelection() { returnToAttractLegends() }
+
+    func handleLoadGameFailure(_ failure: Error) {
+        let cocoa = failure as NSError
+        if cocoa.domain == NSCocoaErrorDomain, cocoa.code == NSUserCancelledError {
+            cancelLoadGameSelection()
+        } else {
+            returnToAttractAfterLoadError = store.edition == .macintoshCD12 && trip == nil && !creatingGame
+            error = failure.localizedDescription
+        }
     }
 
     enum SetupDialog { case welcome, buyingAdvice, departure }
@@ -289,7 +308,15 @@ enum GamePanel: String, Identifiable {
             reconcileLandmark()
         }
     }
-    @Published var error: String?
+    private var returnToAttractAfterLoadError = false
+    @Published var error: String? {
+        didSet {
+            if error == nil, returnToAttractAfterLoadError {
+                returnToAttractAfterLoadError = false
+                returnToAttractLegends()
+            }
+        }
+    }
     @Published var running = false
     @Published var creatingGame = false {
         didSet {
@@ -669,7 +696,7 @@ enum GamePanel: String, Identifiable {
                 buildEndingReport(saved)
             }
         }
-        catch { self.error = error.localizedDescription }
+        catch { handleLoadGameFailure(error) }
     }
 
     func mainMenu() {
@@ -677,5 +704,6 @@ enum GamePanel: String, Identifiable {
         if trip?.canSave == true { persist(); if error != nil { return } }
         trip = nil; panel = nil; creatingGame = false; huntResult = nil; memorialID = nil; actionNotice = nil; showingTravelMap = false
         fileMenu.enterAttract(hasExportText: !retainedExportRecords.isEmpty)
+        returnToAttractLegends()
     }
 }

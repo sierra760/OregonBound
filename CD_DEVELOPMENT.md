@@ -306,6 +306,9 @@ Setup, a loaded journey and game-data selection retire the old audio before
 incoming content can play. The Legends Load button clears its recording before
 the chooser, including cancellation. Actual window deactivation clears CD audio;
 covering the game with an in-canvas modal does not synthesize that event.
+Initial launch opens the title; returning from setup, a journey or an ending
+opens Legends. Cancelling Load on the title also opens Legends, while an existing
+Legends page retains its timer. Failed loads return after error acknowledgment.
 Classic title/Legends timing is unchanged.
 
 Native tests cover busy boundaries, mute changes, modal coverage, cancelled load,
@@ -320,7 +323,7 @@ pages render; original screen equivalence and foreground listening remain open.
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 927 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 934 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.

@@ -77,6 +77,7 @@ import UniformTypeIdentifiers
         huntResult = nil; memorialID = nil; actionNotice = nil; showingTravelMap = false
         pendingDeparture = nil; showingSaveTimeOut = false
         fileMenu.enterAttract(hasExportText: !retainedExportRecords.isEmpty)
+        returnToAttractLegends()
         #if os(macOS)
         if departure == .quit {
             OriginalApplicationDelegate.allowTermination = true
@@ -116,7 +117,10 @@ import UniformTypeIdentifiers
         chooser.canChooseDirectories = false; chooser.allowsMultipleSelection = false
         chooser.allowedContentTypes = [.json]
         presentFileChooser(chooser) { [weak self] result in
-            guard result == .OK, let url = chooser.url else { return }
+            guard result == .OK, let url = chooser.url else {
+                self?.cancelLoadGameSelection()
+                return
+            }
             self?.resume(from: url)
         }
         #else
