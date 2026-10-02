@@ -96,14 +96,7 @@ struct GameRootView: View {
         }
         #if os(iOS)
         .safeAreaInset(edge: .bottom) {
-            if game.canChooseGameData || game.store.edition == .macintoshCD12 {
-                HStack {
-                    if game.canChooseGameData { Button("Game Data…", action: game.requestGameData) }
-                    if game.store.edition == .macintoshCD12 {
-                        Button("User’s Guide…", action: game.presentUserGuide).disabled(!game.canPresentUserGuide)
-                    }
-                }.padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
-            }
+            OriginalTabletHelpBar(game: game)
         }
         .fileImporter(isPresented: $game.showingLoadDialog, allowedContentTypes: [.json]) { result in
             do {

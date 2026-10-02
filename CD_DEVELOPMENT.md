@@ -509,7 +509,7 @@ render identically after reload. The native suite passes 773 test summaries with
 ### Standalone user guide: native reader
 
 Open the imported document from **Help → On-line User’s Guide** on macOS or
-**User’s Guide** below the game on iPad, including iPadOS 16–25. Missing optional
+**Help → On-line User’s Guide** below the game on iPad, including iPadOS 16–25. Missing optional
 manual data produces a re-import explanation. The reader supports all 17 pages,
 9 sections, 64 go-to links and 40 hidden captions. Captions work through taps,
 keyboard/VoiceOver buttons and a per-page links menu; no hover is required.
@@ -542,3 +542,23 @@ fonts. Native offscreen layouts were inspected in original-font, substitute-font
 missing-manual and comparison modes. The native suite passes 787 test summaries
 with 74 skips and no failures. Foreground interaction, VoiceOver operation and
 physical printer acceptance remain part of the overall Deluxe acceptance pass.
+
+
+### iPad Help and About access
+
+The native **Help** menu below the Deluxe game is available on every supported
+iPadOS release. It opens the user guide, **About Oregon Bound**, or **About with
+alternate music**. The last command provides the touch and keyboard equivalent
+of holding Option when opening About on a Mac. Both commands use the existing
+imported credits and source-derived audio cadence; the alternate choice does
+not replace the initial theme. The menu remains outside the original game
+canvas and is disabled during modal dialogs. Inactive or retired game controllers
+reject About requests before opening a dialog or playing sound. Classic tablet
+Game Data controls and the iPadOS 26 system menu bar retain their existing behavior.
+
+The native suite passes 788 test summaries with 74 skips and zero failures, and
+the iPad target builds. Private source verification covers 144 original About
+audio branches and 60 inactive/help/credits/audio/close cycles across all three
+display modes and both music choices, with exact imported sound hashes/rates and
+unchanged random state. Five native offscreen Help-bar states were rendered;
+foreground touch and VoiceOver acceptance remain part of the overall goal.

@@ -414,7 +414,7 @@ enum GamePanel: String, Identifiable {
     }
 
     func presentAbout(alternate: Bool = false) {
-        guard !isOriginalModalPresented else { return }
+        guard applicationActive, !isOriginalModalPresented else { return }
         aboutAlternate = alternate
         showingAbout = true
     }

@@ -3,6 +3,40 @@ import Foundation
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func helpAboutEntryRejectsInactiveAndCoveredRequestsWithoutChangingItsAudioMode(edition: GameEdition) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var idle: [() -> Void] = []
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        var tick: UInt32 = 100
+        let game = GameController(store: JourneyStore(directory: root, edition: edition, defaultPreferences: .init()),
+            random: OriginalRandomStream(seed: 17), audio: audio, clock: { tick })
+        game.applicationActive = false
+        game.presentAbout(); game.presentAbout(alternate: true)
+        #expect(!game.showingAbout && output.started.isEmpty)
+        game.applicationActive = true
+        if edition == .macintoshCD12 {
+            game.presentUserGuide(); game.presentAbout(alternate: true)
+            #expect(!game.showingAbout && game.userGuideOpening != nil && output.started.isEmpty)
+            game.userGuideCloseAction()()
+        }
+        game.presentAbout(alternate: true)
+        let old = game.aboutAction()
+        game.presentAbout(alternate: false)
+        tick = 103; old(.poll(showsSystemInformation: false))
+        // Drain the initial theme, revealing the alternate request already queued.
+        output.callbacks.first?()
+        while !idle.isEmpty { idle.removeFirst()() }
+        #expect(output.started == (edition == .macintoshCD12 ? [2000, 10000] : []))
+        old(.close)
+        game.presentAbout()
+        old(.close)
+        #expect(game.showingAbout && game.random.seed == 17 && game.trip == nil)
+        game.aboutAction()(.close)
+    }
+
     @MainActor @Test func standaloneGuidePausesGameAndAudioAndRetiresStaleCloseCallbacks() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
