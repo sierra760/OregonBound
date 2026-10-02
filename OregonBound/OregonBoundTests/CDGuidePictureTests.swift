@@ -171,6 +171,8 @@ struct CDGuidePictureTests {
         #expect(bitmap.destination == .init(top: 5, left: 7, bottom: 9, right: 11))
         #expect(bitmap.pixels == [255, 18, 0, 255, 0, 171, 255, 255, 255, 18, 0, 255,
                                  0, 171, 255, 255, 255, 18, 0, 255, 0, 171, 255, 255])
+        #expect(bitmap.indices == [2, 7, 2, 7, 2, 7])
+        #expect(bitmap.pixelSize == 8)
         #expect(bitmap.mask?.contains(x: 8, y: 5) == true)
         #expect(bitmap.mask?.contains(x: 10, y: 5) == false)
         #expect(bitmap.mask?.contains(x: 10, y: 8) == true)
@@ -194,6 +196,8 @@ struct CDGuidePictureTests {
         #expect(color.pixels == [255, 18, 0, 255, 0, 171, 255, 255, 255, 18, 0, 255,
                                 0, 171, 255, 255, 255, 18, 0, 255, 0, 171, 255, 255])
         #expect(color.mask == nil)
+        #expect(bitmap.pixelSize == 1 && color.pixelSize == 8)
+        #expect(bitmap.indices == [1, 0, 1, 0, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0])
     }
 
     @Test func guidePictureRejectsMalformedBitmapRowsAndMetadata() {

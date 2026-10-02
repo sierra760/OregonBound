@@ -96,6 +96,10 @@ struct CDGuidePicture {
         let source: QuickDrawRect
         let destination: QuickDrawRect
         let mask: Region?
+        let pixelSize: Int
+        /// Preserve numeric indices: QuickDraw's indexed shrink operation picks
+        /// the greatest index in a source group, not the brightest RGB color.
+        let indices: [UInt8]
         /// Unscaled RGBA pixels for the complete bitmap bounds, excluding row padding.
         let pixels: [UInt8]
     }
@@ -270,7 +274,8 @@ struct CDGuidePicture {
                 throw Failure.invalid("bitmap dimensions")
             }
             let byteCount = bounds.width * bounds.height * 4
-            guard retainedBytes + byteCount <= 64 * 1024 * 1024 else {
+            let storage = byteCount + bounds.width * bounds.height
+            guard retainedBytes + storage <= 64 * 1024 * 1024 else {
                 throw Failure.invalid("excessive bitmap storage")
             }
             var palette: [Int: Color] = [:], packType = 0
@@ -308,6 +313,7 @@ struct CDGuidePicture {
             }
             let mask = opcode == 0x91 || opcode == 0x99 ? try region() : nil
             var pixels: [UInt8] = []; pixels.reserveCapacity(byteCount)
+            var indices: [UInt8] = []; indices.reserveCapacity(bounds.width * bounds.height)
             let packed = (opcode == 0x98 || opcode == 0x99) && rowBytes >= 8 && packType != 1
             for _ in 0..<bounds.height {
                 let row: [UInt8]
@@ -319,11 +325,13 @@ struct CDGuidePicture {
                 for x in 0..<bounds.width {
                     let index = indexed ? Int(row[x]) : Int((row[x / 8] >> (7 - x % 8)) & 1)
                     guard let color = palette[index] else { throw Failure.invalid("unmapped bitmap color") }
+                    indices.append(UInt8(index))
                     pixels.append(contentsOf: [UInt8(color.red >> 8), UInt8(color.green >> 8), UInt8(color.blue >> 8), 255])
                 }
             }
-            retainedBytes += byteCount
-            return Bitmap(bounds: bounds, source: sourceRect, destination: destination, mask: mask, pixels: pixels)
+            retainedBytes += storage
+            return Bitmap(bounds: bounds, source: sourceRect, destination: destination, mask: mask,
+                          pixelSize: indexed ? 8 : 1, indices: indices, pixels: pixels)
         }
     }
 
