@@ -34,9 +34,17 @@ struct OriginalAboutPane: View {
     let systemInformation: [String]
     let tickCount: () -> UInt32
     let doubleClickTicks: UInt32
+    var isCD = false
+    var creditsText: String? = nil
+    var creditsImage: CGImage? = nil
+    var creditsScroll: OriginalAboutRules.CreditsScroll? = nil
+    var informationChanged: (Bool) -> Void = { _ in }
     var pollAudio: (Bool) -> Void = { _ in }
     let done: () -> Void
     @State private var state = OriginalAboutRules.State()
+    private var heading: String {
+        state.showsSystemInformation ? state.heading : (isCD ? "Brought to you by:" : state.heading)
+    }
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.white
@@ -52,8 +60,8 @@ struct OriginalAboutPane: View {
                     .offset(x: 210, y: CGFloat(80 + index * 17))
             }
             OriginalAboutGrayFrame().frame(width: 200, height: 130).offset(x: 5, y: 67)
-            OriginalText(text: state.heading, font: .chicago12)
-                .frame(width: CGFloat((BitmapFont.chicago12?.width(state.heading) ?? 125) + 4), alignment: .leading)
+            OriginalText(text: heading, font: .chicago12)
+                .frame(width: CGFloat((BitmapFont.chicago12?.width(heading) ?? 125) + 4), alignment: .leading)
                 .background(.white).offset(x: 15, y: 60)
             ZStack(alignment: .topLeading) {
                 if state.showsSystemInformation {
@@ -62,6 +70,19 @@ struct OriginalAboutPane: View {
                             .offset(x: CGFloat(84 - (BitmapFont.geneva9?.width(title) ?? 0)), y: CGFloat(2 + index * 16))
                         if index < systemInformation.count {
                             OriginalText(text: systemInformation[index], font: .geneva9).offset(x: 90, y: CGFloat(2 + index * 16))
+                        }
+                    }
+                } else if isCD {
+                    if let creditsImage, let creditsScroll {
+                        CDCreditsViewport(image: creditsImage, scroll: creditsScroll)
+                            .accessibilityLabel(creditsText?.replacingOccurrences(of: "\r", with: "\n") ?? "Credits")
+                    } else {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Import System 7 fonts for the original credit styling.").font(.caption)
+                                Text(creditsText?.replacingOccurrences(of: "\r", with: "\n") ?? "Re-import the CD to load its credits.")
+                                    .font(.system(size: 12))
+                            }.frame(maxWidth: .infinity, alignment: .leading)
                         }
                     }
                 } else {
@@ -74,6 +95,7 @@ struct OriginalAboutPane: View {
             OriginalManagementButton(title: "OK", width: 80, isDefault: true, action: done)
                 .offset(x: 270, y: 170).keyboardShortcut(.defaultAction)
         }.frame(width: 400, height: 200).clipped()
+            .onChange(of: state.showsSystemInformation, perform: informationChanged)
             .onReceive(Timer.publish(every: 1.0 / 60, on: .main, in: .common).autoconnect()) { _ in
                 pollAudio(state.showsSystemInformation)
             }
@@ -93,5 +115,29 @@ private struct OriginalAboutGrayFrame: View {
                 }
             }
         }
+    }
+}
+
+
+/// Copies contiguous source rows into the viewport without scaling or filtering.
+/// At the wrap boundary there are two slices; the initial unfilled rows stay white.
+struct CDCreditsViewport: View {
+    let image: CGImage
+    let scroll: OriginalAboutRules.CreditsScroll
+    var body: some View {
+        Canvas { context, _ in
+            context.fill(Path(CGRect(x: 0, y: 0, width: 190, height: 115)), with: .color(.white))
+            var y = 0
+            while y < 115 {
+                guard let row = scroll.sourceRow(at: y) else { y += 1; continue }
+                var height = 1
+                while y + height < 115 && scroll.sourceRow(at: y + height) == row + height { height += 1 }
+                if let slice = image.cropping(to: CGRect(x: 0, y: row, width: 190, height: height)) {
+                    context.draw(Image(decorative: slice, scale: 1).interpolation(.none),
+                        in: CGRect(x: 0, y: y, width: 190, height: height))
+                }
+                y += height
+            }
+        }.frame(width: 190, height: 115).accessibilityElement(children: .ignore)
     }
 }

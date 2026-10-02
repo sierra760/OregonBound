@@ -1202,4 +1202,44 @@ struct OriginalAudioBackendTests {
         while !idle.isEmpty { idle.removeFirst()() }
         #expect(output.started == [9002,9003])
     }
+    @MainActor @Test func creditsScrollSharesAcceptedAudioPulseAndOpeningLifetime() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var tick: UInt32 = 100
+        let audio = GameAudio(playback: Output(), scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        game.presentAbout()
+        let old = game.aboutAction()
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        tick = 102; old(.poll(showsSystemInformation: false))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        tick = 103; old(.poll(showsSystemInformation: false))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == 0)
+        tick = 1000; old(.poll(showsSystemInformation: false))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == 1)
+        old(.information(true))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        tick = 2000; old(.poll(showsSystemInformation: true))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        old(.information(false)); old(.poll(showsSystemInformation: false))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == 0)
+        old(.redraw)
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        old(.poll(showsSystemInformation: false))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil) // redraw preserves the audio clock
+        game.applicationActive = false
+        tick = 2003; old(.poll(showsSystemInformation: false))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        game.applicationActive = true; old(.poll(showsSystemInformation: false))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == 0)
+        old(.close); game.presentAbout()
+        tick = 3000; old(.poll(showsSystemInformation: false)); old(.information(true)); old(.close)
+        #expect(game.showingAbout && game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        game.aboutAction()(.poll(showsSystemInformation: false))
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == 0)
+        game.aboutAction()(.close)
+        #expect(game.aboutCreditScroll == nil)
+    }
+
 }

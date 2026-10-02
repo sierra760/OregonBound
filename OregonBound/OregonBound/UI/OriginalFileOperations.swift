@@ -14,7 +14,7 @@ import UniformTypeIdentifiers
         // CD CODE1:18ee clears on an actual deactivation edge, including when
         // a modal is open. Coverage by a native in-canvas dialog is not an edge.
         if store.edition == .macintoshCD12, !wasInactive, fileMenu.windowInactive { audio.clear() }
-        if wasInactive, !fileMenu.windowInactive { endingAction()(.redraw); notificationAction()(.redraw) }
+        if wasInactive, !fileMenu.windowInactive { endingAction()(.redraw); notificationAction()(.redraw); aboutAction()(.redraw) }
     }
 
     var fileStage: OriginalFileMenuRules.Stage {

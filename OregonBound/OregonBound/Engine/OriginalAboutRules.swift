@@ -24,6 +24,32 @@ enum OriginalAboutRules {
         }
     }
 
+    /// CODE2 scrolls the 190×115 view upward once, then copies one source row
+    /// to its bottom. The source buffer includes 115 blank rows after the text.
+    struct CreditsScroll: Equatable {
+        enum Failure: Error { case invalidBufferHeight }
+        static let viewportHeight = 115
+        let bufferHeight: Int
+        private(set) var nextRow = 0
+        private var visibleRows = 0
+
+        init(bufferHeight: Int) throws {
+            guard (Self.viewportHeight...32767).contains(bufferHeight) else {
+                throw Failure.invalidBufferHeight
+            }
+            self.bufferHeight = bufferHeight
+        }
+        mutating func advance() {
+            nextRow = (nextRow + 1) % bufferHeight
+            visibleRows = min(Self.viewportHeight, visibleRows + 1)
+        }
+        mutating func reset() { nextRow = 0; visibleRows = 0 }
+        func sourceRow(at y: Int) -> Int? {
+            guard (0..<Self.viewportHeight).contains(y), y >= Self.viewportHeight - visibleRows else { return nil }
+            return (nextRow - (Self.viewportHeight - y) + bufferHeight) % bufferHeight
+        }
+    }
+
     struct State: Equatable {
         private(set) var showsSystemInformation = false
         private(set) var previousClickTick: UInt32 = 0

@@ -63,6 +63,53 @@ struct CDAboutCredits: Equatable {
         self.runs = runs
     }
 
+    struct GlyphPlacement: Equatable {
+        let byteOffset: Int
+        let code: UInt8
+        let bold: Bool
+        let x: Int
+        let y: Int
+    }
+    struct Layout: Equatable {
+        let lineStarts: [Int]
+        let textHeight: Int
+        let glyphs: [GlyphPlacement]
+        var bufferHeight: Int { textHeight + OriginalAboutRules.CreditsScroll.viewportHeight }
+    }
+
+    /// The supported CD uses Helvetica12 plain/bold. TEUseStyleScrap applies
+    /// font/face/size and asks GetFontInfo for new metrics; its saved height is
+    /// not the runtime height. QuickDraw adds one pixel to nonzero bold widths
+    /// and overstrikes one pixel right. Roman wrapping uses the full 190px box.
+    func layout(advances: [Int], lineHeight: Int, width: Int = 190) throws -> Layout {
+        guard advances.count == 256, advances.allSatisfy({ (0...32767).contains($0) }),
+              (1...512).contains(lineHeight), runs.allSatisfy({
+                  $0.font == 21 && $0.size == 12 && $0.face <= 1 && $0.red == 0 && $0.green == 0 && $0.blue == 0
+              }) else { throw Failure.invalid("unsupported credit style or font metrics") }
+        var bold = [Bool](); bold.reserveCapacity(bytes.count)
+        var prefix = [0], run = 0
+        for (offset, byte) in bytes.enumerated() {
+            while run + 1 < runs.count && runs[run + 1].start <= offset { run += 1 }
+            let styled = runs[run].face == 1, advance = advances[Int(byte)]
+            bold.append(styled)
+            prefix.append(prefix.last! + advance + (styled && advance != 0 ? 1 : 0))
+        }
+        let lines = try OriginalTextEditLineLayout.layout(bytes: bytes, prefixWidths: prefix, width: width)
+        let height = lines.lineCount * lineHeight
+        guard height <= 32767 - OriginalAboutRules.CreditsScroll.viewportHeight else {
+            throw Failure.invalid("credits exceed the original drawing buffer")
+        }
+        var glyphs: [GlyphPlacement] = []
+        for line in 0..<lines.lineCount {
+            let start = lines.lineStarts[line], end = lines.lineStarts[line + 1]
+            for offset in start..<end where bytes[offset] != 13 {
+                glyphs.append(GlyphPlacement(byteOffset: offset, code: bytes[offset], bold: bold[offset],
+                    x: prefix[offset] - prefix[start], y: line * lineHeight))
+            }
+        }
+        return Layout(lineStarts: lines.lineStarts, textHeight: height, glyphs: glyphs)
+    }
+
     static func extract(from fork: MacResourceFork, into output: ExtractionOutput) throws {
         let text = try fork.require("TEXT", 200, from: "CD application").data
         let styles = try fork.require("styl", 200, from: "CD application").data

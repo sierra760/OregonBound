@@ -76,4 +76,24 @@ struct OriginalFileMenuTests {
         #expect(positions[7].baseline == 12 && positions[12].baseline == 92)
         #expect(positions[7].x == 34)
     }
+    @Test func cdCreditScrollStartsBlankCopiesOneRowAndWrapsWithoutCatchup() throws {
+        var scroll = try OriginalAboutRules.CreditsScroll(bufferHeight: 130)
+        #expect(scroll.sourceRow(at: 0) == nil && scroll.sourceRow(at: 114) == nil)
+        scroll.advance()
+        #expect(scroll.sourceRow(at: 113) == nil && scroll.sourceRow(at: 114) == 0)
+        for _ in 1..<115 { scroll.advance() }
+        #expect(scroll.sourceRow(at: 0) == 0 && scroll.sourceRow(at: 114) == 114)
+        for _ in 115..<130 { scroll.advance() }
+        #expect(scroll.sourceRow(at: 0) == 15 && scroll.sourceRow(at: 114) == 129)
+        scroll.advance()
+        #expect(scroll.sourceRow(at: 0) == 16 && scroll.sourceRow(at: 114) == 0)
+        #expect(scroll.sourceRow(at: -1) == nil && scroll.sourceRow(at: 115) == nil)
+        scroll.reset()
+        #expect(scroll.sourceRow(at: 0) == nil && scroll.sourceRow(at: 114) == nil)
+        scroll.advance()
+        #expect(scroll.sourceRow(at: 114) == 0)
+        #expect(throws: (any Error).self) { try OriginalAboutRules.CreditsScroll(bufferHeight: 114) }
+        #expect(throws: (any Error).self) { try OriginalAboutRules.CreditsScroll(bufferHeight: 32768) }
+    }
+
 }

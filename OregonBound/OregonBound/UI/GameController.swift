@@ -377,20 +377,41 @@ enum GamePanel: String, Identifiable {
             guard showingAbout != oldValue else { return }
             if showingAbout {
                 aboutOpening = UUID()
+                aboutInformation = false
+                if store.edition == .macintoshCD12 {
+                    let credits = GameData.preparedSession?.aboutCredits
+                    aboutCreditText = credits?.text
+                    aboutCreditImage = credits.flatMap { try? BitmapFont.helvetica12?.creditsRaster($0) }
+                    aboutCreditScroll = try? .init(bufferHeight: aboutCreditImage?.height ?? 115)
+                }
                 aboutAudio = .init(openedAt: clock(), alternate: aboutAlternate)
                 if store.edition == .macintoshCD12 { audio.clear(); audio.request(2000) }
             } else {
                 aboutOpening = nil
                 aboutAudio = nil
+                aboutCreditScroll = nil
+                aboutCreditImage = nil
+                aboutCreditText = nil
+                aboutInformation = false
                 aboutAlternate = false
                 if store.edition == .macintoshCD12 { audio.clear() }
             }
         }
     }
+    @Published private(set) var aboutCreditScroll: OriginalAboutRules.CreditsScroll?
+    @Published private(set) var aboutCreditImage: CGImage?
+    @Published private(set) var aboutCreditText: String?
+    private var aboutInformation = false
     private var aboutOpening: UUID?
     private var aboutAudio: OriginalAboutRules.Audio?
     private var aboutAlternate = false
-    enum AboutAction { case close, poll(showsSystemInformation: Bool) }
+    enum AboutAction { case close, poll(showsSystemInformation: Bool), information(Bool), redraw }
+
+    private func setAboutInformation(_ information: Bool) {
+        guard aboutInformation != information else { return }
+        aboutInformation = information
+        aboutCreditScroll?.reset()
+    }
 
     func presentAbout(alternate: Bool = false) {
         guard !isOriginalModalPresented else { return }
@@ -406,10 +427,14 @@ enum GamePanel: String, Identifiable {
             guard let self, let opening, self.aboutOpening == opening else { return }
             switch action {
             case .close: self.showingAbout = false
+            case .information(let information): self.setAboutInformation(information)
+            case .redraw: self.aboutCreditScroll?.reset()
             case .poll(let information):
+                self.setAboutInformation(information)
                 guard self.store.edition == .macintoshCD12, self.applicationActive,
                       let id = self.aboutAudio?.poll(at: self.clock(), showsSystemInformation: information) else { return }
                 self.audio.request(id)
+                self.aboutCreditScroll?.advance()
             }
         }
     }
@@ -495,7 +520,7 @@ enum GamePanel: String, Identifiable {
             // Native window activation and SwiftUI scene activation can arrive
             // in either order. The last eligible edge redraws; duplicate edges
             // and an edge arriving while the other input is inactive do not.
-            if applicationActive, !oldValue { endingAction()(.redraw); notificationAction()(.redraw) }
+            if applicationActive, !oldValue { endingAction()(.redraw); notificationAction()(.redraw); aboutAction()(.redraw) }
         }
     }
     private var dayTimerCounter: UInt8 = 0

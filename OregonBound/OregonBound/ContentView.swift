@@ -110,7 +110,7 @@ struct GameRootView: View {
         .focusedSceneObject(game)
         #if os(macOS)
         .background(OriginalWindowActivation(changed: game.gameWindowActivationChanged,
-            redraw: { game.endingAction()(.redraw); game.notificationAction()(.redraw) }))
+            redraw: { game.endingAction()(.redraw); game.notificationAction()(.redraw); game.aboutAction()(.redraw) }))
         #endif
         .onChange(of: scenePhase) { phase in
             game.applicationActive = phase == .active
@@ -198,6 +198,10 @@ struct GameRootView: View {
                     OriginalAboutPane(systemInformation: OriginalHostInformation.lines,
                         tickCount: { UInt32(truncatingIfNeeded: Int(ProcessInfo.processInfo.systemUptime * 60)) },
                         doubleClickTicks: originalDoubleClickTicks,
+                        isCD: game.store.edition == .macintoshCD12,
+                        creditsText: game.aboutCreditText, creditsImage: game.aboutCreditImage,
+                        creditsScroll: game.aboutCreditScroll,
+                        informationChanged: { action(.information($0)) },
                         pollAudio: { action(.poll(showsSystemInformation: $0)) }, done: { action(.close) })
                 }
             }

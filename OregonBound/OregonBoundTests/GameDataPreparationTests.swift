@@ -96,4 +96,37 @@ struct GameDataPreparationTests {
         }
     }
 
+    @Test func styledCreditLayoutUsesFontMetricsAndMixedStyleByteWidths() throws {
+        let credits = try CDAboutCredits(text: Data("AB CD\r\rE".utf8), styles: Self.styleScrap([0, 2]))
+        var advances = Array(repeating: 3, count: 256); advances[13] = 0; advances[32] = 2
+        let layout = try credits.layout(advances: advances, lineHeight: 14, width: 10)
+        #expect(layout.lineStarts == [0, 3, 6, 7, 8])
+        #expect(layout.textHeight == 56 && layout.bufferHeight == 171)
+        #expect(layout.glyphs.map(\.byteOffset) == [0, 1, 2, 3, 4, 7])
+        #expect(layout.glyphs.map(\.x) == [0, 3, 6, 0, 4, 0])
+        #expect(layout.glyphs.map(\.y) == [0, 0, 0, 14, 14, 42])
+        #expect(layout.glyphs.map(\.bold) == [false, false, true, true, true, true])
+        let trailing = try CDAboutCredits(text: Data("A\r".utf8), styles: Self.styleScrap([0]))
+        #expect(try trailing.layout(advances: advances, lineHeight: 14).textHeight == 14)
+        let empty = try CDAboutCredits(text: Data(), styles: Self.styleScrap([]))
+        #expect(try empty.layout(advances: advances, lineHeight: 14).bufferHeight == 115)
+    }
+
+    @Test func creditLayoutRejectsUnsupportedStylesAndUnsafeMetrics() throws {
+        let text = Data("Sample".utf8), style = Self.styleScrap([0])
+        let credits = try CDAboutCredits(text: text, styles: style)
+        let advances = Array(repeating: 3, count: 256)
+        for height in [0, -1, 32767] {
+            #expect(throws: (any Error).self) { try credits.layout(advances: advances, lineHeight: height) }
+        }
+        #expect(throws: (any Error).self) { try credits.layout(advances: [3], lineHeight: 14) }
+        var negative = advances; negative[65] = -1
+        #expect(throws: (any Error).self) { try credits.layout(advances: negative, lineHeight: 14) }
+        for (offset, value): (Int, UInt8) in [(11, 3), (12, 2), (15, 14), (16, 1)] {
+            var changed = style; changed[offset] = value
+            let unsupported = try CDAboutCredits(text: text, styles: changed)
+            #expect(throws: (any Error).self) { try unsupported.layout(advances: advances, lineHeight: 14) }
+        }
+    }
+
 }

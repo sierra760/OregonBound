@@ -289,9 +289,8 @@ Tests cover timing including clock wrap, mute, the eight-entry FIFO, temporary
 inactivity, information display, close ordering and stale callbacks. Private
 verification matches 144 original branch decisions and 60 source-data dialog
 cycles across three display modes, with exact PCM/rates for both recordings.
-CD credits text/scroll rendering and access to the alternate gesture on iPad
-remain outstanding; this phase verifies audio scheduling, not complete About
-fidelity or foreground listening.
+Styled CD credits and scrolling are described below. Access to the alternate
+gesture on iPad and foreground listening remain outstanding.
 
 ## CD title and Legends sequence
 
@@ -380,7 +379,7 @@ interactive original/macOS/iPad acceptance, and final public delivery review.
 Original resources, private renders, and disk images are not included here.
 
 
-## CD credits import (rendering in progress)
+## CD styled credits and scrolling
 
 Schema 9 preparations preserve the CD application's `TEXT` 200 and `styl` 200
 as player-owned runtime data. The bounded parser preserves Mac Roman byte
@@ -392,4 +391,22 @@ journeys are retained. Classic schema 6–9 preparations remain supported.
 When a System file is supplied with CD data, the importer also extracts its
 verified Helvetica 12 bitmap strike. Classic System imports retain their three
 existing font selections. No original credits or font payloads are included in
-the repository. Scrolling and styled native rendering remain in progress.
+the repository. Without the optional font source, About exposes all imported
+credits in a manual scroll view and explains how to restore the original styling.
+
+With Helvetica available, About draws the original plain/bold bitmap text in
+its 190×115 viewport. TextEdit recalculates line heights from the font; the
+saved style heights are preserved as metadata. The credits share the existing
+About audio pulse: one source row per accepted tick interval, no catch-up,
+including the blank tail and wrap. System Information and logical redraws clear
+the viewport and restart its source row without resetting the audio clock.
+Closing and reopening clears both scroll state and old callbacks. VoiceOver
+receives the complete imported credits without waiting for the visible scroll.
+
+The full native suite passes 981 parameterized tests; the iPad build passes.
+Private source-data checks match a 107-line, 190×1613 bitmap exactly, execute
+3,230 original row-advance steps, and compare 36 rendered viewport frames across
+all three display modes with zero pixel differences. The prior 144 audio branch
+and 60 dialog-cycle checks still pass with exact PCM/rates and unchanged RNG.
+Foreground original-game comparison and interactive device acceptance remain
+part of the broader CD delivery gates.

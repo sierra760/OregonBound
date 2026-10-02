@@ -30,6 +30,7 @@ final class BitmapFont {
     static var chicago12: BitmapFont? { cached(5478) }
     static var geneva9: BitmapFont? { cached(4372) }
     static var geneva12: BitmapFont? { cached(13913) }
+    static var helvetica12: BitmapFont? { cached(25337) }
     let metrics: Metrics
     private let glyphImages: [Int: CGImage]
     private let glyphIndicesByCode: [Int: Int]
@@ -93,6 +94,38 @@ final class BitmapFont {
     func journalRecordLayout(_ text: String, isBold: Bool) -> OriginalJournalLayout.RecordLayout? {
         guard !text.contains("\n"), let widths = prefixWidths(text) else { return nil }
         return try? OriginalJournalLayout.layout(text: text, isBold: isBold, prefixWidths: widths)
+    }
+
+    /// Rasterize the imported CD credits into their original monochrome
+    /// scrolling buffer, including one blank viewport after the final line.
+    func creditsRaster(_ credits: CDAboutCredits) throws -> CGImage {
+        let glyphs = (0...255).map { code -> Metrics.Glyph in
+            let index = glyphIndicesByCode[code] ?? metrics.missing_glyph_index
+            let candidate = metrics.glyphs[index]
+            return candidate.missing ? metrics.glyphs[metrics.missing_glyph_index] : candidate
+        }
+        let layout = try credits.layout(advances: glyphs.map { $0.advance ?? 0 }, lineHeight: lineHeight)
+        guard let context = CGContext(data: nil, width: 190, height: layout.bufferHeight, bitsPerComponent: 8,
+            bytesPerRow: 190 * 4, space: CGColorSpaceCreateDeviceRGB(),
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else {
+            throw CDAboutCredits.Failure.invalid("unable to create drawing buffer")
+        }
+        context.setFillColor(CGColor(gray: 1, alpha: 1))
+        context.fill(CGRect(x: 0, y: 0, width: 190, height: layout.bufferHeight))
+        context.interpolationQuality = .none
+        context.setShouldAntialias(false)
+        for placement in layout.glyphs {
+            let glyph = glyphs[Int(placement.code)]
+            guard let image = glyphImages[glyph.index] else { continue }
+            let rect = CGRect(x: placement.x + (glyph.bearing_x ?? 0),
+                y: layout.bufferHeight - placement.y - image.height, width: image.width, height: image.height)
+            context.draw(image, in: rect)
+            if placement.bold { context.draw(image, in: rect.offsetBy(dx: 1, dy: 0)) }
+        }
+        guard let image = context.makeImage() else {
+            throw CDAboutCredits.Failure.invalid("unable to finish drawing buffer")
+        }
+        return image
     }
 
     func layout(_ text: String, maxWidth: Int = Int.max) -> Layout {
