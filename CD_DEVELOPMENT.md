@@ -556,9 +556,11 @@ canvas and is disabled during modal dialogs. Inactive or retired game controller
 reject About requests before opening a dialog or playing sound. Classic tablet
 Game Data controls and the iPadOS 26 system menu bar retain their existing behavior.
 
-The native suite passes 788 test summaries with 74 skips and zero failures, and
+The native suite passes 789 test summaries with 74 skips and zero failures, and
 the iPad target builds. Private source verification covers 144 original About
 audio branches and 60 inactive/help/credits/audio/close cycles across all three
 display modes and both music choices, with exact imported sound hashes/rates and
 unchanged random state. Five native offscreen Help-bar states were rendered;
-foreground touch and VoiceOver acceptance remain part of the overall goal.
+a mounted-view regression also verifies Help updates when application activity
+changes without another controller publication. Foreground touch and VoiceOver
+acceptance remain part of the overall goal.

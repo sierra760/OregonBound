@@ -1,8 +1,47 @@
 import Testing
 import Foundation
+#if os(macOS)
+import AppKit
+import SwiftUI
+#endif
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    #if os(macOS)
+    @MainActor @Test func mountedTabletHelpReenablesWhenApplicationBecomesActive() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()))
+        game.creatingGame = true // Only Help is visible during setup.
+        game.applicationActive = false
+        _ = NSApplication.shared
+        let content = OriginalTabletHelpBar(game: game).frame(width: 400, height: 72)
+            .background(Color.white).environment(\.colorScheme, .light)
+            .transaction { $0.animation = nil }
+        let host = NSHostingView(rootView: content)
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 400, height: 72),
+                              styleMask: .borderless, backing: .buffered, defer: false)
+        window.contentView = host
+        defer { window.contentView = nil }
+        func pixels() throws -> Data {
+            host.layoutSubtreeIfNeeded()
+            let bitmap = try #require(host.bitmapImageRepForCachingDisplay(in: host.bounds))
+            host.cacheDisplay(in: host.bounds, to: bitmap)
+            return Data(bytes: try #require(bitmap.bitmapData), count: bitmap.bytesPerRow * bitmap.pixelsHigh)
+        }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        let inactive = try pixels()
+        // Keep the same mounted view and change no other controller property.
+        game.applicationActive = true
+        try await Task.sleep(nanoseconds: 100_000_000)
+        #expect(try pixels() != inactive, "Help must leave its disabled appearance after activation")
+        game.applicationActive = false
+        try await Task.sleep(nanoseconds: 100_000_000)
+        #expect(try pixels() == inactive)
+    }
+    #endif
+
     @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
     func helpAboutEntryRejectsInactiveAndCoveredRequestsWithoutChangingItsAudioMode(edition: GameEdition) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
