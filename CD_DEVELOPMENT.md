@@ -427,3 +427,19 @@ reader matches all 17 pages, 9 sections, 104 links and 20 referenced pictures.
 The full native suite passes 985 parameterized cases. Picture rendering,
 preparation and the reader interface are still in development; this checkpoint
 does not yet make the manual available in the app.
+
+### Standalone user guide: picture decoder checkpoint
+
+The bounded Foundation decoder now preserves the document's complete PICT v2
+instruction stream, text state, drawing geometry, indexed and monochrome bitmaps,
+and region masks. Unsupported drawing records fail explicitly. Per-image and
+aggregate limits bound bitmap expansion and retained region complexity.
+
+Eleven synthetic tests cover signed coordinates, fractional text state, shared
+shape rectangles, region inversion, palette interpretation, cropping metadata,
+PackBits row boundaries, malformed input and allocation limits. A private
+independent comparison matches all 21 content/background pictures, 2,606 record
+boundaries, 964 complete text states, 53 bitmap pixel hashes and every mask.
+The full native suite passes (751 test summaries, 74 skips, no failures or runtime
+warnings), and the iPad simulator target builds. Page rendering, font placement,
+preparation and reader controls remain unfinished.
