@@ -45,6 +45,7 @@ struct PreparedGameSession {
     let graphics: GraphicsManifest
     let sounds: PreparedSoundLibrary
     let terrain: PreparedTerrainLibrary
+    let aboutCredits: CDAboutCredits?
     let preferenceDefaults: ConfigurationExtractor.Defaults
     var edition: GameEdition { manifest.edition }
     var sourceFingerprint: String { GameSourceFingerprint.make(edition: edition, sources: catalog.sources) }
@@ -82,7 +83,7 @@ struct PreparedGameSession {
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(GameDataPreparation.Manifest.self,
             from: Data(contentsOf: PreparedResourceFile.url(root: root, path: "prepared_import.json")))
-        guard [7, 8].contains(manifest.schemaVersion) || (manifest.schemaVersion == 6 && manifest.edition == .macintosh11), manifest.catalogPath == "resource_catalog.json",
+        guard (manifest.edition == .macintoshCD12 ? manifest.schemaVersion == 9 : [6, 7, 8, 9].contains(manifest.schemaVersion)), manifest.catalogPath == "resource_catalog.json",
               manifest.lookupPath == "resource_lookup.json" else { throw Failure.invalid("unsupported manifest schema or paths") }
         guard colorMode == .color256 || manifest.edition == .macintoshCD12 else {
             throw Failure.invalid("alternate color mode requires Macintosh CD 1.2")
@@ -112,6 +113,7 @@ struct PreparedGameSession {
               entry.length == 1108, entry.sha256 == preferences.resourceSHA256 else {
             throw Failure.invalid("preference defaults source")
         }
+        aboutCredits = manifest.edition == .macintoshCD12 ? try CDAboutCredits.load(root: root, catalog: catalog) : nil
         preferenceDefaults = preferences.defaults
         let graphicsRoles: Set<GameDataSourceRole> = manifest.edition == .macintosh11
             ? [.classicApplication, .classicGraphics] : [.cdApplication, .graphics1, .graphics2, .graphics3, .graphics4]

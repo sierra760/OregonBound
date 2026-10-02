@@ -307,16 +307,21 @@ enum BitmapFontExtractor {
                         expectedSHA256: "1ae070fb30e3f9912eec605f023db2ca5919624ad898570d8aa12b3e65fec916"),
     ]
 
+    static let cdCreditsSelection = SystemSelection(familyID: 21, familyName: "Helvetica", size: 12,
+        expectedSHA256: "304e64e68b41e0aecb07173665b613867f8ecf6f9ef1609b329881aa84ec565e")
+
     /// Writes Chicago 12, Geneva 9 and Geneva 12 (fonts/nfnt_<id>.json/.png) and
     /// fonts/system_font_manifest.json from a System 7.0 System file's resource fork.
+    /// CD imports additionally need Helvetica12 for their styled credits.
     @discardableResult
     static func extractSystemFonts(systemFork: MacResourceFork, into output: ExtractionOutput,
-                                   resourceForkSHA256: String = System7Reference.resourceForkSHA256) throws -> JSONValue {
+                                   resourceForkSHA256: String = System7Reference.resourceForkSHA256,
+                                   includeCDCredits: Bool = false) throws -> JSONValue {
         let source = "The System file"
         var familyOrder: [Int] = []
         var families: [Int: Family] = [:]
         var fonts: [JSONValue] = []
-        for selection in systemSelections {
+        for selection in systemSelections + (includeCDCredits ? [cdCreditsSelection] : []) {
             let familyResource = try systemFork.require("FOND", selection.familyID, from: source)
             let family = try parseFOND(try SystemResourceDecompressor.expand(familyResource),
                                        resourceID: selection.familyID, name: selection.familyName)

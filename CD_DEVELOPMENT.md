@@ -37,7 +37,7 @@ observation of a 53-pound hunt followed by two rest updates: 985 stored food
 becomes 979 stored plus 29 perishable food, with one bullet used and 1,897 pounds
 of wagon load for the reference inventory.
 
-The optional driver below loads an existing **schema 8 prepared CD directory**
+The optional driver below loads an existing **schema 9 prepared CD directory**
 (the directory containing `prepared_import.json`), including its actual terrain
 and hunt geometry. It runs both route choices and both endings in all three
 display modes, executes CD hunting, and validates inventory and random-state continuity
@@ -135,7 +135,7 @@ remains part of the outstanding foreground acceptance work.
 
 ## Monochrome control resources
 
-New preparations use schema 8 and include the separate `ICON` resources used
+Schema 8 introduced the separate `ICON` resources used
 by the original monochrome controls. Both extractors decode their fixed 32×32
 bitmaps with black foreground pixels and transparent unset bits, matching the
 source's `srcOr` drawing. They preserve resource type, ID, and source role.
@@ -143,13 +143,14 @@ The supplied CD contains 25 application icons and one in Graphics 2; all 26
 match native, Python, and independent raw-bitmap checks. All 2,362 preexisting
 CD PNGs remain byte-identical after re-preparation.
 
-Schema 8 requires every cataloged icon to have its prepared frame. Older schema
-7 color imports and classic schema 6 imports remain usable. Color presentation
+Schema 8 and later require every cataloged icon to have its prepared frame.
+Current CD imports require schema 9 for credits; classic schema 6–9 imports
+remain usable. Color presentation
 excludes `ICON` entries so they cannot displace a color image with the same ID.
 The setup selector exposes monochrome after these resources and the runtime
 artwork paths are available.
 
-The monochrome session requires schema 8 and selects explicit
+The monochrome session uses the schema 8 icon inventory and selects explicit
 mono/color artwork pairs plus typed `ICON` controls. Static pane bindings cover
 setup, stores, sidebars, weather (including same-ID dust), guide, talk/trade,
 maps, and endings. Local source-data checks resolve 198 selected artwork/control
@@ -377,3 +378,18 @@ The broader CD effort still requires the remaining ambient/effect audio use-site
 audit, standalone On-line User's Guide treatment, remaining feature audit,
 interactive original/macOS/iPad acceptance, and final public delivery review.
 Original resources, private renders, and disk images are not included here.
+
+
+## CD credits import (rendering in progress)
+
+Schema 9 preparations preserve the CD application's `TEXT` 200 and `styl` 200
+as player-owned runtime data. The bounded parser preserves Mac Roman byte
+offsets, carriage returns and style runs, validates their lengths, ordering and
+fields, and rechecks both resource hashes against the catalog when loading.
+Older CD preparations report a re-import error; installed generations and saved
+journeys are retained. Classic schema 6–9 preparations remain supported.
+
+When a System file is supplied with CD data, the importer also extracts its
+verified Helvetica 12 bitmap strike. Classic System imports retain their three
+existing font selections. No original credits or font payloads are included in
+the repository. Scrolling and styled native rendering remain in progress.

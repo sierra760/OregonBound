@@ -99,6 +99,9 @@ enum GameDataPreparation {
                                                              sourceName: appRole.rawValue, sourceSHA256: app.sha256)
                 try GraphicsExtractor.extractTextPictures(trailFork: app.fork, into: output)
                 try RuntimeResourceExtractor.extract(trailFork: app.fork, into: output)
+                if selection.edition == .macintoshCD12 {
+                    try CDAboutCredits.extract(from: app.fork, into: output)
+                }
             }
             for role in selection.edition.requiredRoles {
                 guard let candidate = selection.sources[role], candidate.fork.contains("snd ") else { continue }
@@ -144,7 +147,8 @@ enum GameDataPreparation {
             rasterPictures[appRole.rawValue] = picturesPath
             if let system = selection.sources[.system] {
                 try step("Decoding optional System resources…") {
-                    _ = try BitmapFontExtractor.extractSystemFonts(systemFork: system.fork, into: output, resourceForkSHA256: system.sha256)
+                    _ = try BitmapFontExtractor.extractSystemFonts(systemFork: system.fork, into: output, resourceForkSHA256: system.sha256,
+                                                                   includeCDCredits: selection.edition == .macintoshCD12)
                     try SystemControlsExtractor.extractAll(systemFork: system.fork, into: output, resourceForkSHA256: system.sha256)
                 }
             }
@@ -152,7 +156,7 @@ enum GameDataPreparation {
             try output.writeJSON(lookup.index, to: "resource_lookup.json")
             let preferencesPath = "sources/\(appRole.rawValue)/preference_defaults.json"
             try output.writeJSON(preferences, to: preferencesPath)
-            let manifest = Manifest(schemaVersion: 8, edition: selection.edition, preparedAt: Date(),
+            let manifest = Manifest(schemaVersion: 9, edition: selection.edition, preparedAt: Date(),
                                     catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: graphics, rasterPictures: rasterPictures, soundSources: soundSources, terrainSources: terrainSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
             try output.writeJSON(manifest, to: "prepared_import.json")

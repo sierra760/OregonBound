@@ -9,7 +9,7 @@ struct GameDataSelectionTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let library = GameDataLibrary(root: root)
         for edition in GameEdition.allCases {
-            _ = try library.install(edition: edition) { _ = try PreparedSessionFixture.make(at: $0, edition: edition, schemaVersion: 8, icons: true) }
+            _ = try library.install(edition: edition) { _ = try PreparedSessionFixture.make(at: $0, edition: edition, schemaVersion: 9, icons: true) }
         }
         var launched: PreparedGameSession?
         let state = GameDataState(library: library, legacyRoot: nil, directLaunch: false,
@@ -23,19 +23,27 @@ struct GameDataSelectionTests {
         state.play(.installed(.macintosh11))
         #expect(launched?.colorMode == .color256)
     }
-    @MainActor @Test func olderImportOffersReimportForMonochromeAndRetainsColorPlay() throws {
+    @MainActor @Test func olderCDImportOffersReimportAndReplacedGenerationBecomesPlayable() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let library = GameDataLibrary(root: root)
-        _ = try library.install(edition: .macintoshCD12) { _ = try PreparedSessionFixture.make(at: $0) }
+        let session = try library.install(edition: .macintoshCD12) { _ = try PreparedSessionFixture.make(at: $0) }
+        let manifestURL = session.root.appendingPathComponent("prepared_import.json")
+        var manifest = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any])
+        manifest["schemaVersion"] = 8
+        try JSONSerialization.data(withJSONObject: manifest).write(to: manifestURL)
         var launched: PreparedGameSession?
         let state = GameDataState(library: library, legacyRoot: nil, directLaunch: false,
             resetAudio: {}, activate: { if case .prepared(let session) = $0 { launched = session } })
-        state.colorMode = .monochrome
-        state.play(.installed(.macintoshCD12))
-        #expect(launched == nil && !state.isReady)
-        #expect(state.error?.contains("Re-import") == true)
-        #expect(state.choices.contains(.installed(.macintoshCD12)))
+        for mode in PreparedGameSession.ColorMode.allCases {
+            state.colorMode = mode
+            state.play(.installed(.macintoshCD12))
+            #expect(launched == nil && !state.isReady)
+            #expect(state.error?.contains("Re-import") == true)
+            #expect(!state.choices.contains(.installed(.macintoshCD12)))
+        }
+        _ = try library.install(edition: .macintoshCD12) { _ = try PreparedSessionFixture.make(at: $0) }
+        state.refreshChoices()
         state.colorMode = .color256
         state.play(.installed(.macintoshCD12))
         #expect(launched?.colorMode == .color256 && state.isReady && state.error == nil)

@@ -3,7 +3,7 @@ import Foundation
 
 enum PreparedSessionFixture {
     static func make(at destination: URL? = nil, edition: GameEdition = .macintoshCD12,
-                     schemaVersion: Int = 7, icons: Bool = false) throws -> URL {
+                     schemaVersion: Int = 9, icons: Bool = false) throws -> URL {
         let root = destination ?? FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let output = ExtractionOutput(root: root)
         let app: GameDataSourceRole = edition == .macintosh11 ? .classicApplication : .cdApplication
@@ -16,6 +16,12 @@ enum PreparedSessionFixture {
             case .classicGraphics, .graphics2: records = [.init(type: "Imag", id: 7, name: nil, attributes: 0, data: Data([0, 1]))]
             case .graphics3: records = [.init(type: "Ima4", id: 7, name: nil, attributes: 0, data: Data([0, 1]))]
             default: records = []
+            }
+            if edition == .macintoshCD12 && role == app && schemaVersion >= 9 {
+                records += [.init(type: "TEXT", id: 200, name: nil, attributes: 0, data: Data("Team\rSample\r".utf8)),
+                            .init(type: "styl", id: 200, name: nil, attributes: 0, data: GameDataPreparationTests.styleScrap([0, 5]))]
+                try output.write(records[records.count - 2].data, to: "runtime/about_text_200.bin")
+                try output.write(records[records.count - 1].data, to: "runtime/about_styl_200.bin")
             }
             if icons && role == app {
                 records += [.init(type: "ICON", id: 7, name: nil, attributes: 0, data: Data(repeating: 0, count: 128)),

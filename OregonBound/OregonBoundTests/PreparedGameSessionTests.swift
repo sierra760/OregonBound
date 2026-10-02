@@ -4,7 +4,7 @@ import Testing
 
 struct PreparedGameSessionTests {
     @Test func monochromeUsesExplicitPairsTypedIconsAndNewPreparation() throws {
-        let root = try PreparedSessionFixture.make(schemaVersion: 8, icons: true)
+        let root = try PreparedSessionFixture.make(schemaVersion: 9, icons: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let mono = try PreparedGameSession(root: root, colorMode: .monochrome)
         let color = try PreparedGameSession(root: root)
@@ -22,7 +22,7 @@ struct PreparedGameSessionTests {
         #expect(mono.displayImage(monochromeID: 7, colorID: 7, frame: 2) == nil)
         #expect(mono.sourceFingerprint == color.sourceFingerprint && mono.id != color.id)
         #expect(PreparedGameSession.ColorMode.selectableModes == [.color256, .color16, .monochrome])
-        let old = try PreparedSessionFixture.make()
+        let old = try PreparedSessionFixture.make(schemaVersion: 7)
         defer { try? FileManager.default.removeItem(at: old) }
         #expect(throws: (any Error).self) { try PreparedGameSession(root: old, colorMode: .monochrome) }
         let classic = try PreparedSessionFixture.make(edition: .macintosh11, schemaVersion: 8)
@@ -31,7 +31,7 @@ struct PreparedGameSessionTests {
     }
 
     @Test func schema8IconsStayTypedAndOutsideColorPresentation() throws {
-        let root = try PreparedSessionFixture.make(schemaVersion: 8, icons: true)
+        let root = try PreparedSessionFixture.make(schemaVersion: 9, icons: true)
         defer { try? FileManager.default.removeItem(at: root) }
         for mode in [PreparedGameSession.ColorMode.color256, .color16] {
             let session = try PreparedGameSession(root: root, colorMode: mode)
@@ -43,8 +43,8 @@ struct PreparedGameSessionTests {
         }
     }
 
-    @Test(arguments: [6, 7, 8]) func iconCompletenessIsVersioned(schema: Int) throws {
-        let edition: GameEdition = schema == 6 ? .macintosh11 : .macintoshCD12
+    @Test(arguments: [6, 7, 8, 9]) func iconCompletenessIsVersioned(schema: Int) throws {
+        let edition: GameEdition = schema < 9 ? .macintosh11 : .macintoshCD12
         let root = try PreparedSessionFixture.make(edition: edition, schemaVersion: schema, icons: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let app = edition == .macintosh11 ? "classicApplication" : "cdApplication"
@@ -53,7 +53,7 @@ struct PreparedGameSessionTests {
         let missing = GraphicsManifest(source_file: manifest.source_file,
             images: manifest.images.filter { $0.resource.type != "ICON" })
         try JSONEncoder().encode(missing).write(to: path)
-        if schema == 8 {
+        if schema >= 8 {
             #expect(throws: (any Error).self) { try PreparedGameSession(root: root) }
         } else {
             let session = try PreparedGameSession(root: root)
@@ -176,4 +176,45 @@ struct PreparedGameSessionTests {
         try store.savePreferences(expected)
         #expect(try JourneyStore(directory: base, edition: .macintoshCD12, session: session).preferences() == expected)
     }
+    @Test func preparedCreditsAreEditionScopedAndOldCDImportsRequireReimport() throws {
+        let root = try PreparedSessionFixture.make()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let session = try PreparedGameSession(root: root)
+        #expect(session.aboutCredits?.text == "Team\rSample\r")
+        #expect(session.aboutCredits?.runs.map(\.start) == [0, 5])
+        for version in [6, 7, 8] {
+            let old = try PreparedSessionFixture.make(schemaVersion: version)
+            defer { try? FileManager.default.removeItem(at: old) }
+            #expect(throws: (any Error).self) { try PreparedGameSession(root: old) }
+        }
+        for version in [6, 7, 8, 9] {
+            let classic = try PreparedSessionFixture.make(edition: .macintosh11, schemaVersion: version)
+            defer { try? FileManager.default.removeItem(at: classic) }
+            #expect(try PreparedGameSession(root: classic).aboutCredits == nil)
+        }
+    }
+
+    @Test(arguments: ["text", "styles", "missing", "symlink", "oversized"])
+    func preparedCreditsRejectMissingChangedAndEscapingPayloads(kind: String) throws {
+        let root = try PreparedSessionFixture.make()
+        defer { try? FileManager.default.removeItem(at: root) }
+        let textURL = root.appendingPathComponent("runtime/about_text_200.bin")
+        let styleURL = root.appendingPathComponent("runtime/about_styl_200.bin")
+        switch kind {
+        case "text": try Data("Other\rSample".utf8).write(to: textURL)
+        case "styles": try GameDataPreparationTests.styleScrap([0, 6]).write(to: styleURL)
+        case "missing": try FileManager.default.removeItem(at: styleURL)
+        case "oversized": try Data(repeating: 65, count: 32768).write(to: textURL)
+        default:
+            let external = root.deletingLastPathComponent().appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: external) }
+            try Data(contentsOf: textURL).write(to: external)
+            try FileManager.default.removeItem(at: textURL)
+            try FileManager.default.createSymbolicLink(at: textURL, withDestinationURL: external)
+            #expect(throws: (any Error).self) { try PreparedGameSession(root: root) }
+            return
+        }
+        #expect(throws: (any Error).self) { try PreparedGameSession(root: root) }
+    }
+
 }
