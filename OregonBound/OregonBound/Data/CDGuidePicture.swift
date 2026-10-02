@@ -52,11 +52,42 @@ struct CDGuidePicture {
         var fillPattern = [UInt8](repeating: 255, count: 8)
     }
     struct TextRun {
+        struct Glyph {
+            let code: UInt8
+            let location: Point
+            let bold: Bool
+        }
+        struct Layout {
+            let glyphs: [Glyph]
+            let finalPen: Int32
+        }
         let location: Point
         let fraction: UInt16
         let bytes: [UInt8]
         let state: State
         var text: String { MacRoman.decode(bytes) }
+
+        /// Exact-size integral font advances, with the source screen font's
+        /// one-pixel bold overstrike/advance. The caller resolves the verified
+        /// strike; unsupported fractional or scaled metrics cannot be guessed.
+        func layout(advances: [Int], ascent: Int) throws -> Layout {
+            guard advances.count == 256, advances.allSatisfy({ (0...512).contains($0) }),
+                  (0...512).contains(ascent), state.face <= 1,
+                  state.numerator == state.denominator, !state.glyphs.fractionalWidths else {
+                throw Failure.invalid("unsupported text metrics or scaling")
+            }
+            let bold = state.face == 1, extraWidth = bold ? 1 : 0
+            var pen = Int32(truncatingIfNeeded: location.x * 65536 + Int(fraction))
+            // QuickDraw CalcCharExtra: 4.12 per-point value × requested size.
+            let characterExtra = Int32(state.characterExtra) * 16 * Int32(state.size)
+            var glyphs: [Glyph] = []; glyphs.reserveCapacity(bytes.count)
+            for code in bytes {
+                glyphs.append(Glyph(code: code, location: Point(x: Int(pen >> 16), y: location.y - ascent), bold: bold))
+                pen = pen &+ Int32((advances[Int(code)] + extraWidth) * 65536)
+                pen = pen &+ (code == 32 ? state.spaceExtra : characterExtra)
+            }
+            return Layout(glyphs: glyphs, finalPen: pen)
+        }
     }
     enum Shape { case rectangle, oval }
     enum Verb: Int { case frame = 0, paint, erase, invert, fill }

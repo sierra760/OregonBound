@@ -443,3 +443,14 @@ boundaries, 964 complete text states, 53 bitmap pixel hashes and every mask.
 The full native suite passes (751 test summaries, 74 skips, no failures or runtime
 warnings), and the iPad simulator target builds. Page rendering, font placement,
 preparation and reader controls remain unfinished.
+
+Guide text placement now uses the original fixed-point character/space rules and
+verified bitmap advances. A private comparison matches 963 runs and 27,232 glyph
+placements. The remaining Chicago 10-point run uses the supplied outline font's
+Mac Roman mapping and stored device widths; all 256 mappings and widths match an
+independent decoder. A native rendering probe matches independent monochrome
+rasterization for all five glyphs used by that run. This is a font checkpoint;
+complete page rendering and original-system visual acceptance remain open.
+
+The full native suite passes 755 test summaries with 74 skips, zero failures and
+no runtime warnings; the iPad simulator build passes.

@@ -252,4 +252,82 @@ struct CDGuidePictureTests {
         #expect(throws: (any Error).self) { try CDGuidePicture(data: Self.picture(records)) }
     }
 
+    @Test func guideTextLayoutUsesPointScaledCharacterExtraAndIndependentSpaceExtra() throws {
+        let picture = try CDGuidePicture(data: Self.picture([
+            (4, Data([1])), (13, Self.words([10])),
+            (6, Self.words([0xffff, 0x8000])), (0x16, Self.words([-165])),
+            (0x15, Self.words([0x1234])),
+            (0x28, Self.words([7, -2]) + Data([3, 65, 32, 66]))]))
+        var advances = [Int](repeating: 0, count: 256)
+        advances[65] = 5; advances[32] = 3; advances[66] = 7
+        let run = try #require(picture.textRuns.first)
+        let layout = try run.layout(advances: advances, ascent: 10)
+        #expect(layout.glyphs.map(\.code) == [65, 32, 66])
+        #expect(layout.glyphs.map(\.location) == [.init(x: -2, y: -3), .init(x: 3, y: -3), .init(x: 7, y: -3)])
+        #expect(layout.glyphs.allSatisfy { $0.bold })
+        #expect(layout.finalPen == 967668)
+    }
+
+    @Test func guideTextLayoutWrapsFixedPenAndRejectsUnsupportedMetrics() throws {
+        let run = try #require(CDGuidePicture(data: Self.picture([
+            (0x28, Self.words([0, 32767]) + Data([2, 65, 65]))])).textRuns.first)
+        let advances = [Int](repeating: 1, count: 256)
+        let layout = try run.layout(advances: advances, ascent: 1)
+        #expect(layout.glyphs.map(\.location.x) == [32767, -32768])
+        #expect(layout.finalPen == -2147385344)
+        for metrics in [[], [Int](repeating: 0, count: 255), [Int](repeating: -1, count: 256),
+                        [Int](repeating: 513, count: 256)] {
+            #expect(throws: (any Error).self) { try run.layout(advances: metrics, ascent: 1) }
+        }
+        #expect(throws: (any Error).self) { try run.layout(advances: advances, ascent: -1) }
+        for record: (Int, Data) in [(4, Data([2])), (0x10, Self.words([1, 2, 1, 1])),
+                                   (0x2e, Self.words([4]) + Data([0, 0, 1, 0]))] {
+            let unsupported = try #require(CDGuidePicture(data: Self.picture([
+                record, (0x28, Self.words([0, 0]) + Data([1, 65]))])).textRuns.first)
+            #expect(throws: (any Error).self) { try unsupported.layout(advances: advances, ascent: 1) }
+        }
+    }
+
+    static func outlineFont(cmapGlyph: Int = 2, widths: [UInt8] = [4, 7, 9], pointSizes: [UInt8] = [9, 10]) -> Data {
+        let cmap = words([0, 1, 1, 0, 0, 12, 6, 14, 0, 65, 2, 1, cmapGlyph])
+        let maxp = words([1, 0, 3])
+        var hdmx = words([0, pointSizes.count, 0, 8])
+        for pointSize in pointSizes { hdmx += Data([pointSize, 9] + widths + [0, 0, 0]) }
+        let tables = [("cmap", cmap), ("maxp", maxp), ("hdmx", hdmx)]
+        var header = words([1, 0, tables.count, 0, 0, 0]), body = Data()
+        for (tag, bytes) in tables {
+            while body.count % 4 != 0 { body.append(0) }
+            header += Data(tag.utf8); header.appendU32(0)
+            header.appendU32(UInt32(12 + tables.count * 16 + body.count))
+            header.appendU32(UInt32(bytes.count)); body += bytes
+        }
+        return header + body
+    }
+
+    @Test func guideOutlineUsesMacRomanGlyphMapAndOriginalDeviceWidths() throws {
+        let font = try CDGuideOutlineFont(data: Self.outlineFont())
+        #expect(font.glyphIDs.count == 256 && font.advances.count == 256)
+        #expect(font.glyphIDs[65] == 1 && font.glyphIDs[66] == 2 && font.glyphIDs[64] == 0)
+        #expect(font.advances[65] == 7 && font.advances[66] == 9 && font.advances[64] == 4)
+        #expect(font.pointSize == 10)
+    }
+
+    @Test func guideOutlineRejectsMalformedTablesAndMissingDeviceWidths() {
+        let good = Self.outlineFont()
+        for count in 0..<good.count {
+            #expect(throws: (any Error).self) { try CDGuideOutlineFont(data: good.prefix(count)) }
+        }
+        for bytes in [Self.outlineFont(cmapGlyph: 3), Self.outlineFont(pointSizes: [9, 11]),
+                      Self.outlineFont(pointSizes: [10, 10])] {
+            #expect(throws: (any Error).self) { try CDGuideOutlineFont(data: bytes) }
+        }
+        var duplicate = good; duplicate.replaceSubrange(28..<32, with: Data("cmap".utf8))
+        var overlap = good; overlap.replaceSubrange(36..<40, with: good[20..<24])
+        var outside = good; outside.replaceSubrange(20..<24, with: Data([0xff, 0xff, 0xff, 0xff]))
+        var tooMany = good; tooMany[4] = 0x7f; tooMany[5] = 0xff
+        for bytes in [duplicate, overlap, outside, tooMany] {
+            #expect(throws: (any Error).self) { try CDGuideOutlineFont(data: bytes) }
+        }
+    }
+
 }
