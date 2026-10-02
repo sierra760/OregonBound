@@ -34,6 +34,7 @@ struct OriginalAboutPane: View {
     let systemInformation: [String]
     let tickCount: () -> UInt32
     let doubleClickTicks: UInt32
+    var pollAudio: (Bool) -> Void = { _ in }
     let done: () -> Void
     @State private var state = OriginalAboutRules.State()
     var body: some View {
@@ -73,6 +74,9 @@ struct OriginalAboutPane: View {
             OriginalManagementButton(title: "OK", width: 80, isDefault: true, action: done)
                 .offset(x: 270, y: 170).keyboardShortcut(.defaultAction)
         }.frame(width: 400, height: 200).clipped()
+            .onReceive(Timer.publish(every: 1.0 / 60, on: .main, in: .common).autoconnect()) { _ in
+                pollAudio(state.showsSystemInformation)
+            }
     }
 }
 

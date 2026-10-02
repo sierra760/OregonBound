@@ -193,10 +193,12 @@ struct GameRootView: View {
                 }
             }
             if game.showingAbout {
+                let action = game.aboutAction()
                 originalModal(width: 400, height: 200) {
                     OriginalAboutPane(systemInformation: OriginalHostInformation.lines,
                         tickCount: { UInt32(truncatingIfNeeded: Int(ProcessInfo.processInfo.systemUptime * 60)) },
-                        doubleClickTicks: originalDoubleClickTicks, done: { game.showingAbout = false })
+                        doubleClickTicks: originalDoubleClickTicks,
+                        pollAudio: { action(.poll(showsSystemInformation: $0)) }, done: { action(.close) })
                 }
             }
             if let pane = game.managementPane {

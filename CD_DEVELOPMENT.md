@@ -274,12 +274,30 @@ and reopenings across the display modes. All 18 recordings match source PCM/rate
 54 offscreen landmark artwork regions match their selected source pixels exactly.
 These are data and scheduling checks; foreground listening remains pending.
 
+## CD About audio
+
+About clears the previous recording and starts the CD theme on opening. While
+credits are shown, it makes the original requests every three ticks through the
+shared bounded queue. Opening with Option held on macOS selects the alternate
+recording for those subsequent requests. System Information suppresses new
+requests; closing clears the queue. Callbacks capture the dialog opening so an
+old view cannot stop or schedule audio in a reopened dialog. Classic About
+behavior is unchanged.
+
+Tests cover timing including clock wrap, mute, the eight-entry FIFO, temporary
+inactivity, information display, close ordering and stale callbacks. Private
+verification matches 144 original branch decisions and 60 source-data dialog
+cycles across three display modes, with exact PCM/rates for both recordings.
+CD credits text/scroll rendering and access to the alternate gesture on iPad
+remain outstanding; this phase verifies audio scheduling, not complete About
+fidelity or foreground listening.
+
 ## Current acceptance boundary
 
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 914 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 919 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.

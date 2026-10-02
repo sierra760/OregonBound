@@ -4,6 +4,22 @@ import SwiftUI
 @testable import OregonBound
 
 struct RuntimeResourceTests {
+    @Test(arguments: [false, true]) func aboutAudioUsesSignedThreeTickCreditsCadence(alternate: Bool) {
+        var state = OriginalAboutRules.Audio(openedAt: 100, alternate: alternate)
+        #expect(state.poll(at: 100, showsSystemInformation: false) == nil)
+        #expect(state.poll(at: 102, showsSystemInformation: false) == nil)
+        #expect(state.poll(at: 103, showsSystemInformation: false) == (alternate ? 10000 : 2000))
+        #expect(state.poll(at: 103, showsSystemInformation: false) == nil)
+        #expect(state.poll(at: 1000, showsSystemInformation: true) == nil)
+        #expect(state.poll(at: 1000, showsSystemInformation: false) == (alternate ? 10000 : 2000))
+        #expect(state.poll(at: 999, showsSystemInformation: false) == nil)
+        #expect(state.poll(at: 1002, showsSystemInformation: false) == nil)
+        #expect(state.poll(at: 1003, showsSystemInformation: false) == (alternate ? 10000 : 2000))
+        state = .init(openedAt: UInt32.max - 1, alternate: alternate)
+        #expect(state.poll(at: 0, showsSystemInformation: false) == nil)
+        #expect(state.poll(at: 1, showsSystemInformation: false) == (alternate ? 10000 : 2000))
+    }
+
     #if os(macOS)
     @MainActor @Test func monochromePanePatternStaysAnchoredToItsPort() throws {
         for (left, top) in [(4,4), (5,4), (4,5)] {

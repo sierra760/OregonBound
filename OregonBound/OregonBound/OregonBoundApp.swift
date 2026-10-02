@@ -43,7 +43,13 @@ struct OriginalGameCommands: Commands {
             Button("Exit Game") { game?.requestDeparture(.exitGame) }.keyboardShortcut("e").disabled(!acceptsCommands || game?.fileMenu.permits(.exitGame) != true)
         }
         CommandGroup(replacing: .appInfo) {
-            Button("About Oregon Bound…") { game?.showingAbout = true }.disabled(!acceptsCommands)
+            Button("About Oregon Bound…") {
+                #if os(macOS)
+                game?.presentAbout(alternate: NSApp.currentEvent?.modifierFlags.contains(.option) == true)
+                #else
+                game?.presentAbout()
+                #endif
+            }.disabled(!acceptsCommands)
         }
         #if os(macOS)
         CommandGroup(replacing: .appTermination) {

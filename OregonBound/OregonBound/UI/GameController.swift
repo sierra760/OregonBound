@@ -140,7 +140,47 @@ enum GamePanel: String, Identifiable {
     @Published var fileMenu = OriginalFileMenuRules.State()
     @Published var pendingDeparture: OriginalFileMenuRules.Departure? { didSet { reconcileLandmark() } }
     @Published var showingSaveTimeOut = false { didSet { reconcileLandmark() } }
-    @Published var showingAbout = false
+    @Published var showingAbout = false {
+        didSet {
+            guard showingAbout != oldValue else { return }
+            if showingAbout {
+                aboutOpening = UUID()
+                aboutAudio = .init(openedAt: clock(), alternate: aboutAlternate)
+                if store.edition == .macintoshCD12 { audio.clear(); audio.request(2000) }
+            } else {
+                aboutOpening = nil
+                aboutAudio = nil
+                aboutAlternate = false
+                if store.edition == .macintoshCD12 { audio.clear() }
+            }
+        }
+    }
+    private var aboutOpening: UUID?
+    private var aboutAudio: OriginalAboutRules.Audio?
+    private var aboutAlternate = false
+    enum AboutAction { case close, poll(showsSystemInformation: Bool) }
+
+    func presentAbout(alternate: Bool = false) {
+        guard !isOriginalModalPresented else { return }
+        aboutAlternate = alternate
+        showingAbout = true
+    }
+
+    /// View callbacks belong to one opening, including callbacks retained by a
+    /// dismissed view while a new About dialog is already visible.
+    func aboutAction() -> (AboutAction) -> Void {
+        let opening = aboutOpening
+        return { [weak self] action in
+            guard let self, let opening, self.aboutOpening == opening else { return }
+            switch action {
+            case .close: self.showingAbout = false
+            case .poll(let information):
+                guard self.store.edition == .macintoshCD12, self.applicationActive,
+                      let id = self.aboutAudio?.poll(at: self.clock(), showsSystemInformation: information) else { return }
+                self.audio.request(id)
+            }
+        }
+    }
     @Published var fileChooserPresented = false
     #if os(iOS)
     @Published var showingLoadDialog = false

@@ -5,6 +5,78 @@ import Foundation
 struct OriginalAudioBackendTests {
 
     @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func aboutOwnsOpeningAndRetiresOnlyItsOwnCallbacks(edition: GameEdition) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 100
+        var idle: [() -> Void] = []
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let game = GameController(store: JourneyStore(directory: root, edition: edition,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        let seed = game.random.seed
+        audio.request(9007)
+        game.presentAbout(alternate: true)
+        let oldAction = game.aboutAction()
+        #expect(game.showingAbout)
+        #expect(output.started == (edition == .macintoshCD12 ? [9007,2000] : [9007]))
+        game.presentAbout(alternate: false)
+        tick = 102; oldAction(.poll(showsSystemInformation: false))
+        output.callbacks.last?(); while !idle.isEmpty { idle.removeFirst()() }
+        #expect(!audio.isPlaying)
+        tick = 103; oldAction(.poll(showsSystemInformation: false))
+        #expect(output.started == (edition == .macintoshCD12 ? [9007,2000,10000] : [9007]))
+        oldAction(.close)
+        if edition == .macintoshCD12 { #expect(!audio.isPlaying) }
+        game.presentAbout()
+        let currentAction = game.aboutAction()
+        tick = 200; oldAction(.poll(showsSystemInformation: false)); oldAction(.close)
+        #expect(game.showingAbout)
+        #expect(output.started == (edition == .macintoshCD12 ? [9007,2000,10000,2000] : [9007]))
+        currentAction(.close)
+        #expect(!game.showingAbout && game.random.seed == seed)
+    }
+
+    @MainActor @Test func aboutCreditsRequestsRespectInformationActivityMuteAndBoundedQueue() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 0
+        var idle: [() -> Void] = []
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        game.presentAbout(alternate: true)
+        let action = game.aboutAction()
+        for now in UInt32(1)...60 { tick = now; action(.poll(showsSystemInformation: false)) }
+        #expect(output.started == [2000])
+        // Twenty requests fill the source's eight-entry FIFO; completion drains exactly eight.
+        for _ in 0..<9 { output.callbacks.last?(); while !idle.isEmpty { idle.removeFirst()() } }
+        #expect(output.started == [2000] + Array(repeating: 10000, count: 8))
+        #expect(!audio.isPlaying)
+        tick = 100; action(.poll(showsSystemInformation: true))
+        game.applicationActive = false
+        tick = 120; action(.poll(showsSystemInformation: false))
+        #expect(!audio.isPlaying)
+        game.applicationActive = true
+        action(.poll(showsSystemInformation: false))
+        #expect(audio.isPlaying && output.started.count == 10)
+        game.sound = false
+        tick = 123; action(.poll(showsSystemInformation: false))
+        game.sound = true
+        tick = 125; action(.poll(showsSystemInformation: false))
+        #expect(!audio.isPlaying)
+        tick = 126; action(.poll(showsSystemInformation: false))
+        #expect(audio.isPlaying && output.started.count == 11)
+        tick = 129; action(.poll(showsSystemInformation: false))
+        let lateCompletion = output.callbacks.last
+        action(.close)
+        audio.request(5000)
+        lateCompletion?(); while !idle.isEmpty { idle.removeFirst()() }
+        #expect(output.started.last == 5000 && audio.isPlaying)
+    }
+
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
     func landmarkNarrationFollowsLogicalPaneReplacement(edition: GameEdition) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -119,10 +191,10 @@ struct OriginalAudioBackendTests {
         output.callbacks.last?(); while !idle.isEmpty { idle.removeFirst()() }
         #expect(output.started == [9007,1000])
         let stops = output.stops
-        game.applicationActive = false; game.showingAbout = true
+        game.applicationActive = false; game.showingIntroduction = true
         for now in UInt32(193)...300 { tick = now; game.pollLandmarkAudio() }
         #expect(output.started == [9007,1000] && output.stops == stops && audio.isPlaying)
-        game.applicationActive = true; game.showingAbout = false
+        game.applicationActive = true; game.showingIntroduction = false
         var replacement = Journey(seed: 2, edition: .macintoshCD12); replacement.phase = .departure
         game.trip = replacement
         #expect(output.started == [9007,1000,10002] && audio.isPlaying)
@@ -289,8 +361,8 @@ struct OriginalAudioBackendTests {
         while !idle.isEmpty { idle.removeFirst()() }
         #expect(output.started == [9007,10001])
         let completedStops = output.stops
-        game.applicationActive = false; game.showingAbout = true; game.tick()
-        game.applicationActive = true; game.showingAbout = false; game.tick()
+        game.applicationActive = false; game.showingIntroduction = true; game.tick()
+        game.applicationActive = true; game.showingIntroduction = false; game.tick()
         game.presentSetupDialog(.welcome)
         #expect(output.started == [9007,10001] && output.stops == completedStops)
         game.sound = false

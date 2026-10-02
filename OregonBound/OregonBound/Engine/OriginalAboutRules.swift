@@ -8,6 +8,22 @@ enum OriginalAboutRules {
     static let attribution = ["Independent recreation", "Original game: MECC, 1991", "Not affiliated or endorsed.", "Game files supplied by you."]
     static let credits = ["Brian Bezanson", "Sean Callahan", "Craig Copley", "Paul Davis", "Mark Dostal", "Charolyn Kapplinger", "Mark Larson", "Pam Rostal", "Mark Schneider", "Steve Splinter", "Wayne Studer", "Jim Thompson", "Paul Wenker"]
     static let systemLabels = ["Machine Type:", "Processor:", "System Version:", "AppleTalk Version:", "Heap Size:", "Largest Block:", "Free Memory:"]
+    /// CD credits idle callback. Requests remain subject to the shared audio
+    /// channel's mute and bounded FIFO, including repeated requests while busy.
+    struct Audio {
+        private var lastTick: UInt32
+        private let alternate: Bool
+        init(openedAt: UInt32, alternate: Bool) {
+            lastTick = openedAt
+            self.alternate = alternate
+        }
+        mutating func poll(at tick: UInt32, showsSystemInformation: Bool) -> Int? {
+            guard !showsSystemInformation, Int32(bitPattern: tick &- lastTick) > 2 else { return nil }
+            lastTick = tick
+            return alternate ? 10000 : 2000
+        }
+    }
+
     struct State: Equatable {
         private(set) var showsSystemInformation = false
         private(set) var previousClickTick: UInt32 = 0
