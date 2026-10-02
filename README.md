@@ -13,13 +13,34 @@ releases use different formats.
 
 ## What you need
 
-1. **The Oregon Trail, Macintosh color version 1.1.** Two files matter: the `Oregon Trail` application and the `Oregon Color` graphics file. Supply them in any of these forms:
-   - the original folder, on a Mac where the files still carry their resource forks;
-   - an HFS floppy or hard-disk image (`.dsk`, `.img`, `.image`, Disk Copy 4.2 or raw);
-   - MacBinary (`.bin`), BinHex (`.hqx`) or AppleDouble (`._name`) encodings of the files;
-   - raw resource-fork dumps (`.rsrc`).
-   StuffIt (`.sit`) archives must be expanded first, for example with The Unarchiver. Files are recognized by their contents, not their names, so a whole disk image is fine.
-2. **Recommended: a System 7.0 disk image.** The Chicago and Geneva screen fonts, the alert icons and the scroll-bar artwork come from the System 7.0 `System` file. The importer verifies that these resources are the ones the recreation was checked against, which are the ones on the System 7.0 hard-disk image published by the [Infinite Mac](https://infinitemac.org) project (`Images/System 7.0 HD.dsk` in its repository, SHA-256 `691e76c7…005b1`). Without a System file the game still runs, with substitute text rendering and plain controls in those places.
+Supply your own copy of either supported Macintosh edition:
+
+| Edition | Required files |
+| --- | --- |
+| The Oregon Trail, color version 1.1 | `Oregon Trail` application and `Oregon Color` |
+| Oregon Trail CD, version 1.2 (1993) | `Oregon Trail CD` application and the complete `Oregon Data` folder: `Graphics 1–4`, `Guide Book 1–3`, and `Oregon Sound 1–5` |
+
+For CD, supplying the whole disk image is convenient and includes the optional
+**On-line User’s Guide**. If supplying individual files, add that application too
+to read the separate manual. The 73-entry in-game guidebook and its narration
+come from the required game files and remain available without the manual.
+
+Both editions accept these source forms:
+
+- the original folder, on a Mac where the files still carry their resource forks;
+- an HFS disk image (`.dsk`, `.img`, `.image`, Disk Copy 4.2 or raw);
+- MacBinary (`.bin`), BinHex (`.hqx`) or AppleDouble (`._name`) encodings;
+- raw resource-fork dumps (`.rsrc`).
+
+Expand StuffIt (`.sit`) archives first. Files are recognized by contents, so
+renamed files work. Import one edition at a time; mixed editions, missing
+companions, or conflicting copies produce an error naming the problem.
+DOS releases called Deluxe are not supported by this importer.
+
+**Recommended: a System 7.0 disk image.** The Chicago and Geneva screen fonts,
+alert icons, scroll-bar artwork, and CD manual's original fonts come from the
+System file. The importer validates the supported resources. Without it, the
+game and manual use substitute text rendering and controls where needed.
 
 ## Build and play
 
@@ -31,15 +52,35 @@ With Xcode 16 or later and [XcodeGen](https://github.com/yonaskolb/XcodeGen) ins
 
 Or run `xcodegen generate --spec OregonBound/project.yml`, open `OregonBound/OregonBound.xcodeproj`, choose the **OregonBound** scheme and Run. The **OregonBound_iOS** scheme builds the iPad version; simulator builds need no signing.
 
-On first launch the app asks for your files. Add the game files or disk image (and the System 7.0 image if you have it), then click **Import**. Decoding takes a few seconds and produces `~/Library/Application Support/OregonBound/GameData/` (the app container on iPad). Remove that folder to import again.
+On first launch, choose **Add Files or Folders…**, add one edition's files or disk
+image (plus System 7.0 if available), and choose **Import**. Select the imported
+edition under **Choose your game**, then press **Play**. CD also offers an
+**Artwork** selector for 256 colors, 16 colors, or black and white.
 
-The import can also run from a terminal, which is how the decoders are verified:
+To import another edition or replace an import, return to the title/menu with no
+journey active and choose **Game Data…** from the Mac File menu or the iPad bar
+above the game. Re-import all the desired files together, including optional
+System and manual files. A failed or cancelled import preserves the previous
+installation. Both editions can stay installed; choose the edition and artwork
+before playing. Saves and preferences are kept separately by edition.
+
+New imports live under `~/Library/Application Support/OregonBound/Installations/`
+(inside the app container on iPad). Existing classic imports in the sibling
+`GameData` folder remain selectable. Use **Game Data…** to re-import; removing
+the old `GameData` folder does not remove the new installations.
+
+The legacy **classic 1.1** importer can also run from a terminal. This command
+does not prepare CD data; use the app's import screen for CD:
 
 ```sh
 "build/DerivedData/Build/Products/Debug/Oregon Bound.app/Contents/MacOS/Oregon Bound" --import "/path/to/Oregon Trail" "/path/to/System 7.0 HD.dsk" --output /tmp/oregon-data
 ```
 
-Set `OREGON_BOUND_DATA=/path/to/folder` to run the app or its tests against a specific imported folder.
+Set `OREGON_BOUND_DATA=/path/to/folder` to run the app or its tests against a
+specific **legacy classic** data folder. This override expects a top-level
+`graphics_manifest.json`; it does not activate prepared CD data. Use the edition
+selector to play CD. Developer checks taking a prepared CD directory explicitly
+are described in [CD development](CD_DEVELOPMENT.md).
 
 The game window keeps the original 512×322 proportions and scales the artwork to fill it.
 
@@ -57,6 +98,17 @@ Choose **Travel the Trail**, enter your party and occupation, buy supplies, then
 - Arrival leads to the original score breakdown and qualifying name entry. The **List of Legends** alternates with the title.
 
 The trail sidebar accepts clicks on both each icon and its ribbon label, a deliberate usability adjustment; the original only accepted clicks inside the icon rectangle.
+
+In the CD edition, **Help → On-line User’s Guide…** opens the optional manual;
+on iPad, use the **Help** button above the game. It includes page navigation,
+linked illustrations, zoom, readable text, and print/PDF export. If the manual
+was not imported, re-import the CD image or include the manual application with
+the other game files. The trail sidebar's **Guide** opens the in-game guidebook.
+
+CD journeys also track perishable food separately from stored food and use the
+CD artwork, conversations, narration, and game rules. The rules discussed below
+describe classic 1.1; see [CD development](CD_DEVELOPMENT.md) for CD differences
+and the remaining visual, audio, and interaction acceptance checks.
 
 ## Back on the trail
 
@@ -254,6 +306,10 @@ The app icon is newly generated artwork made with OpenAI image generation; no or
 
 GitHub Actions builds both platforms, runs tests without proprietary fixtures and checks tracked files for accidental data inclusion.
 
-Import layout 2 moves the river animation script and hunting cursor into the local data folder. Existing users must import their game files again after updating. The import-layout change itself does not change journey data; the app-identity and save-format changes described above are separate. An explicit `OREGON_BOUND_DATA` path takes precedence and does not fall back to saved imports when invalid.
+The current prepared import format is schema 10. Earlier prepared formats remain
+readable where supported; features needing newly decoded resources show a
+re-import instruction. Re-import the same source files to add those resources.
+The legacy classic importer uses layout 3. Native saves carry edition and source
+identity; loading a save against incompatible game data reports an error.
 
 The Python extraction pipeline also needs `python3 scripts/extract_runtime.py` to produce these runtime files.

@@ -7,6 +7,30 @@ progress. The CD source now supports its three display modes, separate food
 pools, additional artwork, and CD-specific runtime paths. Remaining whole-edition
 acceptance work is listed below.
 
+## Importing and inventory status
+
+Use the app's import screen for CD files, then select the edition and artwork
+before Play. [Player instructions](README.md#what-you-need) list the required
+companions and optional manual/System files. The existing `--import` command
+still runs the legacy classic importer. Prepared CD developer checks below
+consume the output of the edition-aware preparation path.
+
+The resource catalog records each selected source resource's role, type, ID,
+length, and hash. It is an inventory, not a claim that every resource is decoded
+or used at runtime. A local check matched all 579 application/manual records to
+the supplied image; the complete non-System input set contains 58 resource
+families. Optional System resources are accounted for separately from game data.
+
+Ancillary accounting remains open. The application contains a second credits
+text/style pair (`PTHN`/`MNTY`) with 73 structurally valid style records; the
+implemented About flow uses `TEXT`/`styl`. Its original entry point is unverified.
+The meaning or runtime use of `DLGX`, the manual's `Crul`, and some classic help
+and control metadata still needs an explicit treatment. Scans found no literal
+references to those first three types in application/manual resource payloads
+or reconstructed game globals. This does not rule out constructed types or
+implicit operating-system loading. An empty `pendingResources` list does not
+close these inventory questions.
+
 ## CD food system
 
 CD journeys keep non-perishable food (capacity 2,000 pounds) and perishable food
