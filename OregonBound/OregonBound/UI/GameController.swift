@@ -439,6 +439,23 @@ enum GamePanel: String, Identifiable {
         }
     }
     @Published var fileChooserPresented = false
+    struct UserGuideOpening: Identifiable { let id = UUID() }
+    @Published private(set) var userGuideOpening: UserGuideOpening?
+    var canPresentUserGuide: Bool {
+        store.edition == .macintoshCD12 && applicationActive && !isOriginalModalPresented
+    }
+    func presentUserGuide() {
+        guard canPresentUserGuide else { return }
+        userGuideOpening = UserGuideOpening()
+        audio.clear()
+    }
+    func userGuideCloseAction(for opening: UUID? = nil) -> () -> Void {
+        let id = opening ?? userGuideOpening?.id
+        return { [weak self] in
+            guard let self, let id, self.userGuideOpening?.id == id else { return }
+            self.userGuideOpening = nil
+        }
+    }
     #if os(iOS)
     @Published var showingLoadDialog = false
     @Published var showingExportDialog = false
@@ -554,7 +571,7 @@ enum GamePanel: String, Identifiable {
     }
 
     var isOriginalModalPresented: Bool {
-        var presented = showingIntroduction || showingAbout || managementPane != nil ||
+        var presented = showingIntroduction || showingAbout || userGuideOpening != nil || managementPane != nil ||
             showingLegendsManagement || error != nil || fileChooserPresented
         #if os(iOS)
         presented = presented || showingLoadDialog || showingExportDialog

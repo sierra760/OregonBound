@@ -1,8 +1,26 @@
 import Foundation
 import Testing
+import PDFKit
 @testable import OregonBound
 
 struct CDGuidePictureTests {
+    @MainActor @Test func guideReaderRejectsCommandsForInactiveOrRetiredOpenings() throws {
+        let guide = try CDUserGuide(fork: MacResourceFork(resources: GameDataPreparationTests.userGuideResources()))
+        var current = true
+        let reader = CDUserGuideReader(guide: guide, fonts: nil, unavailable: nil, permitsActions: { current })
+        reader.active = false
+        reader.update(0) { $0.page(forward: true) }; reader.compare(); reader.export([0])
+        #expect(reader.views?.states.count == 1 && reader.views?.states[0].pageID == 10)
+        #expect(reader.exportDocument == nil && !reader.exportingPDF)
+        reader.active = true
+        reader.update(0) { $0.page(forward: true) }; reader.compare()
+        #expect(reader.views?.states.count == 2 && reader.views?.states[0].pageID == 30)
+        current = false
+        reader.update(0) { $0.page(forward: true) }; reader.compare(); reader.export([0])
+        #expect(reader.views?.states.count == 2 && reader.views?.states[0].pageID == 30)
+        #expect(reader.exportDocument == nil && !reader.exportingPDF)
+    }
+
     static func words(_ values: [Int]) -> Data {
         var data = Data()
         for value in values { data.appendU16(UInt16(truncatingIfNeeded: value)) }
@@ -502,6 +520,119 @@ struct CDGuidePictureTests {
                reason: "excessive expanded System font")
         reject([MacResource(type: "FOND", id: 3, name: nil, attributes: 0,
                             data: Data(repeating: 0, count: 65537))], reason: "excessive System font resource")
+    }
+
+    @Test func guideAccessibleTextUsesVisibleGlyphsAndCaptionClipCoordinates() throws {
+        let picture = try CDGuidePicture(data: Self.picture([
+            (3, Self.words([3])), (13, Self.words([10])),
+            (0xc, Self.words([1, 2])), (0x28, Self.words([5, 4]) + Data([5]) + Data("AB CD".utf8))
+        ], frame: [-2, -3, 8, 17]))
+        let glyph = CDGuideRaster.Glyph(width: 2, height: 2, bearingX: 0, ink: [255, 0, 255, 255])
+        let font = CDGuideRaster.Font(advances: [Int](repeating: 2, count: 256), ascent: 2,
+                                     glyphs: [CDGuideRaster.Glyph](repeating: glyph, count: 256))
+        let text = try CDGuideText(picture: picture) { _, _ in font }
+        #expect(text.text() == "AB CD")
+        #expect(text.text(in: .init(top: 3, left: 12, bottom: 5, right: 16)) == "CD")
+        #expect(text.text(in: .init(top: 3, left: 8, bottom: 5, right: 10)) == "B")
+        #expect(text.text(in: .init(top: 0, left: 0, bottom: 2, right: 20)).isEmpty)
+        #expect(text.runs.first?.glyphs.first?.bounds == .init(top: 3, left: 6, bottom: 5, right: 8))
+        #expect(throws: (any Error).self) { try CDGuideText(picture: picture) { _, _ in nil } }
+    }
+
+    @Test func guidePDFPreservesPageOrderNumbersAndSelectableSourceTextAndBoundsWork() throws {
+        var resources = GameDataPreparationTests.userGuideResources()
+        let bytes = Self.picture([(3, Self.words([3])), (13, Self.words([12])),
+            (0x28, Self.words([15, 2]) + Data([6]) + Data("Sample".utf8))], frame: [0, 0, 30, 100])
+        resources.removeAll { $0.type == "PICT" && $0.id == 10 }
+        resources.append(.init(type: "PICT", id: 10, name: nil, attributes: 0, data: bytes))
+        let guide = try CDUserGuide(fork: MacResourceFork(resources: resources))
+        let document = try CDGuideDocument(guide: guide, originalFonts: nil)
+        let all = try #require(PDFDocument(data: document.pdf(pageIndices: [0, 1, 2])))
+        #expect(all.pageCount == 3)
+        #expect(all.page(at: 0)?.bounds(for: .mediaBox) == CGRect(x: 0, y: 0, width: 612, height: 792))
+        #expect(all.page(at: 0)?.string?.contains("Sample") == true)
+        #expect(all.page(at: 2)?.string?.contains("3") == true)
+        let selected = try #require(PDFDocument(data: document.pdf(pageIndices: [1])))
+        #expect(selected.pageCount == 1 && selected.string?.contains("2") == true)
+        for invalid in [[], [-1], [3], [1, 0], [0, 0]] {
+            #expect(throws: (any Error).self) { try document.pdf(pageIndices: invalid) }
+        }
+        #expect(throws: (any Error).self) { try document.pdf(pageIndices: [0], pixelLimit: 1) }
+    }
+
+    @Test func guideDocumentCentersPaperContentAndClipsCaptionImageAndTextTogether() throws {
+        var resources = GameDataPreparationTests.userGuideResources()
+        let bytes = Self.picture([
+            (3, Self.words([3])), (13, Self.words([12])),
+            (0x28, Self.words([15, 2]) + Data([5]) + Data("First".utf8)),
+            (0x28, Self.words([35, 2]) + Data([6]) + Data("Second".utf8))
+        ], frame: [-2, -3, 48, 97])
+        resources.removeAll { $0.type == "PICT" && $0.id == 10 }
+        resources.append(.init(type: "PICT", id: 10, name: nil, attributes: 0, data: bytes))
+        let guide = try CDUserGuide(fork: MacResourceFork(resources: resources))
+        let document = try CDGuideDocument(guide: guide, originalFonts: nil)
+        #expect(!document.usesOriginalFonts)
+        let picture = try document.picture(10)
+        #expect(picture.image.width == 100 && picture.image.height == 50)
+        #expect(picture.paperOrigin == .init(x: 256, y: 0))
+        #expect(picture.text() == "First\nSecond")
+        let link = CDUserGuide.Link(bounds: .init(top: 0, left: 0, bottom: 20, right: 20), kind: .caption,
+            openCheck: false, destination: 10, destinationRect: .init(top: 0, left: -3, bottom: 20, right: 97))
+        let caption = try document.caption(link)
+        #expect(caption.image.width == 100 && caption.image.height == 20)
+        #expect(caption.text == "First")
+        let padded = CDUserGuide.Link(bounds: link.bounds, kind: .caption, openCheck: false, destination: 10,
+            destinationRect: .init(top: -4, left: -5, bottom: 50, right: 99))
+        let extended = try document.caption(padded)
+        #expect(extended.image.width == 104 && extended.image.height == 54)
+        #expect(extended.text == "First\nSecond")
+        let outside = CDUserGuide.Link(bounds: link.bounds, kind: .caption, openCheck: false,
+            destination: 10, destinationRect: .init(top: 100, left: 100, bottom: 120, right: 120))
+        #expect(throws: (any Error).self) { try document.caption(outside) }
+        #expect(throws: (any Error).self) { try document.picture(999) }
+        #expect(document.cachedImageBytes <= CDGuideDocument.maximumCachedImageBytes)
+    }
+
+    @Test func guideSubstituteFontsAreExplicitBoundedAndRenderMacRomanText() throws {
+        let fonts = try CDGuideDrawing.substituteFonts()
+        #expect(Set(fonts.keys) == Set(CDGuideFonts.selections.map(\.key)))
+        for font in fonts.values {
+            try font.validate()
+            #expect(font.advances[32] > 0)
+            #expect(font.glyphs[32].ink.allSatisfy { $0 == 0 })
+            for code in [65, 0x8e] { #expect(font.glyphs[code].ink.contains(255)) }
+        }
+        let picture = try CDGuidePicture(data: Self.picture([
+            (3, Self.words([3])), (13, Self.words([12])),
+            (0x28, Self.words([15, 2]) + Data([3, 65, 32, 0x8e]))
+        ], frame: [0, 0, 30, 50]))
+        let image = try CDGuideRaster.render(picture) { fonts[.init(family: $0, size: $1)] }
+        #expect(stride(from: 3, to: image.pixels.count, by: 4).contains { image.pixels[$0] == 255 })
+    }
+
+    @Test func guideFontIndependentTranscriptSelectsCaptionLinesInPictureCoordinates() throws {
+        let picture = try CDGuidePicture(data: Self.picture([
+            (0xc, Self.words([1, 2])),
+            (0x28, Self.words([6, 4]) + Data([5]) + Data("First".utf8)),
+            (0x28, Self.words([16, 4]) + Data([6]) + Data("Second".utf8))
+        ], frame: [-2, -3, 30, 60]))
+        let transcript = CDGuideText.Transcript(picture: picture)
+        #expect(transcript.text() == "First\nSecond")
+        #expect(transcript.text(in: .init(top: 0, left: 6, bottom: 10, right: 60)) == "First")
+        #expect(transcript.text(in: .init(top: 10, left: 6, bottom: 20, right: 60)) == "Second")
+        #expect(transcript.text(in: .init(top: 20, left: 0, bottom: 30, right: 60)).isEmpty)
+    }
+
+    @Test func guideAccessibleTextHonorsNonrectangularClipsAndBoundsWork() throws {
+        let clip = Self.region([0, 0, 2, 6], changes: [0, 0, 2, 4, 6, 32767, 2, 0, 2, 4, 6, 32767, 32767])
+        let picture = try CDGuidePicture(data: Self.picture([
+            (1, clip), (0x28, Self.words([2, 0]) + Data([3]) + Data("ABC".utf8))
+        ], frame: [0, 0, 4, 8]))
+        let glyph = CDGuideRaster.Glyph(width: 2, height: 2, bearingX: 0, ink: [255, 255, 255, 255])
+        let font = CDGuideRaster.Font(advances: [Int](repeating: 2, count: 256), ascent: 2,
+                                     glyphs: [CDGuideRaster.Glyph](repeating: glyph, count: 256))
+        #expect(try CDGuideText(picture: picture) { _, _ in font }.text() == "AC")
+        #expect(throws: (any Error).self) { try CDGuideText(picture: picture, workLimit: 11) { _, _ in font } }
     }
 
 }

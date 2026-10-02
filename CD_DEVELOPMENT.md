@@ -424,9 +424,8 @@ manual text or artwork is included in the repository.
 
 Synthetic malformed-resource tests pass. A private comparison of the supplied
 reader matches all 17 pages, 9 sections, 104 links and 20 referenced pictures.
-The full native suite passes 985 parameterized cases. Picture rendering,
-preparation and the reader interface are still in development; this checkpoint
-does not yet make the manual available in the app.
+That metadata checkpoint passed 985 parameterized native cases. Rendering,
+preparation and the reader interface are covered by the later checkpoints below.
 
 ### Standalone user guide: picture decoder checkpoint
 
@@ -497,7 +496,7 @@ retained when no System file is supplied.
 
 Schema 9 CD imports and schema 6–10 classic imports remain supported. An older CD
 import has an explicit manual re-import message; a new import without the manual
-reports which source is missing. The reader interface is still in development.
+reports which source is missing. The native reader is described below.
 
 Private verification imports the supplied disk in three configurations: complete,
 without the manual, and without System fonts. All nine configuration/display-mode
@@ -505,3 +504,41 @@ combinations load successfully. All 2,843 previous prepared files except the
 updated catalog and preparation manifest remain byte-identical; all 21 pictures
 render identically after reload. The native suite passes 773 test summaries with
 74 skips and zero failures, and the iPad simulator target builds.
+
+
+### Standalone user guide: native reader
+
+Open the imported document from **Help → On-line User’s Guide** on macOS or
+**User’s Guide** below the game on iPad, including iPadOS 16–25. Missing optional
+manual data produces a re-import explanation. The reader supports all 17 pages,
+9 sections, 64 go-to links and 40 hidden captions. Captions work through taps,
+keyboard/VoiceOver buttons and a per-page links menu; no hover is required.
+**Read page text** provides selectable, accessible prose. Original System fonts
+preserve the verified raster; without them, the reader labels its substitute
+fonts and retains complete source transcripts, including individual captions.
+
+Page and screen navigation, same-page destinations, Return locations, magnifier
+centering and paper panning follow the reader's source rules. A screen step is
+the viewport height minus 16 points; the last 10 points lead to the adjacent
+page. Menu magnification resets the viewport. Return preserves the source's
+unusual behavior of scaling its saved pixel offset by the current magnification.
+The native reader keeps 128 recent locations and two independent page views.
+Comparison views share Return history and appear side by side when space allows,
+or use a view selector in compact layouts.
+
+Print or export the full guide, current page or comparison page. PDFs use ordered
+612×792-point white pages, centered authored pictures and page numbers; screen
+paper and caption windows are excluded, matching the source print path. The
+source prose remains selectable/searchable. Native print dialogs handle printer
+and paper options. The reader has no journey or random-stream access; its modal
+opening pauses game updates/audio, and callbacks are tied to that opening.
+
+Verification includes synthetic navigation, clipping, fallback fonts, modal and
+stale-opening behavior, malformed input and bounded rendering/PDF work. Private
+source comparisons match all 27,237 visible glyph bounds, all 40 caption texts
+and image crops (including a rectangle extending beyond its picture), and all
+17 printed page-content rasters. Source transcripts also match without System
+fonts. Native offscreen layouts were inspected in original-font, substitute-font,
+missing-manual and comparison modes. The native suite passes 787 test summaries
+with 74 skips and no failures. Foreground interaction, VoiceOver operation and
+physical printer acceptance remain part of the overall Deluxe acceptance pass.

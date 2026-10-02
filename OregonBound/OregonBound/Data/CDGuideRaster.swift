@@ -128,7 +128,7 @@ enum CDGuideRaster {
             try validate()
         }
 
-        fileprivate func validate() throws {
+        func validate() throws {
             guard advances.count == 256, glyphs.count == 256, (0...512).contains(ascent),
                   advances.allSatisfy({ (0...512).contains($0) }) else {
                 throw CDGuidePicture.Failure.invalid("raster font metrics")

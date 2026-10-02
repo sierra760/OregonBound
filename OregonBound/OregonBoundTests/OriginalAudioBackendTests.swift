@@ -3,6 +3,39 @@ import Foundation
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    @MainActor @Test func standaloneGuidePausesGameAndAudioAndRetiresStaleCloseCallbacks() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), random: OriginalRandomStream(seed: 71), audio: audio)
+        var trip = Journey(seed: 71, edition: .macintoshCD12); trip.phase = .travel
+        game.trip = trip
+        let encoder = JSONEncoder(); encoder.outputFormatting = .sortedKeys
+        let before = try encoder.encode(game.trip)
+        audio.request(2000)
+        game.presentUserGuide()
+        let first = try #require(game.userGuideOpening)
+        let closeFirst = game.userGuideCloseAction()
+        #expect(game.isOriginalModalPresented && !game.canUseGameMenus && !audio.isPlaying)
+        game.presentUserGuide(); #expect(game.userGuideOpening?.id == first.id)
+        for _ in 0..<50 { game.tick(); game.pollLandmarkAudio(); game.pollNotification() }
+        #expect(try encoder.encode(game.trip) == before)
+        #expect(game.random.seed == 71 && output.started == [2000])
+        closeFirst(); #expect(game.userGuideOpening == nil)
+        game.presentUserGuide(); let second = try #require(game.userGuideOpening)
+        closeFirst(); #expect(game.userGuideOpening?.id == second.id)
+        game.userGuideCloseAction()()
+        game.applicationActive = false; game.presentUserGuide()
+        #expect(game.userGuideOpening == nil)
+        game.applicationActive = true; game.showingAbout = true; game.presentUserGuide()
+        #expect(game.userGuideOpening == nil)
+        let classic = GameController(store: JourneyStore(directory: root.appendingPathComponent("classic"),
+            edition: .macintosh11, defaultPreferences: .init()), audio: audio)
+        classic.presentUserGuide(); #expect(classic.userGuideOpening == nil)
+    }
+
     @MainActor @Test func arrivalAndMapReplaceAnIllustratedNoticeBeforeLandmarkNarration() {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

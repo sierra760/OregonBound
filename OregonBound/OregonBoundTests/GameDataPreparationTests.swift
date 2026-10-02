@@ -309,3 +309,111 @@ struct GameDataPreparationTests {
     }
 
 }
+
+
+struct CDUserGuideNavigationTests {
+    @Test func comparisonViewsNavigateIndependentlyButShareTheDocumentsReturnHistory() throws {
+        var document = CDUserGuideRules.Views(state: try state())
+        document.update(0) { $0.setOffset(x: 5, y: 10) }
+        document.openComparison()
+        #expect(document.states.count == 2 && document.states[1].offset == .init(x: 5, y: 10))
+        document.update(1) { $0.activateLink(at: 0); $0.setZoom(tenths: 20) }
+        #expect(document.states[0].pageID == 10 && document.states[0].zoomTenths == 10)
+        #expect(document.states[1].pageID == 30 && document.states[1].zoomTenths == 20)
+        #expect(document.states[0].history == document.states[1].history)
+        document.update(0) { $0.returnToHistory() }
+        #expect(document.states[0].offset == .init(x: 5, y: 10) && document.states[1].history.isEmpty)
+        document.openComparison(); #expect(document.states.count == 2)
+        document.update(2) { $0.page(forward: true) }
+        document.closeComparison(); #expect(document.states.count == 1 && document.states[0].pageID == 10)
+    }
+
+    private func state() throws -> CDUserGuideRules.State {
+        try .init(guide: CDUserGuide(fork: MacResourceFork(resources: GameDataPreparationTests.userGuideResources())),
+                  viewportWidth: 300, viewportHeight: 200)
+    }
+    @Test func screenStepsWithinPaperBeforeChangingPagesAndDoesNotRecordHistory() throws {
+        var reader = try state()
+        reader.screen(forward: true)
+        #expect(reader.pageID == 10 && reader.offset == .init(x: 0, y: 184))
+        reader.setOffset(x: 50, y: 588)
+        reader.screen(forward: true)
+        #expect(reader.pageID == 30 && reader.offset == .zero)
+        reader.screen(forward: false)
+        #expect(reader.pageID == 10 && reader.offset == .init(x: 0, y: 592))
+        reader.screen(forward: false)
+        #expect(reader.offset.y == 408 && reader.history.isEmpty)
+        reader.page(forward: false)
+        #expect(reader.pageID == 10 && reader.offset.y == 408)
+        reader.page(forward: true)
+        reader.page(forward: true)
+        reader.setOffset(x: 0, y: 592); reader.screen(forward: true)
+        #expect(reader.pageID == 20 && reader.offset.y == 592)
+    }
+    @Test func topicHistoryStoresLocationsAndSelectingAnOlderEntryRemovesOnlyThatEntry() throws {
+        var reader = try state()
+        reader.setOffset(x: 25, y: 50)
+        reader.activateLink(at: 0)
+        #expect(reader.pageID == 30 && reader.offset == .init(x: 0, y: 100))
+        #expect(reader.history.count == 1 && reader.history[0].pageID == 10)
+        reader.chooseSection(at: 0)
+        #expect(reader.pageID == 10 && reader.offset == .zero && reader.history.count == 2)
+        reader.returnToHistory(at: 0)
+        #expect(reader.pageID == 10 && reader.offset == .init(x: 25, y: 50))
+        #expect(reader.history.count == 1 && reader.history[0].pageID == 30)
+        reader.returnToHistory()
+        #expect(reader.pageID == 30 && reader.offset.y == 100 && reader.history.isEmpty)
+        reader.returnToHistory(); reader.activateLink(at: -1); reader.chooseSection(at: 99)
+        #expect(reader.pageID == 30 && reader.history.isEmpty)
+    }
+    @Test func captionsAndPaperHitTestingDoNotNavigateOrAddHistory() throws {
+        var reader = try state()
+        reader.setZoom(tenths: 20)
+        reader.setOffset(x: 100, y: 10)
+        #expect(reader.linkIndex(at: .init(x: 80, y: 50)) == 1)
+        reader.activateLink(at: 1)
+        #expect(reader.caption?.destination == 90 && reader.pageID == 10 && reader.history.isEmpty)
+        #expect(reader.caption?.destinationRect == .init(top: 10, left: 0, bottom: 30, right: 200))
+        reader.dismissCaption()
+        #expect(reader.caption == nil)
+        #expect(reader.linkIndex(at: .init(x: -1, y: 0)) == nil)
+        reader.activateLink(at: 0)
+        #expect(reader.pageID == 30 && reader.offset == .init(x: 0, y: 200))
+    }
+    @Test func zoomMenuResetsWhileMagnifierCentersAndClampsClickedPoint() throws {
+        var reader = try state()
+        reader.setOffset(x: 100, y: 100)
+        reader.magnify(at: .init(x: 150, y: 100), increase: true)
+        #expect(reader.zoomTenths == 20 && reader.offset == .init(x: 350, y: 300))
+        reader.setZoom(tenths: 30)
+        #expect(reader.zoomTenths == 30 && reader.offset == .zero)
+        reader.setZoom(tenths: 0)
+        #expect(reader.zoomTenths == 30)
+        reader.setZoom(tenths: 5)
+        reader.magnify(at: .zero, increase: false)
+        #expect(reader.zoomTenths == 5 && reader.offset == .zero)
+        reader.setZoom(tenths: 50); reader.magnify(at: .zero, increase: true)
+        #expect(reader.zoomTenths == 50)
+        reader.setOffset(x: Int.max, y: Int.max)
+        #expect(reader.offset == .init(x: 2760, y: 3760))
+        reader.resize(width: Int.max, height: Int.max)
+        #expect(reader.offset == .zero)
+    }
+    @Test func returnHistoryUsesTheOriginalCurrentMagnificationAndSectionNumbering() throws {
+        var reader = try state()
+        #expect(reader.pageNumber == "1")
+        reader.setOffset(x: 20, y: 40); reader.activateLink(at: 0)
+        reader.setZoom(tenths: 20); reader.returnToHistory()
+        #expect(reader.offset == .init(x: 40, y: 80))
+        reader.chooseSection(at: 1)
+        #expect(reader.pageNumber == "2" && reader.sectionIndex == 1)
+        reader.page(forward: true)
+        #expect(reader.pageNumber == "3")
+        let before = reader.offset
+        reader.chooseSection(at: 1)
+        #expect(reader.pageID == 30 && reader.offset == .zero)
+        reader.setOffset(x: 5, y: 8); reader.chooseSection(at: 1)
+        #expect(reader.offset == .init(x: 5, y: 8))
+        #expect(before == .zero)
+    }
+}

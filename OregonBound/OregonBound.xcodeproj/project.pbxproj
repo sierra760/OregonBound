@@ -514,6 +514,14 @@
 		FD28B73A513FF08EC919D9D1 /* OriginalStatusPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = E465C8B60CCA204103D46DCD /* OriginalStatusPane.swift */; };
 		FD863FD1D8B97D09C91B1008 /* MacFileContainers.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4D1C42623AF14DBF9BA5B38 /* MacFileContainers.swift */; };
 		FFC17256D25C3C9BDF9A28E8 /* OriginalStorePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA10B3811D2760A00BD19321 /* OriginalStorePane.swift */; };
+		7B08B70FF4D0431EA641C6F6 /* CDUserGuideRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC262F83B4D2467E8E270C37 /* CDUserGuideRules.swift */; };
+		47F7E9C49A8B4F599B0CED60 /* CDUserGuideRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC262F83B4D2467E8E270C37 /* CDUserGuideRules.swift */; };
+		6C274EAB052345FCB1FAE8F6 /* CDGuideText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031437B11C494E4BB02014EC /* CDGuideText.swift */; };
+		B2B7A1AF04934CA4958DA5FE /* CDGuideText.swift in Sources */ = {isa = PBXBuildFile; fileRef = 031437B11C494E4BB02014EC /* CDGuideText.swift */; };
+		818BFD8FA73647638BC73947 /* CDGuideDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB577EAFE7F54B658FD24E63 /* CDGuideDocument.swift */; };
+		AC3BDD0F16F34CDE8377D1F4 /* CDGuideDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB577EAFE7F54B658FD24E63 /* CDGuideDocument.swift */; };
+		AABD5F74BE2042EFB821165A /* CDUserGuidePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 396A2925C8714DAA91AD675C /* CDUserGuidePane.swift */; };
+		A92ACEA0E3B342F6B58835ED /* CDUserGuidePane.swift in Sources */ = {isa = PBXBuildFile; fileRef = 396A2925C8714DAA91AD675C /* CDUserGuidePane.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -842,6 +850,10 @@
 		FAC115831221D4A23137D7FE /* OriginalTalkRulesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OriginalTalkRulesTests.swift; sourceTree = "<group>"; };
 		FE3EE9499AA30209A5C66434 /* DayCycleEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayCycleEngineTests.swift; sourceTree = "<group>"; };
 		FF1E1C1EABCE862DAFE763F0 /* RasterPICTTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RasterPICTTests.swift; sourceTree = "<group>"; };
+		EC262F83B4D2467E8E270C37 /* CDUserGuideRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDUserGuideRules.swift; sourceTree = "<group>"; };
+		031437B11C494E4BB02014EC /* CDGuideText.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDGuideText.swift; sourceTree = "<group>"; };
+		EB577EAFE7F54B658FD24E63 /* CDGuideDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDGuideDocument.swift; sourceTree = "<group>"; };
+		396A2925C8714DAA91AD675C /* CDUserGuidePane.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CDUserGuidePane.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -944,6 +956,7 @@
 				5633E453FCFA369DA0A141ED /* JourneyEngine.swift */,
 				C5ED23703B7453C0157A4B5A /* Minigames.swift */,
 				2823C39A9865A9499DE1276B /* OriginalAboutHostInformation.swift */,
+				EC262F83B4D2467E8E270C37 /* CDUserGuideRules.swift */,
 				56E02462958D64B2E3CFF9A7 /* OriginalAboutRules.swift */,
 				F49176814B5EF30ABA91B5A9 /* OriginalActionScheduler.swift */,
 				54D871D44BC000BD9C70CA57 /* OriginalAudioQueue.swift */,
@@ -1038,6 +1051,7 @@
 				AF1E4B48CCC8456883942978 /* CDUserGuide.swift */,
 				0F1634FF0B134DCEAF79C158 /* CDGuidePicture.swift */,
 				64F3456EA72A46AB8FF45B32 /* CDGuideFonts.swift */,
+				031437B11C494E4BB02014EC /* CDGuideText.swift */,
 				815FA795007747549549C638 /* CDGuideRaster.swift */,
 				836F69112877448FABBF3F60 /* CDGuideOutlineFont.swift */,
 				239F6FE4BE9FE1B67E086ECD /* SessionResourceCache.swift */,
@@ -1054,6 +1068,7 @@
 			isa = PBXGroup;
 			children = (
 				F2730056A1F7648FE2D78451 /* BitmapFont.swift */,
+				EB577EAFE7F54B658FD24E63 /* CDGuideDocument.swift */,
 				0E506C06DBE34796B880839C /* CDGuideDrawing.swift */,
 				EAAD320704B34824C392115F /* BundleAssets.swift */,
 				03CD0187DEDD92946CA1E3DD /* OriginalAudioPlayback.swift */,
@@ -1219,6 +1234,7 @@
 		D13333DE38D590F530222161 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				396A2925C8714DAA91AD675C /* CDUserGuidePane.swift */,
 				E478E80C442090FBDFA75F8C /* GameController.swift */,
 				57D0F407F3C69F51730D8ED5 /* GameDataSetupView.swift */,
 				A11E383466CD6BD71636C93E /* GameDataState.swift */,
@@ -1434,6 +1450,7 @@
 				77A137D71AE570B68F41DB84 /* AnyCodable.swift in Sources */,
 				8AC4DFA4680FAE67D47E046F /* BinaryReader.swift in Sources */,
 				0B94500007E2A9BFFA9EEA2B /* BitmapFont.swift in Sources */,
+				818BFD8FA73647638BC73947 /* CDGuideDocument.swift in Sources */,
 				EC1F505490BA43A589702529 /* CDGuideDrawing.swift in Sources */,
 				56D4475105E738D160C96664 /* BitmapFontExtractor.swift in Sources */,
 				151D3A3F86AD8146D3077074 /* BundleAssets.swift in Sources */,
@@ -1448,6 +1465,7 @@
 				C6228F74A84EEFDD0123274E /* ContentView.swift in Sources */,
 				F8C6500BE841427965A14737 /* DayCycleEngine.swift in Sources */,
 				B2602D9BA319435ED75FA495 /* ExtractionOutput.swift in Sources */,
+				AABD5F74BE2042EFB821165A /* CDUserGuidePane.swift in Sources */,
 				D6C4CA16FCE9B48701CB5B36 /* GameController.swift in Sources */,
 				B691C011693A48D804515CA5 /* GameData.swift in Sources */,
 				3EC5F0C4AD6CFAD32B1D3918 /* GameDataImporter.swift in Sources */,
@@ -1481,6 +1499,7 @@
 				087D4574C19337AE08990255 /* Minigames.swift in Sources */,
 				952450759CD09D98637AD741 /* OregonBoundApp.swift in Sources */,
 				A1D6557B224D671BD0825E2E /* OriginalAboutHostInformation.swift in Sources */,
+				7B08B70FF4D0431EA641C6F6 /* CDUserGuideRules.swift in Sources */,
 				3CE78621214C7C19884373B2 /* OriginalAboutRules.swift in Sources */,
 				C8E61B7DBF264ADDC427C7B5 /* OriginalActionScheduler.swift in Sources */,
 				2F5A62D02958BFF2B9BDEDDB /* OriginalAttractView.swift in Sources */,
@@ -1606,6 +1625,7 @@
 				10D6004227B54128ACE35E41 /* CDUserGuide.swift in Sources */,
 				4C6A8CA1CC724531B570357E /* CDGuidePicture.swift in Sources */,
 				0B56A9ADFF434A0697EFEF27 /* CDGuideFonts.swift in Sources */,
+				B2B7A1AF04934CA4958DA5FE /* CDGuideText.swift in Sources */,
 				85DE32E8D48D40EFB4EB4C47 /* CDGuideRaster.swift in Sources */,
 				E2EFAD9A1E4941938DBBA988 /* CDGuideOutlineFont.swift in Sources */,
 				A8CA647E1768E3E06155332E /* SessionResourceCache.swift in Sources */,
@@ -1629,6 +1649,7 @@
 				8229A0F40F9068368E6A5D5E /* AnyCodable.swift in Sources */,
 				9A8CA2EF1BFD2D0C12D9158E /* BinaryReader.swift in Sources */,
 				ACDABAC62EA210E9D1274331 /* BitmapFont.swift in Sources */,
+				AC3BDD0F16F34CDE8377D1F4 /* CDGuideDocument.swift in Sources */,
 				BDE188DDF1EC4E16A59D33AB /* CDGuideDrawing.swift in Sources */,
 				1EBEBD2DCBA02BA28ABB94CD /* BitmapFontExtractor.swift in Sources */,
 				7984F7F188F95A063E9303CC /* BundleAssets.swift in Sources */,
@@ -1643,6 +1664,7 @@
 				518CA88DB232E505E4E40846 /* ContentView.swift in Sources */,
 				1985A5FCC84A1B4590EF7669 /* DayCycleEngine.swift in Sources */,
 				10D1D2D2A3102C54E5CC3D2D /* ExtractionOutput.swift in Sources */,
+				A92ACEA0E3B342F6B58835ED /* CDUserGuidePane.swift in Sources */,
 				75F7CC650812CE3377E6F551 /* GameController.swift in Sources */,
 				1E8316A283461C01658013C4 /* GameData.swift in Sources */,
 				E346BEDF86434A51DA67F0B3 /* GameDataImporter.swift in Sources */,
@@ -1676,6 +1698,7 @@
 				A9DF31BA9754FAD296AB8EAE /* Minigames.swift in Sources */,
 				C4768B6AE220813D28FAD871 /* OregonBoundApp.swift in Sources */,
 				8B25AFDAA47854B373C36105 /* OriginalAboutHostInformation.swift in Sources */,
+				47F7E9C49A8B4F599B0CED60 /* CDUserGuideRules.swift in Sources */,
 				B2341B393A85B1AA236BF238 /* OriginalAboutRules.swift in Sources */,
 				0FDBCCCE31A8EDFD003817AC /* OriginalActionScheduler.swift in Sources */,
 				4A879121C6E36F8E280F05D4 /* OriginalAttractView.swift in Sources */,
@@ -1801,6 +1824,7 @@
 				7B2B382E80DF446795DC8E14 /* CDUserGuide.swift in Sources */,
 				874D5AA602C54B63B227B371 /* CDGuidePicture.swift in Sources */,
 				C264CBA8C934436C9228DC20 /* CDGuideFonts.swift in Sources */,
+				6C274EAB052345FCB1FAE8F6 /* CDGuideText.swift in Sources */,
 				EF8949B6C4174663A0C0F9E5 /* CDGuideRaster.swift in Sources */,
 				72CC3684AAE444E59EEAE363 /* CDGuideOutlineFont.swift in Sources */,
 				F72E323B082E51DA486F5251 /* SessionResourceCache.swift in Sources */,

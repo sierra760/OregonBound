@@ -49,6 +49,7 @@ struct GameRootView: View {
     private let conditionsTimer = Timer.publish(every: 15.0 / 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
+        let closeGuide = game.userGuideCloseAction()
         GeometryReader { geometry in
             let canvasWidth: CGFloat = 512
             let canvasHeight: CGFloat = 322
@@ -71,6 +72,14 @@ struct GameRootView: View {
         .onReceive(timer) { _ in game.tick() }
         .onReceive(conditionsTimer) { _ in game.pollConditions() }
         .onReceive(landmarkTimer) { _ in game.pollLandmarkAudio(); game.pollNotification() }
+        .sheet(item: Binding(get: { game.userGuideOpening }, set: { if $0 == nil { closeGuide() } })) { opening in
+            CDUserGuidePane(guide: GameData.preparedSession?.userGuide,
+                fonts: GameData.preparedSession?.userGuideFonts,
+                unavailable: GameData.preparedSession?.userGuideUnavailableReason,
+                permitsActions: { game.userGuideOpening?.id == opening.id && game.applicationActive },
+                close: game.userGuideCloseAction(for: opening.id))
+                .id(opening.id)
+        }
         .onAppear {
             game.chooseGameData = chooseGameData
             BundleAssets.validateManifest()
@@ -87,9 +96,13 @@ struct GameRootView: View {
         }
         #if os(iOS)
         .safeAreaInset(edge: .bottom) {
-            if game.canChooseGameData {
-                Button("Game Data…", action: game.requestGameData)
-                    .padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
+            if game.canChooseGameData || game.store.edition == .macintoshCD12 {
+                HStack {
+                    if game.canChooseGameData { Button("Game Data…", action: game.requestGameData) }
+                    if game.store.edition == .macintoshCD12 {
+                        Button("User’s Guide…", action: game.presentUserGuide).disabled(!game.canPresentUserGuide)
+                    }
+                }.padding(8).frame(maxWidth: .infinity).background(.regularMaterial)
             }
         }
         .fileImporter(isPresented: $game.showingLoadDialog, allowedContentTypes: [.json]) { result in

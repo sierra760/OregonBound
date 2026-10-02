@@ -51,6 +51,12 @@ struct OriginalGameCommands: Commands {
                 #endif
             }.disabled(!acceptsCommands)
         }
+        CommandGroup(replacing: .help) {
+            if game?.store.edition == .macintoshCD12 {
+                Button("On-line User’s Guide…") { game?.presentUserGuide() }
+                    .disabled(game?.canPresentUserGuide != true)
+            }
+        }
         #if os(macOS)
         CommandGroup(replacing: .appTermination) {
             Button("Quit") {

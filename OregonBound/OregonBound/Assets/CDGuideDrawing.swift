@@ -6,6 +6,56 @@ import CoreText
 /// All page composition, bitmap fonts, spacing and clipping remain deterministic
 /// in CDGuideRaster. The original font is decoded locally, never registered.
 enum CDGuideDrawing {
+    /// A declared visual substitute when the optional System file is absent.
+    /// The separate transcript preserves source lines independently of these
+    /// different glyph widths. This path never claims original font fidelity.
+    static func substituteFonts() throws -> [CDGuideFonts.Key: CDGuideRaster.Font] {
+        var result: [CDGuideFonts.Key: CDGuideRaster.Font] = [:]
+        var sizes: [Int: CDGuideRaster.Font] = [:]
+        for selection in CDGuideFonts.selections {
+            let size = selection.key.size
+            if let existing = sizes[size] { result[selection.key] = existing; continue }
+            let native = CTFontCreateWithName("Helvetica" as CFString, CGFloat(size), nil)
+            let ascent = Int(ceil(CTFontGetAscent(native))) + 2
+            let descent = Int(ceil(CTFontGetDescent(native))) + 2
+            let height = ascent + descent, width = 64
+            guard (1...64).contains(height), let context = CGContext(data: nil, width: width, height: height,
+                bitsPerComponent: 8, bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+                bitmapInfo: CGImageAlphaInfo.none.rawValue),
+                let pixels = context.data?.assumingMemoryBound(to: UInt8.self) else {
+                throw CDGuidePicture.Failure.invalid("unable to create substitute guide font")
+            }
+            context.setShouldAntialias(false); context.setAllowsAntialiasing(false)
+            context.setShouldSmoothFonts(false); context.setAllowsFontSmoothing(false)
+            context.setShouldSubpixelPositionFonts(false); context.setAllowsFontSubpixelPositioning(false)
+            var glyphs: [CDGuideRaster.Glyph] = [], advances: [Int] = []
+            for code in 0...255 {
+                var character = MacRoman.decode([UInt8(code)]).utf16.first ?? 0xfffd
+                var glyph: CGGlyph = 0, advance = CGSize.zero
+                CTFontGetGlyphsForCharacters(native, &character, &glyph, 1)
+                CTFontGetAdvancesForGlyphs(native, .horizontal, &glyph, &advance, 1)
+                advances.append(max(0, Int(advance.width.rounded())))
+                context.setFillColor(CGColor(gray: 0, alpha: 1)); context.fill(CGRect(x: 0, y: 0, width: width, height: height))
+                context.setFillColor(CGColor(gray: 1, alpha: 1))
+                var position = CGPoint(x: 16, y: descent)
+                CTFontDrawGlyphs(native, &glyph, &position, 1, context)
+                var left = width, right = -1
+                for y in 0..<height { for x in 0..<width where pixels[y * width + x] != 0 {
+                    left = min(left, x); right = max(right, x)
+                } }
+                var ink: [UInt8] = []
+                if right >= left {
+                    for y in 0..<height { for x in left...right { ink.append(pixels[y * width + x] == 0 ? 0 : 255) } }
+                }
+                glyphs.append(.init(width: max(0, right - left + 1), height: height,
+                                    bearingX: right >= left ? left - 16 : 0, ink: ink))
+            }
+            let font = CDGuideRaster.Font(advances: advances, ascent: ascent, glyphs: glyphs)
+            try font.validate(); sizes[size] = font; result[selection.key] = font
+        }
+        return result
+    }
+
     static func fonts(_ source: CDGuideFonts) throws -> [CDGuideFonts.Key: CDGuideRaster.Font] {
         var fonts: [CDGuideFonts.Key: CDGuideRaster.Font] = [:]
         for selection in CDGuideFonts.selections {
