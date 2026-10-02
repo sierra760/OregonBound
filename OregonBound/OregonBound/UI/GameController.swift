@@ -395,7 +395,14 @@ enum GamePanel: String, Identifiable {
     @Published var management = OriginalPreferences.ManagementSession()
     @Published var managementPane: OriginalPreferences.ManagementItem?
     @Published var sound = true { didSet { audio.enabled = sound } }
-    var applicationActive = true
+    var applicationActive = true {
+        didSet {
+            // Native window activation and SwiftUI scene activation can arrive
+            // in either order. The last eligible edge redraws; duplicate edges
+            // and an edge arriving while the other input is inactive do not.
+            if applicationActive, !oldValue { endingAction()(.redraw) }
+        }
+    }
     private var dayTimerCounter: UInt8 = 0
     let random: OriginalRandomStream
     let store: JourneyStore

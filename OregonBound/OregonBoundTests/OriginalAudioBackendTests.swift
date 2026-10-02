@@ -3,6 +3,41 @@ import Foundation
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    @MainActor @Test(arguments: [false, true], [false, true])
+    func cdLossReactivationWaitsForBothInputsOnce(nativeFirst: Bool, modal: Bool) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        var trip = Journey(seed: 1, edition: .macintoshCD12)
+        trip.phase = .finished; trip.won = false
+        game.trip = trip
+        let loss = game.endingAction()
+        game.applicationActive = false
+        game.gameWindowActivationChanged(false)
+        game.showingIntroduction = modal
+        if nativeFirst {
+            game.gameWindowActivationChanged(true)
+            #expect(output.started == [9001] && !audio.isPlaying)
+            game.applicationActive = true
+        } else {
+            game.applicationActive = true
+            #expect(output.started == [9001] && !audio.isPlaying)
+            game.gameWindowActivationChanged(true)
+        }
+        #expect(output.started == (modal ? [9001] : [9001,9001]))
+        if modal {
+            game.showingIntroduction = false
+            loss(.redraw) // Native pane's onChange callback after modal reveal.
+        }
+        #expect(output.started == [9001,9001] && audio.isPlaying)
+        game.gameWindowActivationChanged(true)
+        game.applicationActive = true
+        #expect(output.started == [9001,9001] && audio.isPlaying)
+    }
+
     @MainActor @Test(arguments: [0,1,2]) func cdLoadedEndingInitializesOnlyItsDisplayedPane(stage: Int) throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

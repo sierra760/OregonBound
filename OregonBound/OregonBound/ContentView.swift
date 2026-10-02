@@ -114,9 +114,6 @@ struct GameRootView: View {
         #endif
         .onChange(of: scenePhase) { phase in
             game.applicationActive = phase == .active
-            #if os(iOS)
-            if phase == .active { game.endingAction()(.redraw) }
-            #endif
             if phase != .active { game.persist() }
         }
         .onChange(of: game.managementPane == nil) { closed in
