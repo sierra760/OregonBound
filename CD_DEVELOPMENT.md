@@ -636,3 +636,20 @@ the internal loader calls, and 792 executions of the landmark selection branch.
 It checks every retained frame in the actual prepared data. This finding is
 specific to the supplied Macintosh CD executable and does not establish the
 unused artwork's intended role or its use in other releases.
+
+### Profession, score, and daily event comparisons
+
+The eight CD professions match the recovered starting-cash and score-factor
+tables. Bounded execution of the original scoring instructions agrees with
+7,800 native scores, covering profession factors, survivor health boundaries,
+oxen rounding, bullet boxes, cash, and separate rounding of the two food pools.
+The comparisons also confirm that calculating a score leaves the journey intact.
+
+Another 20,736 source/native quiet-day comparisons match random-call bounds and
+order across seasons, locations, temperatures, rain, snow, both food pools, and
+cached wagon-load boundaries. Food aid is considered only when both food pools
+are empty. The overload checks retain the load calculated before daily events.
+These cases force event rejection and fail on unexpected helper calls; they
+verify dispatch gates and random sequencing, not every triggered event's effects.
+No runtime changes were needed for these comparisons. Original binaries and
+generated reference cases remain private; foreground acceptance remains open.
