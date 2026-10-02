@@ -1,8 +1,32 @@
 import Foundation
 import Testing
+#if os(macOS)
+import AppKit
+#endif
 @testable import OregonBound
 
 struct OriginalFileOperationsTests {
+    #if os(macOS)
+    @Test @MainActor func redrawObserverOnlyFollowsItsOwnAttachedWindow() {
+        var redraws = 0
+        let view = OriginalWindowActivation.ObserverView(changed: { _ in }, redraw: { redraws += 1 })
+        let first = NSWindow(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+        let other = NSWindow(contentRect: .zero, styleMask: .borderless, backing: .buffered, defer: false)
+        first.contentView = view
+        NotificationCenter.default.post(name: NSWindow.didChangeScreenNotification, object: other)
+        #expect(redraws == 0)
+        NotificationCenter.default.post(name: NSWindow.didChangeBackingPropertiesNotification, object: first)
+        #expect(redraws == 1)
+        first.contentView = nil
+        NotificationCenter.default.post(name: NSWindow.didChangeScreenNotification, object: first)
+        #expect(redraws == 1)
+        other.contentView = view
+        NotificationCenter.default.post(name: NSWindow.didChangeScreenNotification, object: first)
+        NotificationCenter.default.post(name: NSWindow.didChangeScreenNotification, object: other)
+        #expect(redraws == 2)
+        other.contentView = nil
+    }
+    #endif
     @Test @MainActor func focusRestoredDuringModalDoesNotLeaveLoadDisabledAfterClosing() {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }

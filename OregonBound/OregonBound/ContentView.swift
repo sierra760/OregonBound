@@ -109,10 +109,14 @@ struct GameRootView: View {
         #endif
         .focusedSceneObject(game)
         #if os(macOS)
-        .background(OriginalWindowActivation(changed: game.gameWindowActivationChanged))
+        .background(OriginalWindowActivation(changed: game.gameWindowActivationChanged,
+            redraw: { game.endingAction()(.redraw) }))
         #endif
         .onChange(of: scenePhase) { phase in
             game.applicationActive = phase == .active
+            #if os(iOS)
+            if phase == .active { game.endingAction()(.redraw) }
+            #endif
             if phase != .active { game.persist() }
         }
         .onChange(of: game.managementPane == nil) { closed in

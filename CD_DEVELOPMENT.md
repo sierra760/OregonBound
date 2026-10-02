@@ -318,12 +318,30 @@ transitions across three display modes and sound settings. Startup/theme PCM and
 rates match the source. Twelve offscreen native captures verify the selected
 pages render; original screen equivalence and foreground listening remain open.
 
+## CD ending audio
+
+Arrival starts recording 1017 once and preserves it when Continue opens the score
+page. Score submission clears it before returning to Legends. The loss page
+clears and starts sound 9001 on its initial draw and logical redraws, and clears
+on exit. Terminal death no longer queues a duplicate CD sound before that page.
+Each ending stage owns its callbacks, so an outgoing page cannot affect a new
+journey or setup narration. Classic ending audio remains unchanged.
+
+Logical redraws include modal reveal, activation and display changes. A screen
+update alone does not restart playback. Window observers follow their attached
+window and unregister when detached. Tests cover both editions, all ending
+stages, cancellation/teardown, mute and stale callbacks. Private verification
+checks seven original audio branches and 60 source-data flows across three
+display modes, exact sample bytes/rates, and unchanged RNG. Eighteen offscreen
+captures cover arrival, score and loss with both sound settings. Foreground
+interaction and listening remain separate acceptance work.
+
 ## Current acceptance boundary
 
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 934 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 944 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.

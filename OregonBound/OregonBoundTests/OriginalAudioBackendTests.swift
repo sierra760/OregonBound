@@ -3,6 +3,112 @@ import Foundation
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    @MainActor @Test(arguments: [0,1,2]) func cdLoadedEndingInitializesOnlyItsDisplayedPane(stage: Int) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let source = root.appendingPathComponent("ending.json")
+        var trip = Journey(seed: 4, edition: .macintoshCD12)
+        trip.phase = .finished; trip.won = stage != 0
+        trip.originalEndingStage = stage == 2 ? .score : .arrival
+        try JSONEncoder().encode(SavedJourney(format: "OregonBound", version: 2,
+            journey: trip, edition: .macintoshCD12)).write(to: source)
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        game.showAttract(); game.resume(from: source)
+        #expect(game.error == nil && game.trip?.id == trip.id)
+        #expect(output.started == (stage == 2 ? [9007] : [9007, stage == 0 ? 9001 : 1017]))
+        #expect(audio.isPlaying == (stage != 2))
+    }
+
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func endingArrivalContinuesIntoScoreThenStopsBeforeLegends(edition: GameEdition) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: edition,
+            defaultPreferences: .init()), audio: audio)
+        game.showAttract()
+        var trip = Journey(seed: 7, edition: edition)
+        trip.phase = .finished; trip.won = true
+        game.trip = trip
+        #expect(output.started.last == (edition == .macintoshCD12 ? 1017 : 9007))
+        let arrival = game.endingAction()
+        let before = output.started
+        arrival(.redraw)
+        #expect(output.started == before)
+        arrival(.continueArrival)
+        #expect(game.trip?.originalEndingStage == .score)
+        #expect(output.started == before && audio.isPlaying)
+        let score = game.endingAction()
+        arrival(.exitLoss); arrival(.continueArrival)
+        #expect(game.trip?.originalEndingStage == .score)
+        score(.submitScore(name: "Traveler"))
+        game.showAttract()
+        #expect(game.trip == nil && audio.isPlaying)
+        #expect(output.started == (edition == .macintoshCD12 ? before + [2000] : before))
+        if edition == .macintoshCD12 { #expect(game.cdAttractPage == .legends) }
+    }
+
+    @MainActor @Test(arguments: [false, true])
+    func cdLossRedrawAndExitOwnAudio(muted: Bool) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        game.sound = !muted; game.showAttract()
+        var trip = Journey(seed: 3, edition: .macintoshCD12)
+        trip.phase = .finished; trip.won = false
+        game.trip = trip
+        #expect(output.started == (muted ? [] : [9007,9001]))
+        let loss = game.endingAction()
+        game.trip = trip // State publication is not a logical redraw.
+        #expect(output.started == (muted ? [] : [9007,9001]))
+        loss(.redraw)
+        #expect(output.started == (muted ? [] : [9007,9001,9001]))
+        game.showingIntroduction = true; loss(.redraw); loss(.exitLoss)
+        #expect(game.trip != nil && output.started.count == (muted ? 0 : 3))
+        game.showingIntroduction = false
+        game.applicationActive = false; loss(.redraw); loss(.exitLoss)
+        #expect(game.trip != nil && output.started.count == (muted ? 0 : 3))
+        game.applicationActive = true
+        loss(.exitLoss)
+        #expect(game.trip == nil && !audio.isPlaying)
+        game.showAttract()
+        #expect(output.started.last == (muted ? nil : 2000))
+        loss(.redraw); loss(.exitLoss)
+        #expect(game.cdAttractPage == .legends && audio.isPlaying == !muted)
+    }
+
+    @MainActor @Test(arguments: [false, true])
+    func cdEndingOldCallbacksCannotAffectReplacementJourney(won: Bool) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        var trip = Journey(seed: 1, edition: .macintoshCD12)
+        trip.phase = .finished; trip.won = won
+        game.trip = trip
+        let retired = game.endingAction()
+        var replacement = Journey(seed: 2, edition: .macintoshCD12)
+        replacement.phase = .finished; replacement.won = won
+        game.trip = replacement
+        let expected = output.started
+        retired(.redraw); retired(.continueArrival); retired(.exitLoss); retired(.submitScore(name: "Old"))
+        #expect(game.trip?.id == replacement.id && output.started == expected && audio.isPlaying)
+        game.completeDeparture(.exitGame)
+        game.beginRegistration()
+        retired(.redraw); retired(.exitLoss)
+        #expect(game.creatingGame && output.started.last == 10001 && audio.isPlaying)
+    }
+
     @MainActor @Test(arguments: [0,1,2]) func cdReturnFromSetupJourneyOrEndingShowsLegends(kind: Int) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

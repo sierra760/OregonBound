@@ -41,6 +41,7 @@ enum GamePanel: String, Identifiable {
         cdAttract = nil
         attractOpening = nil
         audio.clear()
+        endingTail = false
     }
 
     private func advanceAttract() {
@@ -100,6 +101,57 @@ enum GamePanel: String, Identifiable {
     enum SetupDialog { case welcome, buyingAdvice, departure }
     @Published private(set) var setupDialog: SetupDialog?
     private var setupDialogID: UUID?
+
+    private enum EndingPane { case loss, arrival, score }
+    private var endingPane: EndingPane?
+    private var endingJourney: UUID?
+    private var endingOpening: UUID?
+    private var endingTail = false
+    enum EndingAction { case redraw, exitLoss, continueArrival, submitScore(name: String) }
+
+    private func retireEnding(for incoming: Journey?) {
+        if incoming != nil, endingTail { audio.clear(); endingTail = false }
+        guard endingPane != nil,
+              incoming?.id != endingJourney || incoming?.phase != .finished else { return }
+        // Closing the arrival pane does not stop its recording. Score submission
+        // clears separately; other exits can leave it playing into Legends.
+        // A new journey must retire it before incoming narration starts.
+        endingTail = store.edition == .macintoshCD12 && endingPane != .loss && incoming == nil && audio.isPlaying
+        if store.edition == .macintoshCD12, endingPane == .loss || incoming != nil { audio.clear() }
+        endingPane = nil; endingJourney = nil; endingOpening = nil
+    }
+
+    private func reconcileEnding() {
+        guard !creatingGame, let trip, trip.phase == .finished else { return }
+        let pane: EndingPane = !trip.won ? .loss :
+            (trip.originalEndingStage == .score || trip.originalEndingStage == .completed ? .score : .arrival)
+        guard endingJourney != trip.id || endingPane != pane else { return }
+        endingJourney = trip.id; endingPane = pane; endingOpening = UUID()
+        guard store.edition == .macintoshCD12, pane != .score else { return }
+        audio.clear()
+        audio.request(pane == .loss ? 9001 : 1017)
+    }
+
+    func endingAction() -> (EndingAction) -> Void {
+        let opening = endingOpening
+        return { [weak self] action in
+            guard let self, let opening, self.endingOpening == opening,
+                  self.applicationActive, !self.fileMenu.windowInactive,
+                  !self.isOriginalModalPresented else { return }
+            switch action {
+            case .redraw:
+                if self.store.edition == .macintoshCD12, self.endingPane == .loss {
+                    self.audio.clear(); self.audio.request(9001)
+                }
+            case .exitLoss:
+                if self.endingPane == .loss { self.mainMenu() }
+            case .continueArrival:
+                if self.endingPane == .arrival { self.showOriginalScore() }
+            case .submitScore(let name):
+                if self.endingPane == .score { self.submitOriginalScore(name: name) }
+            }
+        }
+    }
 
     /// Logical dialog creation/close, independent of SwiftUI redraw and visibility.
     func presentSetupDialog(_ dialog: SetupDialog) {
@@ -280,12 +332,14 @@ enum GamePanel: String, Identifiable {
     @Published var trip: Journey? {
         didSet {
             if trip != nil { closeAttract() }
+            retireEnding(for: trip)
             if oldValue?.id != trip?.id || (oldValue?.phase == .rafting && trip?.phase != .rafting) {
                 raftScene?.close()
                 raftScene = nil
             }
             reconcileLandmark(replacingJourney: oldValue?.id != trip?.id)
             reconcileSetupDialog(replacingJourney: oldValue?.id != trip?.id)
+            reconcileEnding()
         }
     }
     private weak var raftScene: OriginalRaftScene?
@@ -321,6 +375,7 @@ enum GamePanel: String, Identifiable {
     @Published var creatingGame = false {
         didSet {
             if creatingGame { closeAttract() }
+            if creatingGame, endingTail { audio.clear(); endingTail = false }
             reconcileLandmark(); reconcileSetupDialog()
         }
     }
@@ -424,7 +479,9 @@ enum GamePanel: String, Identifiable {
                     // the queue; the later trip assignment also closes panes.
                     memorialID = nil
                     closeLandmark()
-                    audio.enqueue(OriginalDeathPresentationRules.soundResource)
+                    if store.edition != .macintoshCD12 {
+                        audio.enqueue(OriginalDeathPresentationRules.soundResource)
+                    }
                 } else { memorialID = UUID() }
             }
             let isBlocking = [.hunting, .rafting].contains(value.phase) || value.originalRiverOutcome != nil
@@ -659,6 +716,8 @@ enum GamePanel: String, Identifiable {
 
     func submitOriginalScore(name: String) {
         guard let trip, trip.phase == .finished, trip.won else { return }
+        // CODE11:15ee clears before recording the score and returning to Legends.
+        if store.edition == .macintoshCD12 { audio.clear() }
         do {
             let legends = try store.legends(excluding: trip.id)
             if OriginalEndingPresentation.insertionIndex(score: JourneyEngine.score(trip), legends: legends) != nil {

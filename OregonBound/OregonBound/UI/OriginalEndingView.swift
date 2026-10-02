@@ -16,16 +16,17 @@ struct OriginalEndingView: View {
             legends: game.legends.filter { $0.id != trip.id.uuidString }) != nil
     }
     var body: some View {
+        let action = game.endingAction()
         OriginalWindow {
             ZStack(alignment: .topLeading) {
                 originalPaper
                 if !trip.won {
-                    OriginalDialogContents(resource: 9150) { _ in game.mainMenu() }
+                    OriginalDialogContents(resource: 9150) { _ in action(.exitLoss) }
                     PixelArtwork(resource: 19150, monochromeResource: 9150).frame(width: 262, height: 155).offset(x: 111, y: 10)
                     Rectangle().strokeBorder(.black, lineWidth: 1).frame(width: 264, height: 157).offset(x: 110, y: 9)
                 } else if trip.originalEndingStage == .score || trip.originalEndingStage == .completed {
                     OriginalDialogContents(resource: qualifies ? 9100 : 9130, substitutions: [trip.dateText]) { _ in
-                        game.submitOriginalScore(name: name)
+                        action(.submitScore(name: name))
                     }
                     OriginalScoreBreakdown(trip: trip)
                     if qualifies {
@@ -35,11 +36,19 @@ struct OriginalEndingView: View {
                     }
                 } else {
                     PixelArtwork(resource: 19090, monochromeResource: 9090).frame(width: 494, height: 304)
-                    OriginalButton(title: "Continue") { game.showOriginalScore() }
+                    OriginalButton(title: "Continue") { action(.continueArrival) }
                         .frame(width: 80, height: 20).offset(x: 373, y: 270)
                 }
             }
         }
+        .onChange(of: game.isOriginalModalPresented) { blocked in
+            if !blocked { action(.redraw) }
+        }
+        #if os(iOS)
+        .onReceive(NotificationCenter.default.publisher(for: UIScreen.modeDidChangeNotification)) { _ in
+            action(.redraw)
+        }
+        #endif
     }
 }
 
