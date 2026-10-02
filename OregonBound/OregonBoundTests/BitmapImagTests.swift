@@ -5,8 +5,12 @@ import Testing
 struct BitmapImagTests {
     private let commands: [UInt8] = [2, 0x80, 0, 0xFE, 0xFF, 0xBE, 0, 0x80]
     private var expected: [UInt8] {
-        [0] + Array(repeating: 255, count: 8) + Array(repeating: 255, count: 8) + [0]
-            + Array(repeating: 0, count: 8) + [255] + Array(repeating: 0, count: 9)
+        var pixels: [UInt8] = [0]
+        pixels.append(contentsOf: repeatElement(255, count: 16))
+        pixels.append(contentsOf: repeatElement(0, count: 9))
+        pixels.append(255)
+        pixels.append(contentsOf: repeatElement(0, count: 9))
+        return pixels
     }
 
     private func frame(_ payload: [UInt8]? = nil, width: UInt16 = 9,
