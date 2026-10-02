@@ -72,8 +72,8 @@ enum OriginalTrailEvents {
         }
     }
 
-    /// CODE16:2cbc: selecting the sole active wagon calls R(1), which consumes no
-    /// QuickDraw sample. No active wagon skips the call entirely.
+    /// CODE16:2cbc: selecting the sole active wagon calls R(1), which still
+    /// consumes a QuickDraw sample. No active wagon skips the call entirely.
     private static func selectWagon(_ trip: Journey, draw: Draw) -> Bool {
         guard !trip.livingMembers.isEmpty else { return false }
         _ = draw(1, 0x2d12)

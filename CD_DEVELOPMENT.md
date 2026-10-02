@@ -661,5 +661,29 @@ aid, and fruit collection. Checks cover state changes, random-call order,
 journal requests, notification codes/parameters, and preservation of unrelated
 state. The daily sequences include interacting events and both food pools.
 Journal text uses the existing native renderer; these checks do not independently
-verify its prose or the original network/message transport. Illness, injuries,
-equipment events, and theft/fire remain separate source-comparison work.
+verify its prose or the original network/message transport. The remaining event
+helper comparisons are recorded below.
+
+### Triggered events and final-survivor loss
+
+Additional source/native comparisons pass for 2,813 illness, injury, member
+selection, and equipment cases; 2,114 supply and missing-person cases; and 3,840
+full daily event sequences with all helpers connected. They compare random-call
+order and bounds, member conditions, inventory/cash, delays, journal requests,
+and notification parameters. The full sequences cover interactions between
+spoilage, illness, breakage, overload, and later events. No runtime correction
+was needed. A stale comment now correctly states that selecting the sole wagon
+still consumes a random sample.
+
+Another 96 source-derived final-survivor days pass through the public day-advance
+API: event effects and final random seeds match, the loss presentation state is entered,
+and further day advancement leaves the finished journey unchanged. Native
+finished-phase state replaces the original's game-over flag and clears timer
+flags. These checks use the previously verified QuickDraw random formula.
+
+Eighty deliberately constructed dead-leader fixtures expose contradictory source
+state: injury selection can overwrite a deceased slot without increasing the
+stored survivor count. The native model retains the member's deceased state.
+Those cases remain diagnostic evidence and are excluded from raw-state parity
+counts. Journal prose, original message transport, and foreground audiovisual
+acceptance are outside these comparisons.
