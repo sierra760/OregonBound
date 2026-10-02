@@ -334,4 +334,174 @@ struct CDGuidePictureTests {
         }
     }
 
+    @Test func guideRasterPreservesQuickDrawHorizontalAndVerticalSampling() throws {
+        #expect(try CDGuideRaster.horizontalGroups(source: 5, destination: 3) == [0..<2, 2..<3, 3..<5])
+        #expect(try CDGuideRaster.verticalGroups(source: 5, destination: 3) == [0..<1, 1..<3, 3..<5])
+        #expect(try CDGuideRaster.horizontalGroups(source: 2, destination: 3) == [0..<1, 0..<1, 1..<2])
+        #expect(try CDGuideRaster.verticalGroups(source: 2, destination: 3) == [0..<1, 0..<1, 1..<2])
+        #expect(try CDGuideRaster.verticalGroups(source: 4, destination: 2) == [0..<2, 2..<4])
+        for size in [0, -1, 4097] {
+            #expect(throws: (any Error).self) { try CDGuideRaster.horizontalGroups(source: size, destination: 1) }
+            #expect(throws: (any Error).self) { try CDGuideRaster.verticalGroups(source: 1, destination: size) }
+        }
+    }
+
+    @Test func guideRasterUsesOriginalOvalScanlinesAndInsetFrame() throws {
+        #expect(try CDGuideRaster.ovalSpans(.init(top: 1, left: 1, bottom: 7, right: 7)) ==
+                [2..<6, 1..<7, 1..<7, 1..<7, 1..<7, 2..<6])
+        #expect(try CDGuideRaster.ovalSpans(.init(top: -1, left: -2, bottom: 3, right: 2)) ==
+                [-1..<1, -2..<2, -2..<2, -1..<1])
+        #expect(try CDGuideRaster.ovalSpans(.init(top: 0, left: 0, bottom: 0, right: 0)).isEmpty)
+        #expect(throws: (any Error).self) {
+            try CDGuideRaster.ovalSpans(.init(top: 0, left: 0, bottom: 4097, right: 1))
+        }
+    }
+
+    @Test func guideRasterComposesOvalFrameOriginClipAndIndexedShrink() throws {
+        let picture = try CDGuidePicture(data: Self.picture([
+            (0x51, Self.words([1, 1, 7, 7])), (0x1a, Self.words([0xffff, 0, 0])), (0x58, Data()),
+            (0xc, Self.words([1, 1])), (1, Self.region([2, 2, 4, 4])),
+            (0x98, Self.indexedBitmap(source: [-2, -3, 0, 0], destination: [2, 2, 3, 3]))
+        ], frame: [0, 0, 8, 8]))
+        let image = try CDGuideRaster.render(picture)
+        func pixel(_ x: Int, _ y: Int) -> [UInt8] { Array(image.pixels[(y * 8 + x) * 4..<(y * 8 + x + 1) * 4]) }
+        #expect(pixel(0, 0) == [0, 0, 0, 0])
+        #expect(pixel(2, 1) == [255, 0, 0, 255])
+        #expect(pixel(3, 3) == [0, 0, 0, 255])
+        #expect(pixel(1, 1) == [0, 171, 255, 255])
+        #expect(pixel(7, 7) == [0, 0, 0, 0])
+    }
+
+    @Test func guideRasterDrawsImportedGlyphMasksAndRejectsMissingFonts() throws {
+        let picture = try CDGuidePicture(data: Self.picture([
+            (3, Self.words([3])), (4, Data([1])), (13, Self.words([10])),
+            (0x1a, Self.words([0, 0xffff, 0])), (0x28, Self.words([3, 1]) + Data([1, 65]))
+        ], frame: [0, 0, 6, 6]))
+        let empty = CDGuideRaster.Glyph(width: 0, height: 0, bearingX: 0, ink: [])
+        var glyphs = [CDGuideRaster.Glyph](repeating: empty, count: 256)
+        glyphs[65] = .init(width: 2, height: 2, bearingX: -1, ink: [255, 0, 0, 255])
+        let font = CDGuideRaster.Font(advances: [Int](repeating: 3, count: 256), ascent: 2, glyphs: glyphs)
+        let image = try CDGuideRaster.render(picture) { family, size in family == 3 && size == 10 ? font : nil }
+        let green = stride(from: 0, to: image.pixels.count, by: 4).filter { image.pixels[$0 + 3] != 0 }.map { $0 / 4 }
+        #expect(green == [6, 7, 13, 14])
+        #expect(green.allSatisfy { image.pixels[$0 * 4 + 1] == 255 })
+        #expect(throws: (any Error).self) { try CDGuideRaster.render(picture) }
+    }
+
+    @Test func guideRasterPreservesBitmapMaskAndRejectsUnsupportedDrawing() throws {
+        let picture = try CDGuidePicture(data: Self.picture([
+            (0x99, Self.indexedBitmap(destination: [0, 0, 4, 4], mask: Self.region([1, 1, 3, 3])))
+        ], frame: [0, 0, 4, 4]))
+        let image = try CDGuideRaster.render(picture)
+        let covered = stride(from: 3, to: image.pixels.count, by: 4).filter { image.pixels[$0] != 0 }.map { $0 / 4 }
+        #expect(covered == [5, 6, 9, 10])
+        for record: (Int, Data) in [(0x20, Self.words([0, 0, 3, 3])), (0x33, Self.words([0, 0, 3, 3]))] {
+            let unsupported = try CDGuidePicture(data: Self.picture([record]))
+            #expect(throws: (any Error).self) { try CDGuideRaster.render(unsupported) }
+        }
+    }
+
+    @Test func guideRasterExtractsGlyphInkAndMissingCharacterFromOriginalStrike() throws {
+        let bytes = Self.words([0x9000, 65, 65, 3, 0, -2, 4, 2, 10, 2, 0, 0, 1])
+            + Data([0xc0, 0, 0x90, 0]) + Self.words([0, 2, 4, 0x0103, 0x0002, 0xffff])
+        let strike = try BitmapFontExtractor.parseNFNT(bytes, resourceID: 1)
+        let font = try CDGuideRaster.Font(strike: strike)
+        #expect(font.ascent == 2 && font.advances[65] == 3 && font.advances[255] == 2)
+        #expect(font.glyphs[65].bearingX == 1)
+        #expect(font.glyphs[65].width == 2 && font.glyphs[65].height == 2)
+        #expect(font.glyphs[65].ink == [255, 255, 255, 0])
+        #expect(font.glyphs[255].ink == [0, 0, 0, 255])
+    }
+
+    @Test func guideOutlineRasterizerRequiresTheVerifiedOriginalFont() {
+        for bytes in [Data(), Self.outlineFont()] {
+            #expect(throws: (any Error).self) { try CDGuideDrawing.outlineFont(data: bytes) }
+        }
+    }
+
+    @Test func guideFontSetRejectsIncompleteOrUnverifiedResources() throws {
+        #expect(throws: (any Error).self) { try CDGuideFonts(resources: [:]) }
+        var resources: [CDGuideFonts.Key: Data] = [:]
+        for selection in CDGuideFonts.selections { resources[selection.key] = Data([1, 2, 3]) }
+        #expect(throws: (any Error).self) { try CDGuideFonts(resources: resources) }
+        #expect(throws: (any Error).self) { try CDGuideFonts(systemFork: MacResourceFork(resources: [])) }
+        // A plausible family association is insufficient without the pinned strike.
+        var family = Data(repeating: 0, count: 52); family[3] = 3
+        family += Self.words([0, 9, 0, 123])
+        let fork = MacResourceFork(resources: [
+            MacResource(type: "FOND", id: 3, name: "Geneva", attributes: 0, data: family),
+            MacResource(type: "NFNT", id: 123, name: nil, attributes: 0, data: Data([1, 2, 3]))])
+        #expect(throws: (any Error).self) { try CDGuideFonts(systemFork: fork) }
+    }
+
+    @Test func guideRasterBoundsTotalWorkIncludingMaskedBitmapVisits() throws {
+        let fill = (0x31, Self.words([0, 0, 4, 4]))
+        let once = try CDGuidePicture(data: Self.picture([fill], frame: [0, 0, 4, 4]))
+        #expect(try CDGuideRaster.render(once, workLimit: 16).pixels.count == 64)
+        #expect(throws: (any Error).self) { try CDGuideRaster.render(once, workLimit: 15) }
+        let twice = try CDGuidePicture(data: Self.picture([fill, fill], frame: [0, 0, 4, 4]))
+        #expect(throws: (any Error).self) { try CDGuideRaster.render(twice, workLimit: 16) }
+        let masked = try CDGuidePicture(data: Self.picture([
+            (0x99, Self.indexedBitmap(destination: [0, 0, 4, 4], mask: Self.region([0, 0, 0, 0])))
+        ], frame: [0, 0, 4, 4]))
+        #expect(throws: (any Error).self) { try CDGuideRaster.render(masked, workLimit: 15) }
+        #expect(try CDGuideRaster.render(masked, workLimit: 16).pixels.allSatisfy { $0 == 0 })
+        for limit in [0, -1, 64 * 1024 * 1024 + 1, Int.max] {
+            #expect(throws: (any Error).self) { try CDGuideRaster.render(once, workLimit: limit) }
+        }
+    }
+
+    @Test func guideRasterRejectsMalformedFontMetricsAndMasksBeforeDrawing() throws {
+        let picture = try CDGuidePicture(data: Self.picture([
+            (0x28, Self.words([2, 1]) + Data([1, 65]))
+        ], frame: [0, 0, 4, 4]))
+        let empty = CDGuideRaster.Glyph(width: 0, height: 0, bearingX: 0, ink: [])
+        let advances = [Int](repeating: 1, count: 256)
+        let glyphs = [CDGuideRaster.Glyph](repeating: empty, count: 256)
+        var invalid: [CDGuideRaster.Font] = [
+            .init(advances: [], ascent: 1, glyphs: glyphs),
+            .init(advances: advances, ascent: 513, glyphs: glyphs),
+            .init(advances: advances, ascent: 1, glyphs: []),
+            .init(advances: [Int](repeating: -1, count: 256), ascent: 1, glyphs: glyphs)
+        ]
+        for bad in [CDGuideRaster.Glyph(width: 1, height: 1, bearingX: 0, ink: [128]),
+                    .init(width: 2, height: 2, bearingX: 0, ink: [255]),
+                    .init(width: 0, height: 0, bearingX: 513, ink: []),
+                    .init(width: 513, height: 0, bearingX: 0, ink: [])] {
+            var altered = glyphs; altered[65] = bad
+            invalid.append(.init(advances: advances, ascent: 1, glyphs: altered))
+        }
+        for font in invalid {
+            #expect(throws: (any Error).self) { try CDGuideRaster.render(picture) { _, _ in font } }
+        }
+    }
+
+    @Test func guideFontSetRejectsAmbiguousAndOversizedSystemResources() {
+        func reject(_ resources: [MacResource], reason: String) {
+            do {
+                _ = try CDGuideFonts(systemFork: MacResourceFork(resources: resources))
+                Issue.record("Accepted invalid System font resources")
+            } catch {
+                #expect(String(describing: error).contains(reason))
+            }
+        }
+        var header = Data(repeating: 0, count: 52); header[3] = 3
+        let family = MacResource(type: "FOND", id: 3, name: nil, attributes: 0,
+                                 data: header + Self.words([0, 9, 0, 123]))
+        reject([family, family], reason: "duplicate guide System font resource")
+        let ambiguous = MacResource(type: "FOND", id: 3, name: nil, attributes: 0,
+                                    data: header + Self.words([1, 9, 0, 123, 9, 0, 124]))
+        reject([ambiguous], reason: "ambiguous guide font association")
+        let font = MacResource(type: "NFNT", id: 123, name: nil, attributes: 0, data: Data())
+        reject([family, font, font], reason: "duplicate guide System font resource")
+        var compressed = Data([0xa8, 0x9f, 0x65, 0x72, 0, 18, 9, 1])
+        compressed.appendU32(0xffffffff); compressed += Self.words([2, 0, 0])
+        reject([family, MacResource(type: "NFNT", id: 123, name: nil, attributes: 1, data: compressed)],
+               reason: "excessive expanded System font")
+        reject([MacResource(type: "FOND", id: 3, name: nil, attributes: 1, data: compressed)],
+               reason: "excessive expanded System font")
+        reject([MacResource(type: "FOND", id: 3, name: nil, attributes: 0,
+                            data: Data(repeating: 0, count: 65537))], reason: "excessive System font resource")
+    }
+
 }

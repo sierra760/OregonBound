@@ -53,6 +53,9 @@ enum BitmapFontExtractor {
         let code: Int?
         let missing: Bool
         let advance: Int?
+        let bearingX: Int?
+        let atlasX: Int
+        let width: Int
     }
 
     /// A decoded strike: the JSON record (minus `family_associations`) and its atlas.
@@ -63,6 +66,7 @@ enum BitmapFontExtractor {
         let firstChar: Int
         let lastChar: Int
         let missingGlyphIndex: Int
+        let ascent: Int
         let glyphs: [Glyph]
         var record: [String: JSONValue]
         /// Grayscale atlas, 255 = ink.
@@ -180,7 +184,9 @@ enum BitmapFontExtractor {
             let word = widths[index]
             let missing = word == 0xffff
             let advance: Int? = missing ? nil : word & 255
-            glyphs.append(Glyph(index: index, code: code, missing: missing, advance: advance))
+            glyphs.append(Glyph(index: index, code: code, missing: missing, advance: advance,
+                bearingX: missing ? nil : (word >> 8) + kernMax,
+                atlasX: locations[index], width: locations[index + 1] - locations[index]))
             var record: [String: JSONValue] = [
                 "index": .int(index),
                 "code": code.map { .int($0) } ?? .null,
@@ -218,7 +224,7 @@ enum BitmapFontExtractor {
             "trailing_bytes_hex": .string(Data(reader.bytes[min(tableEnd, reader.count)...]).hexDigest),
         ]
         return Strike(resourceID: resourceID, sourceSHA256: sha, sourceLength: reader.count, firstChar: first, lastChar: last,
-                      missingGlyphIndex: count, glyphs: glyphs, record: record, atlas: atlas)
+                      missingGlyphIndex: count, ascent: ascent, glyphs: glyphs, record: record, atlas: atlas)
     }
 
     /// Decodes the 52-byte FamRec and its required font association table.

@@ -407,7 +407,13 @@ struct CDGuidePicture {
                 if bands[middle].bottom <= y { lower = middle + 1 } else { upper = middle }
             }
             guard lower < bands.count, bands[lower].top <= y else { return false }
-            return bands[lower].spans.contains { $0.contains(x) }
+            let spans = bands[lower].spans
+            var first = 0, last = spans.count
+            while first < last {
+                let middle = (first + last) / 2
+                if spans[middle].upperBound <= x { first = middle + 1 } else { last = middle }
+            }
+            return first < spans.count && spans[first].contains(x)
         }
     }
 }

@@ -454,3 +454,27 @@ complete page rendering and original-system visual acceptance remain open.
 
 The full native suite passes 755 test summaries with 74 skips, zero failures and
 no runtime warnings; the iPad simulator build passes.
+
+
+### Standalone user guide: raster and font checkpoint
+
+The native rasterizer now composes all 17 pages, three caption sheets and the
+paper background from their drawing instructions. It preserves original bitmap
+font ink, bold overstrike, fixed-point text spacing, oval edges, clipping and
+indexed-image reduction. Unpainted pixels remain transparent for paper placement.
+
+An optional font package follows the supplied System file's family associations
+and verifies seven original font resources before use. The Chicago outline font
+is checked before CoreText receives it; its stored device widths determine text
+advances. No original fonts or manual content are distributed in this repository.
+
+A private independent renderer matches every pixel of all 21 pictures, including
+the original outline glyphs. Export/reload preserves all seven font resources;
+altering any one is rejected. Synthetic tests also cover malformed glyphs,
+ambiguous font associations, oversized compressed resources and cumulative
+rendering work, including masked pixels. The native suite passes 766 test
+summaries with 74 skips and zero failures; the iPad simulator build passes.
+
+Manual source discovery, prepared-data integration and reader controls remain
+in development. Independent raster agreement does not replace the pending
+comparison with the original running reader.
