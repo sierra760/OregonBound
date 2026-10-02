@@ -148,6 +148,7 @@ struct GameDataPreparationTests {
                 resource("STR#", 128, titles), resource("RECT", 10, words([2]) + goTo + caption),
                 resource("RECT", 30, words([1]) + caption), resource("RECT", 20, words([0]))]
             + [10, 30, 20, 90].map { resource("PICT", $0, picture) }
+            + [resource("PICT", 129, CDGuidePictureTests.picture([], frame: [0, 0, 792, 612]))]
     }
 
     @Test func userGuidePreservesPageOrderSectionsAndPaperSpaceLinks() throws {
@@ -165,7 +166,7 @@ struct GameDataPreparationTests {
         #expect(guide.links[10]?.last?.kind == .caption)
         #expect(guide.links[30]?.first?.destination == 90)
         #expect(guide.links[20] == [])
-        #expect(Set(guide.pictures.keys) == Set([10, 30, 20, 90]))
+        #expect(Set(guide.pictures.keys) == Set([10, 30, 20, 90, 129]))
         for resource in resources where resource.type == "PICT" {
             #expect(guide.pictures[resource.id] == resource.data)
         }
@@ -217,7 +218,94 @@ struct GameDataPreparationTests {
         }
         // An orphan empty RECT is present in the supplied reader. It is not document content.
         let orphan = MacResource(type: "RECT", id: 91, name: nil, attributes: 0, data: Data([0, 0]))
-        #expect(try CDUserGuide(fork: MacResourceFork(resources: valid + [orphan])).pictures.count == 4)
+        #expect(try CDUserGuide(fork: MacResourceFork(resources: valid + [orphan])).pictures.count == 5)
+    }
+
+    @Test func preparedGuideIncludesPaperAndOnlyReferencedResources() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let resources = Self.userGuideResources() + [
+            MacResource(type: "CODE", id: 0, name: nil, attributes: 0, data: Data([1, 2, 3])),
+            MacResource(type: "PICT", id: 1500, name: nil, attributes: 0, data: Data([0]))]
+        let fork = MacResourceFork(resources: resources)
+        let guide = try CDUserGuide.extract(from: fork, into: ExtractionOutput(root: root))
+        #expect(guide.pictures.count == 5 && guide.pictures[129] != nil)
+        let source = MacForkSource(displayName: "manual", origin: "synthetic", fileType: nil, creator: nil,
+                                   dataFork: Data(), resourceFork: Data([1]))
+        let catalog = try GameResourceCatalog(selection: .init(edition: .macintoshCD12,
+            sources: [.cdUserGuide: .init(source: source, fork: fork)], unrecognized: []))
+        let loaded = try CDUserGuide.load(root: root, catalog: catalog)
+        #expect(loaded.pageIDs == guide.pageIDs && loaded.pictures == guide.pictures)
+        #expect(loaded.links == guide.links && loaded.sections == guide.sections)
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("user-guide/resources/CODE_0.bin").path))
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("user-guide/resources/PICT_1500.bin").path))
+        #expect(throws: (any Error).self) {
+            try CDUserGuide.extract(from: MacResourceFork(resources: Self.userGuideResources().filter { !($0.type == "PICT" && $0.id == 129) }), into: ExtractionOutput(root: root))
+        }
+    }
+
+    @Test(arguments: ["changed", "truncated", "missing", "symlink", "missing-index-entry", "duplicate-index-entry",
+                      "unreferenced", "invalid-type", "invalid-id", "excessive-index", "catalog-hash", "catalog-role", "catalog-length"])
+    func preparedGuideRejectsTamperingAndEscapingResources(kind: String) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        let outside = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root); try? FileManager.default.removeItem(at: outside) }
+        let extra = MacResource(type: "PICT", id: 99, name: nil, attributes: 0,
+                                data: CDGuidePictureTests.picture([], frame: [0, 0, 2, 2]))
+        let fork = MacResourceFork(resources: Self.userGuideResources() + [extra])
+        let source = MacForkSource(displayName: "manual", origin: "synthetic", fileType: nil, creator: nil,
+                                   dataFork: Data(), resourceFork: Data([1]))
+        var catalog = try GameResourceCatalog(selection: .init(edition: .macintoshCD12,
+            sources: [.cdUserGuide: .init(source: source, fork: fork)], unrecognized: []))
+        _ = try CDUserGuide.extract(from: fork, into: ExtractionOutput(root: root))
+        let pictureURL = root.appendingPathComponent("user-guide/resources/PICT_10.bin")
+        let indexURL = root.appendingPathComponent("user-guide/document.json")
+        var index = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: indexURL)) as? [[String: Any]])
+        switch kind {
+        case "changed":
+            var bytes = try Data(contentsOf: pictureURL); bytes[3] ^= 1; try bytes.write(to: pictureURL)
+        case "truncated": try Data([0]).write(to: pictureURL)
+        case "missing": try FileManager.default.removeItem(at: pictureURL)
+        case "symlink":
+            try FileManager.default.copyItem(at: pictureURL, to: outside)
+            try FileManager.default.removeItem(at: pictureURL)
+            try FileManager.default.createSymbolicLink(at: pictureURL, withDestinationURL: outside)
+        case "missing-index-entry": index.removeFirst()
+        case "duplicate-index-entry": index.append(index[0])
+        case "unreferenced":
+            index.append(["type": "PICT", "id": 99])
+            try extra.data.write(to: root.appendingPathComponent("user-guide/resources/PICT_99.bin"))
+        case "invalid-type": index[0]["type"] = "../PICT"
+        case "invalid-id": index[0]["id"] = -1
+        case "excessive-index": try Data(repeating: 32, count: 4 * 1024 * 1024 + 1).write(to: indexURL)
+        default:
+            var object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(catalog)) as? [String: Any])
+            var entries = try #require(object["entries"] as? [[String: Any]])
+            let i = try #require(entries.firstIndex { $0["type"] as? String == "PICT" && $0["id"] as? Int == 10 })
+            if kind == "catalog-hash" { entries[i]["sha256"] = String(repeating: "0", count: 64) }
+            if kind == "catalog-role" { entries[i]["role"] = "cdApplication" }
+            if kind == "catalog-length" { entries[i]["length"] = Int.max }
+            object["entries"] = entries
+            catalog = try JSONDecoder().decode(GameResourceCatalog.self, from: JSONSerialization.data(withJSONObject: object))
+        }
+        if kind != "excessive-index" { try JSONSerialization.data(withJSONObject: index).write(to: indexURL) }
+        #expect(throws: (any Error).self) { try CDUserGuide.load(root: root, catalog: catalog) }
+    }
+
+    @Test func guidePreparationRejectsUnsupportedPicturesAndWrongPaperBounds() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        for (id, bytes) in [(10, CDGuidePictureTests.picture([(0x1234, Data())])),
+                            (129, CDGuidePictureTests.picture([], frame: [0, 0, 792, 611]))] {
+            let resources = Self.userGuideResources().map { resource in
+                resource.type == "PICT" && resource.id == id
+                    ? MacResource(type: "PICT", id: id, name: nil, attributes: 0, data: bytes) : resource
+            }
+            #expect(throws: (any Error).self) {
+                try CDUserGuide.extract(from: MacResourceFork(resources: resources), into: ExtractionOutput(root: root))
+            }
+        }
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("user-guide/document.json").path))
     }
 
 }

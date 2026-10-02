@@ -77,4 +77,15 @@ struct CDGuideFonts {
             try output.write(bytes, to: selection.relativePath)
         }
     }
+    static func load(root: URL) throws -> Self {
+        var resources: [Key: Data] = [:]
+        for selection in selections {
+            let url = try PreparedResourceFile.url(root: root, path: selection.relativePath)
+            guard let length = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+                  length > 0, length <= 65536 else { throw CDGuidePicture.Failure.invalid("prepared guide font length") }
+            resources[selection.key] = try Data(contentsOf: url)
+        }
+        return try Self(resources: resources)
+    }
+
 }

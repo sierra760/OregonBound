@@ -24,7 +24,7 @@ enum GameDataSourceRole: String, Codable, CaseIterable {
     case classicApplication, classicGraphics, cdApplication
     case graphics1, graphics2, graphics3, graphics4
     case guide1, guide2, guide3, sound1, sound2, sound3, sound4, sound5
-    case system
+    case system, cdUserGuide
 
     var title: String {
         switch self {
@@ -44,6 +44,7 @@ enum GameDataSourceRole: String, Codable, CaseIterable {
         case .sound4: return "Oregon Sound 4"
         case .sound5: return "Oregon Sound 5"
         case .system: return "System"
+        case .cdUserGuide: return "On-line User’s Guide"
         }
     }
 
@@ -182,6 +183,10 @@ enum GameDataSourceCatalog {
         if ima4IDs == Set(20200...20262) { roles.append(.graphics4) }
         let soundIDs = Set(fork.resources(ofType: "snd ").map(\.id))
         for (role, expected) in soundGroups where soundIDs == expected { roles.append(role) }
+        if fork["Hypp", 0] != nil && fork["PMAP", 128] != nil && fork["SCNM", 128] != nil
+            && fork["STR#", 128] != nil && fork["PICT", 4000] != nil && version(1, 0x10) {
+            roles.append(.cdUserGuide)
+        }
         if fork["CDEF", 1] != nil && fork["FOND", 0] != nil && fork["FOND", 3] != nil && fork["ICON", 0] != nil {
             roles.append(.system)
         }

@@ -158,7 +158,9 @@ enum GameSourceFingerprint {
     /// Origins, timestamps and runtime session UUIDs deliberately do not contribute.
     static func make(edition: GameEdition, sources: [GameResourceCatalog.Source]) -> String {
         // Role names and hex digests cannot contain the field/record delimiters.
-        let fields = sources.sorted { $0.role.rawValue < $1.role.rawValue }
+        // Adding the optional standalone manual does not change journey data.
+        // Keep existing fingerprints byte-for-byte compatible without a manual.
+        let fields = sources.filter { $0.role != .cdUserGuide }.sorted { $0.role.rawValue < $1.role.rawValue }
             .map { "\($0.role.rawValue):\($0.sha256)" }.joined(separator: "\n")
         return GameDataSourceCatalog.Candidate.digest(Data("OregonBoundSources1\n\(edition.rawValue)\n\(fields)".utf8))
     }

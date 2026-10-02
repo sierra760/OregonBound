@@ -50,6 +50,10 @@ struct GameResourceLookup {
             guard Set(candidates.map(\.role)).count == candidates.count else {
                 throw Failure.ambiguous(identity.type, identity.id, candidates.map(\.role))
             }
+            // The separate reader has its own resource namespace. Validate its
+            // duplicate identities above, but never expose them to the game.
+            let candidates = candidates.filter { $0.role != .cdUserGuide }
+            guard !candidates.isEmpty else { continue }
             let companions = candidates.filter { $0.role != application && $0.role != .system }
             guard companions.count <= 1 else {
                 throw Failure.ambiguous(identity.type, identity.id, companions.map(\.role))

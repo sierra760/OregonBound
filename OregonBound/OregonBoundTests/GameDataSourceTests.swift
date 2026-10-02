@@ -128,4 +128,37 @@ struct GameDataSourceTests {
         }
     }
 
+    private func manual() -> GameDataSourceCatalog.Candidate {
+        source([resource("Hypp", 0), resource("PMAP", 128), resource("SCNM", 128),
+                resource("STR#", 128), resource("PICT", 4000), resource("vers", 1, [1, 0x10])],
+               name: "renamed manual", tag: "manual")
+    }
+
+    @Test func cdManualIsOptionalRecognizedByContentsAndSourceQualified() throws {
+        let guide = manual(), game = cdCompanions() + [application(cd: true)]
+        let without = try GameDataSourceCatalog.select(game)
+        let with = try GameDataSourceCatalog.select(game + [guide, guide])
+        #expect(without.sources[.cdUserGuide] == nil && without.sources.count == 13)
+        #expect(with.sources[.cdUserGuide]?.source.displayName == "renamed manual")
+        #expect(with.sources.count == 14 && with.unrecognized.isEmpty)
+        let catalog = try GameResourceCatalog(selection: with)
+        #expect(catalog.entries.contains { $0.role == .cdUserGuide && $0.type == "PICT" && $0.id == 4000 })
+        #expect(GameSourceFingerprint.make(edition: with.edition, sources: catalog.sources) ==
+                GameSourceFingerprint.make(edition: without.edition, sources: try GameResourceCatalog(selection: without).sources))
+        for missing in guide.fork.resources {
+            #expect(GameDataSourceCatalog.identify(MacResourceFork(resources: guide.fork.resources.filter { $0 != missing })).isEmpty)
+        }
+        let wrongVersion = guide.fork.resources.filter { $0.type != "vers" } + [resource("vers", 1, [1, 0x20])]
+        #expect(GameDataSourceCatalog.identify(MacResourceFork(resources: wrongVersion)).isEmpty)
+        #expect(throws: (any Error).self) {
+            try GameDataSourceCatalog.select(game + [guide, source(guide.fork.resources, tag: "other-manual")])
+        }
+        #expect(throws: (any Error).self) {
+            try GameDataSourceCatalog.select(game + [source(guide.fork.resources + [resource("PMAP", 128)], tag: "duplicate-manual")])
+        }
+        #expect(throws: (any Error).self) {
+            try GameDataSourceCatalog.select([application(cd: false), classicGraphics(), guide])
+        }
+    }
+
 }

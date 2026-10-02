@@ -191,6 +191,7 @@ enum GameSourceRequirements {
             return [
                 "snd ": ids(4000 ... 4015, 4020 ... 4020, 9001 ... 9008, 10000 ... 10003),
             ]
+        case .cdUserGuide: return [:] // Optional document content is validated by CDUserGuide.
         case .system: return [:] // Optional System files vary; their dedicated extractors validate required resources.
         }
     }

@@ -3,6 +3,44 @@ import Testing
 @testable import OregonBound
 
 struct PreparedGameSessionTests {
+    @Test func optionalManualLoadsWithoutChangingJourneyIdentityOrOlderCompatibility() throws {
+        let old = try PreparedSessionFixture.make(schemaVersion: 9)
+        let current = try PreparedSessionFixture.make(schemaVersion: 10)
+        let manual = try PreparedSessionFixture.make(schemaVersion: 10, includesUserGuide: true)
+        defer { for root in [old, current, manual] { try? FileManager.default.removeItem(at: root) } }
+        let oldSession = try PreparedGameSession(root: old), currentSession = try PreparedGameSession(root: current)
+        let manualSession = try PreparedGameSession(root: manual)
+        #expect(oldSession.userGuide == nil && currentSession.userGuide == nil)
+        #expect(oldSession.userGuideUnavailableReason?.contains("Re-import") == true)
+        #expect(currentSession.userGuideUnavailableReason?.contains("On-line User") == true)
+        #expect(manualSession.userGuide?.pageIDs == [10, 30, 20])
+        #expect(manualSession.userGuideUnavailableReason == nil && manualSession.userGuideFonts == nil)
+        #expect(oldSession.sourceFingerprint == currentSession.sourceFingerprint)
+        #expect(oldSession.sourceFingerprint == manualSession.sourceFingerprint)
+        for schema in [6, 7, 8, 9, 10] {
+            let classic = try PreparedSessionFixture.make(edition: .macintosh11, schemaVersion: schema)
+            defer { try? FileManager.default.removeItem(at: classic) }
+            let session = try PreparedGameSession(root: classic)
+            #expect(session.userGuide == nil && session.userGuideUnavailableReason == nil)
+        }
+    }
+
+    @Test(arguments: ["old-schema", "missing-flag", "fonts-without-system", "missing-document"])
+    func optionalManualRejectsInconsistentDeclarations(kind: String) throws {
+        let root = try PreparedSessionFixture.make(schemaVersion: 10, includesUserGuide: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let path = root.appendingPathComponent("prepared_import.json")
+        var object = try #require(JSONSerialization.jsonObject(with: Data(contentsOf: path)) as? [String: Any])
+        switch kind {
+        case "old-schema": object["schemaVersion"] = 9
+        case "missing-flag": object.removeValue(forKey: "userGuideHasOriginalFonts")
+        case "fonts-without-system": object["userGuideHasOriginalFonts"] = true
+        default: try FileManager.default.removeItem(at: root.appendingPathComponent("user-guide/document.json"))
+        }
+        try JSONSerialization.data(withJSONObject: object).write(to: path)
+        #expect(throws: (any Error).self) { try PreparedGameSession(root: root) }
+    }
+
     @Test func monochromeUsesExplicitPairsTypedIconsAndNewPreparation() throws {
         let root = try PreparedSessionFixture.make(schemaVersion: 9, icons: true)
         defer { try? FileManager.default.removeItem(at: root) }

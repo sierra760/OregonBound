@@ -3,7 +3,7 @@ import Foundation
 
 enum PreparedSessionFixture {
     static func make(at destination: URL? = nil, edition: GameEdition = .macintoshCD12,
-                     schemaVersion: Int = 9, icons: Bool = false) throws -> URL {
+                     schemaVersion: Int = 9, icons: Bool = false, includesUserGuide: Bool = false) throws -> URL {
         let root = destination ?? FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         let output = ExtractionOutput(root: root)
         let app: GameDataSourceRole = edition == .macintosh11 ? .classicApplication : .cdApplication
@@ -30,6 +30,13 @@ enum PreparedSessionFixture {
             let fork = MacResourceFork(resources: records)
             let source = MacForkSource(displayName: role.rawValue, origin: "fixture", fileType: nil, creator: nil, dataFork: Data(), resourceFork: Data(role.rawValue.utf8))
             sources[role] = .init(source: source, fork: fork)
+        }
+        if includesUserGuide {
+            let fork = MacResourceFork(resources: GameDataPreparationTests.userGuideResources())
+            let source = MacForkSource(displayName: "manual", origin: "fixture", fileType: nil, creator: nil,
+                                       dataFork: Data(), resourceFork: Data("manual".utf8))
+            sources[.cdUserGuide] = .init(source: source, fork: fork)
+            _ = try CDUserGuide.extract(from: fork, into: output)
         }
         let catalog = try GameResourceCatalog(selection: .init(edition: edition, sources: sources, unrecognized: []))
         try output.writeJSON(catalog, to: "resource_catalog.json")
@@ -72,7 +79,8 @@ enum PreparedSessionFixture {
         try output.writeJSON(ConfigurationExtractor.Profile(schemaVersion: 1, edition: edition, role: app,
             resourceID: 1000, resourceSHA256: GameDataSourceCatalog.Candidate.digest(configuration),
             defaults: ConfigurationExtractor.parse(configuration)), to: preferencesPath)
-        let manifest = GameDataPreparation.Manifest(schemaVersion: schemaVersion, edition: edition, preparedAt: Date(), catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: paths, rasterPictures: [app.rawValue: rasterPath], soundSources: [], terrainSources: [], pendingResources: [], unrecognizedSources: [])
+        var manifest = GameDataPreparation.Manifest(schemaVersion: schemaVersion, edition: edition, preparedAt: Date(), catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: paths, rasterPictures: [app.rawValue: rasterPath], soundSources: [], terrainSources: [], pendingResources: [], unrecognizedSources: [])
+        manifest.userGuideHasOriginalFonts = includesUserGuide ? false : nil
         try output.writeJSON(manifest, to: "prepared_import.json")
         return root
     }

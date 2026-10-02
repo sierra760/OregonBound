@@ -37,7 +37,7 @@ observation of a 53-pound hunt followed by two rest updates: 985 stored food
 becomes 979 stored plus 29 perishable food, with one bullet used and 1,897 pounds
 of wagon load for the reference inventory.
 
-The optional driver below loads an existing **schema 9 prepared CD directory**
+The optional driver below loads an existing **schema 9 or 10 prepared CD directory**
 (the directory containing `prepared_import.json`), including its actual terrain
 and hunt geometry. It runs both route choices and both endings in all three
 display modes, executes CD hunting, and validates inventory and random-state continuity
@@ -144,7 +144,7 @@ match native, Python, and independent raw-bitmap checks. All 2,362 preexisting
 CD PNGs remain byte-identical after re-preparation.
 
 Schema 8 and later require every cataloged icon to have its prepared frame.
-Current CD imports require schema 9 for credits; classic schema 6–9 imports
+Current CD imports write schema 10; schema 9 remains playable with credits. Classic schema 6–10 imports
 remain usable. Color presentation
 excludes `ICON` entries so they cannot displace a color image with the same ID.
 The setup selector exposes monochrome after these resources and the runtime
@@ -478,3 +478,30 @@ summaries with 74 skips and zero failures; the iPad simulator build passes.
 Manual source discovery, prepared-data integration and reader controls remain
 in development. Independent raster agreement does not replace the pending
 comparison with the original running reader.
+
+
+### Standalone user guide: import checkpoint
+
+New preparations recognize the optional On-line User’s Guide by its reader and
+document resources, even if the file was renamed. The 13 required game files
+remain sufficient for CD play. Reader resources stay in a separate namespace,
+so their overlapping IDs cannot replace game text, pictures or System controls.
+Adding the manual preserves an existing journey's source identity.
+
+Schema 10 stores the referenced navigation tables, 17 pages, three caption
+sheets and paper background. Reload checks each resource's size and hash against
+the source catalog, reparses the pictures, and rejects missing files, extra
+index entries and paths that escape the prepared directory. Supplied System
+fonts are stored separately and verified on reload. The document is also
+retained when no System file is supplied.
+
+Schema 9 CD imports and schema 6–10 classic imports remain supported. An older CD
+import has an explicit manual re-import message; a new import without the manual
+reports which source is missing. The reader interface is still in development.
+
+Private verification imports the supplied disk in three configurations: complete,
+without the manual, and without System fonts. All nine configuration/display-mode
+combinations load successfully. All 2,843 previous prepared files except the
+updated catalog and preparation manifest remain byte-identical; all 21 pictures
+render identically after reload. The native suite passes 773 test summaries with
+74 skips and zero failures, and the iPad simulator target builds.

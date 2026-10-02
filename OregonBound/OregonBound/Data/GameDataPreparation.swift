@@ -24,6 +24,7 @@ enum GameDataPreparation {
         let terrainSources: [GameDataSourceRole]
         let pendingResources: [PendingResource]
         let unrecognizedSources: [String]
+        var userGuideHasOriginalFonts: Bool? = nil
     }
     struct Report {
         let root: URL
@@ -63,6 +64,7 @@ enum GameDataPreparation {
             var soundSources: [GameDataSourceRole] = []
             var terrainSources: [GameDataSourceRole] = []
             var pending: [PendingResource] = []
+            var userGuideHasOriginalFonts: Bool?
             let graphicsRoles: [GameDataSourceRole] = selection.edition == .macintosh11
                 ? [.classicGraphics] : [.graphics1, .graphics2, .graphics3, .graphics4]
             let paletteRole: GameDataSourceRole = selection.edition == .macintosh11 ? .classicGraphics : .graphics2
@@ -145,6 +147,16 @@ enum GameDataPreparation {
             let picturesPath = "sources/\(appRole.rawValue)/raster_pictures.json"
             try output.writeJSON(pictures, to: picturesPath)
             rasterPictures[appRole.rawValue] = picturesPath
+            if selection.edition == .macintoshCD12, let manual = selection.sources[.cdUserGuide] {
+                try step("Preparing On-line User’s Guide…") {
+                    _ = try CDUserGuide.extract(from: manual.fork, into: output)
+                    userGuideHasOriginalFonts = false
+                    if let system = selection.sources[.system] {
+                        try CDGuideFonts(systemFork: system.fork).write(to: output)
+                        userGuideHasOriginalFonts = true
+                    }
+                }
+            }
             if let system = selection.sources[.system] {
                 try step("Decoding optional System resources…") {
                     _ = try BitmapFontExtractor.extractSystemFonts(systemFork: system.fork, into: output, resourceForkSHA256: system.sha256,
@@ -156,9 +168,10 @@ enum GameDataPreparation {
             try output.writeJSON(lookup.index, to: "resource_lookup.json")
             let preferencesPath = "sources/\(appRole.rawValue)/preference_defaults.json"
             try output.writeJSON(preferences, to: preferencesPath)
-            let manifest = Manifest(schemaVersion: 9, edition: selection.edition, preparedAt: Date(),
+            var manifest = Manifest(schemaVersion: 10, edition: selection.edition, preparedAt: Date(),
                                     catalogPath: "resource_catalog.json", lookupPath: "resource_lookup.json", preferencesPath: preferencesPath, graphics: graphics, rasterPictures: rasterPictures, soundSources: soundSources, terrainSources: terrainSources,
                                     pendingResources: pending, unrecognizedSources: selection.unrecognized.map { $0.source.origin })
+            manifest.userGuideHasOriginalFonts = userGuideHasOriginalFonts
             try output.writeJSON(manifest, to: "prepared_import.json")
             return Report(root: destination, manifest: manifest)
         }

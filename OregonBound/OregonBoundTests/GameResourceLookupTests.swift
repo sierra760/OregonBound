@@ -53,4 +53,25 @@ struct GameResourceLookupTests {
             try lookup.cdImage(monochromeID: 7, colorID: 93, imageDepth: .color256, displayDepth: .color256)
         }
     }
+    @Test func standaloneManualNeverOverridesGameOrSystemResources() throws {
+        let entries = [entry(.cdApplication, "STR#", 1000), entry(.graphics2, "PICT", 129),
+                       entry(.system, "cicn", 0), entry(.cdUserGuide, "STR#", 1000),
+                       entry(.cdUserGuide, "PICT", 129), entry(.cdUserGuide, "cicn", 0),
+                       entry(.cdUserGuide, "PMAP", 128)]
+        for input in [entries, Array(entries.reversed())] {
+            let lookup = try GameResourceLookup(edition: .macintoshCD12, entries: input)
+            #expect(lookup.index.entries.count == 3)
+            #expect(lookup.resource(type: "STR#", id: 1000)?.role == .cdApplication)
+            #expect(lookup.resource(type: "PICT", id: 129)?.role == .graphics2)
+            #expect(lookup.resource(type: "cicn", id: 0)?.role == .system)
+            #expect(lookup.resource(type: "PMAP", id: 128) == nil)
+        }
+        #expect(throws: (any Error).self) {
+            try GameResourceLookup(edition: .macintoshCD12, entries: [entry(.cdUserGuide), entry(.cdUserGuide)])
+        }
+        #expect(throws: (any Error).self) {
+            try GameResourceLookup(edition: .macintosh11, entries: [entry(.cdUserGuide)])
+        }
+    }
+
 }

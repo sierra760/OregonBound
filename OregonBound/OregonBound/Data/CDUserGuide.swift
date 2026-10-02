@@ -98,7 +98,7 @@ struct CDUserGuide {
         }
 
         let pageSet = Set(pages)
-        var neededPictures = pageSet, links: [Int: [Link]] = [:]
+        var neededPictures = pageSet.union([129]), links: [Int: [Link]] = [:]
         for page in pages {
             let reader = try BinaryReader(resource("RECT", page, maximum: 2 + 4096 * 24))
             let count = Int(try reader.u16(0))
@@ -138,9 +138,90 @@ struct CDUserGuide {
             _ = try rectangle(BinaryReader(Data(data.prefix(10))), 2)
             pictures[id] = data
         }
+        guard let paper = pictures[129],
+              try rectangle(BinaryReader(Data(paper.prefix(10))), 2) == Rect(top: 0, left: 0, bottom: 792, right: 612) else {
+            throw Failure.invalid("paper background bounds")
+        }
         self.pageIDs = pages
         self.sections = sections
         self.pictures = pictures
         self.links = links
     }
+    private struct StoredResource: Codable, Hashable {
+        let type: String
+        let id: Int
+        var path: String { "user-guide/resources/\(type)_\(id).bin" }
+        var maximumLength: Int? {
+            switch (type, id) {
+            case ("PMAP", 128): return 2 + 256 * 4
+            case ("SCNM", 128): return 2 + 256 * 6
+            case ("STR#", 128): return 2 + 256 * 256
+            case ("RECT", 1...32767): return 2 + 4096 * 24
+            case ("PICT", 1...32767): return 4 * 1024 * 1024
+            default: return nil
+            }
+        }
+    }
+    private var storedResources: [StoredResource] {
+        ([StoredResource(type: "PMAP", id: 128), .init(type: "SCNM", id: 128), .init(type: "STR#", id: 128)]
+         + pageIDs.map { StoredResource(type: "RECT", id: $0) }
+         + pictures.keys.map { StoredResource(type: "PICT", id: $0) }).sorted { ($0.type, $0.id) < ($1.type, $1.id) }
+    }
+
+    static func extract(from fork: MacResourceFork, into output: ExtractionOutput) throws -> Self {
+        let guide = try Self(fork: fork)
+        // Parse one picture at a time; do not retain expanded copies of every page.
+        for bytes in guide.pictures.values { _ = try CDGuidePicture(data: bytes) }
+        for resource in guide.storedResources {
+            guard let bytes = fork[resource.type, resource.id]?.data else { throw Failure.invalid("missing prepared resource") }
+            try output.write(bytes, to: resource.path)
+        }
+        try output.writeJSON(guide.storedResources, to: "user-guide/document.json")
+        return guide
+    }
+
+    static func load(root: URL, catalog: GameResourceCatalog) throws -> Self {
+        guard catalog.edition == .macintoshCD12,
+              catalog.sources.filter({ $0.role == .cdUserGuide }).count == 1 else {
+            throw Failure.invalid("document source")
+        }
+        let indexURL = try PreparedResourceFile.url(root: root, path: "user-guide/document.json")
+        guard let size = try indexURL.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              size <= 4 * 1024 * 1024 else { throw Failure.invalid("document index length") }
+        let indexBytes = try Data(contentsOf: indexURL)
+        guard indexBytes.count <= 4 * 1024 * 1024 else { throw Failure.invalid("document index length") }
+        let index = try JSONDecoder().decode([StoredResource].self, from: indexBytes)
+        guard index.count <= 33026, Set(index).count == index.count else {
+            throw Failure.invalid("duplicate or excessive document index")
+        }
+        let catalogEntries = Dictionary(grouping: catalog.entries.filter { $0.role == .cdUserGuide }) {
+            StoredResource(type: $0.type, id: $0.id)
+        }
+        var resources: [MacResource] = [], total = 0
+        for reference in index {
+            guard let maximum = reference.maximumLength,
+                  let matches = catalogEntries[reference], matches.count == 1, let entry = matches.first,
+                  entry.disposition == .resource, entry.attributes & 1 == 0,
+                  entry.length > 0, entry.length <= maximum else {
+                throw Failure.invalid("invalid document source resource")
+            }
+            total += entry.length
+            guard total <= 96 * 1024 * 1024 else { throw Failure.invalid("excessive prepared document") }
+            let url = try PreparedResourceFile.url(root: root, path: reference.path)
+            guard try url.resourceValues(forKeys: [.fileSizeKey]).fileSize == entry.length else {
+                throw Failure.invalid("prepared document resource length")
+            }
+            let bytes = try Data(contentsOf: url)
+            guard bytes.count == entry.length, SHA256Hex.digest(bytes) == entry.sha256 else {
+                throw Failure.invalid("prepared document source fingerprint")
+            }
+            resources.append(MacResource(type: reference.type, id: reference.id, name: entry.name,
+                                         attributes: entry.attributes, data: bytes))
+        }
+        let guide = try Self(fork: MacResourceFork(resources: resources))
+        guard Set(index) == Set(guide.storedResources) else { throw Failure.invalid("unreferenced prepared document resource") }
+        for bytes in guide.pictures.values { _ = try CDGuidePicture(data: bytes) }
+        return guide
+    }
+
 }

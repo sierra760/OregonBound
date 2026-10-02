@@ -46,6 +46,15 @@ struct PreparedGameSession {
     let sounds: PreparedSoundLibrary
     let terrain: PreparedTerrainLibrary
     let aboutCredits: CDAboutCredits?
+    let userGuide: CDUserGuide?
+    let userGuideFonts: CDGuideFonts?
+    var userGuideUnavailableReason: String? {
+        guard edition == .macintoshCD12, userGuide == nil else { return nil }
+        if manifest.schemaVersion < 10 {
+            return "Re-import the original CD files, including On-line User’s Guide, to read the manual."
+        }
+        return "Import On-line User’s Guide with the original CD files to read the manual."
+    }
     let preferenceDefaults: ConfigurationExtractor.Defaults
     var edition: GameEdition { manifest.edition }
     var sourceFingerprint: String { GameSourceFingerprint.make(edition: edition, sources: catalog.sources) }
@@ -83,7 +92,7 @@ struct PreparedGameSession {
         let decoder = JSONDecoder()
         let manifest = try decoder.decode(GameDataPreparation.Manifest.self,
             from: Data(contentsOf: PreparedResourceFile.url(root: root, path: "prepared_import.json")))
-        guard (manifest.edition == .macintoshCD12 ? manifest.schemaVersion == 9 : [6, 7, 8, 9].contains(manifest.schemaVersion)), manifest.catalogPath == "resource_catalog.json",
+        guard (manifest.edition == .macintoshCD12 ? [9, 10].contains(manifest.schemaVersion) : [6, 7, 8, 9, 10].contains(manifest.schemaVersion)), manifest.catalogPath == "resource_catalog.json",
               manifest.lookupPath == "resource_lookup.json" else { throw Failure.invalid("unsupported manifest schema or paths") }
         guard colorMode == .color256 || manifest.edition == .macintoshCD12 else {
             throw Failure.invalid("alternate color mode requires Macintosh CD 1.2")
@@ -94,8 +103,10 @@ struct PreparedGameSession {
         let catalog = try read(GameResourceCatalog.self, manifest.catalogPath)
         let roles = Set(catalog.sources.map(\.role))
         let required = Set(manifest.edition.requiredRoles)
+        let optional: Set<GameDataSourceRole> = manifest.edition == .macintoshCD12 && manifest.schemaVersion >= 10
+            ? [.system, .cdUserGuide] : [.system]
         guard catalog.edition == manifest.edition, roles.count == catalog.sources.count,
-              required.isSubset(of: roles), roles.subtracting(required).isSubset(of: [.system]),
+              required.isSubset(of: roles), roles.subtracting(required).isSubset(of: optional),
               catalog.entries.allSatisfy({ roles.contains($0.role) }) else { throw Failure.invalid("edition/source mismatch") }
         let lookup = try GameResourceLookup(catalog: catalog)
         let storedIndex = try read(GameResourceLookup.Index.self, manifest.lookupPath)
@@ -114,6 +125,16 @@ struct PreparedGameSession {
             throw Failure.invalid("preference defaults source")
         }
         aboutCredits = manifest.edition == .macintoshCD12 ? try CDAboutCredits.load(root: root, catalog: catalog) : nil
+        if roles.contains(.cdUserGuide) {
+            guard manifest.userGuideHasOriginalFonts == roles.contains(.system) else {
+                throw Failure.invalid("user guide font availability")
+            }
+            userGuide = try CDUserGuide.load(root: root, catalog: catalog)
+            userGuideFonts = manifest.userGuideHasOriginalFonts == true ? try CDGuideFonts.load(root: root) : nil
+        } else {
+            guard manifest.userGuideHasOriginalFonts == nil else { throw Failure.invalid("unexpected user guide declaration") }
+            userGuide = nil; userGuideFonts = nil
+        }
         preferenceDefaults = preferences.defaults
         let graphicsRoles: Set<GameDataSourceRole> = manifest.edition == .macintosh11
             ? [.classicApplication, .classicGraphics] : [.cdApplication, .graphics1, .graphics2, .graphics3, .graphics4]
