@@ -24,6 +24,20 @@ struct OriginalIntroductionPane: View {
 /// Management item1 calls the ordinary modal dialog helper with DLOG/DITL2040.
 struct OriginalAboutManagementPane: View {
     let done: () -> Void
+    private struct Dialog: Decodable {
+        struct Item: Decodable { let type: String; let data: String }
+        let items: [Item]
+    }
+    private var guideInstructions: String {
+        // DITL2040 item6 points to the CD's online guide in that edition.
+        if let url = GameData.url(forResource: "ditl_2040", withExtension: "json", subdirectory: "dialogs"),
+           let data = try? Data(contentsOf: url),
+           let dialog = try? JSONDecoder().decode(Dialog.self, from: data),
+           dialog.items.indices.contains(5), dialog.items[5].type == "staticText" {
+            return dialog.items[5].data
+        }
+        return "See the Oregon Trail User’s Guide for instructions on gaining access to the Management Options."
+    }
     var body: some View {
         ZStack(alignment: .topLeading) {
             Color.white
@@ -34,7 +48,7 @@ struct OriginalAboutManagementPane: View {
                 .frame(width: 462, height: 37, alignment: .topLeading).offset(x: 16, y: 109)
             OriginalText(text: "To prevent users from unauthorized modification of the simulation, you have to use a password in order to gain access to the Management Options.", font: .chicago12, width: 462)
                 .frame(width: 462, height: 48, alignment: .topLeading).offset(x: 16, y: 153)
-            OriginalText(text: "See the Oregon Trail User’s Guide for instructions on gaining access to the Management Options.", font: .chicago12, width: 462)
+            OriginalText(text: guideInstructions, font: .chicago12, width: 462)
                 .frame(width: 462, height: 32, alignment: .topLeading).offset(x: 16, y: 213)
             OriginalManagementButton(title: "OK", isDefault: true, action: done)
                 .offset(x: 214, y: 268).keyboardShortcut(.defaultAction)

@@ -687,3 +687,22 @@ stored survivor count. The native model retains the member's deceased state.
 Those cases remain diagnostic evidence and are excluded from raw-state parity
 counts. Journal prose, original message transport, and foreground audiovisual
 acceptance are outside these comparisons.
+
+### Settings, registration, and score submission
+
+About Management now reads its guide-reference paragraph from the imported
+edition's dialog. This restores the CD's online-guide wording while preserving
+the classic paragraph and existing layout. Four native paragraph comparisons
+(classic and all three CD display modes) match their imported text; before the
+change, the three CD comparisons differed. The macOS suite passes 793 test
+summaries with 74 skips and no failures; the iPad build passes.
+
+The CD's initial single-wagon Legends table and 13 management-dialog/string
+resources match the earlier edition. Its distinct password and hint are already
+read from the supplied configuration. Original-instruction comparisons pass for
+18 timing combinations, 3,125 registration cases, and 418 ranking cases.
+Another 54 imported-data controller flows verify preference persistence, timing
+captured by new journeys, and edition isolation. Sixty ending flows verify score
+qualification, separate food-pool rounding, blank-name handling, persistence,
+and stale-action rejection across the three display modes. These checks leave
+foreground interaction and original audiovisual comparison as separate gates.
