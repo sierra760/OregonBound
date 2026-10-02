@@ -412,3 +412,18 @@ all three display modes with zero pixel differences. The prior 144 audio branch
 and 60 dialog-cycle checks still pass with exact PCM/rates and unchanged RNG.
 Foreground original-game comparison and interactive device acceptance remain
 part of the broader CD delivery gates.
+
+
+### Standalone user guide: document model checkpoint
+
+The Foundation model now reads the separate MECC Reader document's ordered
+page map, section labels and numbering, go-to regions, and hidden-caption
+regions. It validates complete bounded tables and referenced pictures while
+preserving the original paper coordinates and raw picture payloads. No original
+manual text or artwork is included in the repository.
+
+Synthetic malformed-resource tests pass. A private comparison of the supplied
+reader matches all 17 pages, 9 sections, 104 links and 20 referenced pictures.
+The full native suite passes 985 parameterized cases. Picture rendering,
+preparation and the reader interface are still in development; this checkpoint
+does not yet make the manual available in the app.

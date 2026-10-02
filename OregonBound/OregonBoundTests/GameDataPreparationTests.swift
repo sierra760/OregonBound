@@ -129,4 +129,95 @@ struct GameDataPreparationTests {
         }
     }
 
+    static func userGuideResources() -> [MacResource] {
+        func words(_ values: [UInt16]) -> Data {
+            var data = Data(); for value in values { data.appendU16(value) }; return data
+        }
+        func resource(_ type: String, _ id: Int, _ data: Data) -> MacResource {
+            .init(type: type, id: id, name: nil, attributes: 0, data: data)
+        }
+        // Page-map order is independent of resource ID order. Counts here are zero-based.
+        let pageMap = words([2, 0, 10, 0, 30, 0, 20])
+        let sections = words([1, 1, 1, 1, 2, 3, 0xff80])
+        let titles = Data([0, 2, 1, 0x8e, 5]) + Data("Trail".utf8)
+        let picture = words([16, 0xffff, 0xffff, 40, 60, 0x11, 0x2ff, 0xff])
+        // Link bounds live on the paper, intentionally outside the picture's local frame.
+        let goTo = words([10, 400, 25, 500, 2, 0x017f, 0, 30, 100, 0, 150, 600])
+        let caption = words([30, 90, 50, 120, 3, 0, 0, 90, 10, 0, 30, 200])
+        return [resource("PMAP", 128, pageMap), resource("SCNM", 128, sections),
+                resource("STR#", 128, titles), resource("RECT", 10, words([2]) + goTo + caption),
+                resource("RECT", 30, words([1]) + caption), resource("RECT", 20, words([0]))]
+            + [10, 30, 20, 90].map { resource("PICT", $0, picture) }
+    }
+
+    @Test func userGuidePreservesPageOrderSectionsAndPaperSpaceLinks() throws {
+        let resources = Self.userGuideResources()
+        let guide = try CDUserGuide(fork: MacResourceFork(resources: resources))
+        #expect(guide.pageIDs == [10, 30, 20])
+        #expect(guide.sections.map(\.title) == ["é", "Trail"])
+        #expect(guide.sections.map(\.firstPage) == [1, 2])
+        #expect(guide.sections.map(\.lastPage) == [1, 3])
+        #expect(guide.sections.map(\.numbering) == [1, -128])
+        let link = try #require(guide.links[10]?.first)
+        #expect(link.bounds == .init(top: 10, left: 400, bottom: 25, right: 500))
+        #expect(link.kind == .goTo && link.openCheck && link.destination == 30)
+        #expect(link.destinationRect == .init(top: 100, left: 0, bottom: 150, right: 600))
+        #expect(guide.links[10]?.last?.kind == .caption)
+        #expect(guide.links[30]?.first?.destination == 90)
+        #expect(guide.links[20] == [])
+        #expect(Set(guide.pictures.keys) == Set([10, 30, 20, 90]))
+        for resource in resources where resource.type == "PICT" {
+            #expect(guide.pictures[resource.id] == resource.data)
+        }
+    }
+
+    @Test func userGuideRejectsIncompleteTablesAndDanglingDestinations() throws {
+        let valid = Self.userGuideResources()
+        func replacing(_ original: MacResource, with bytes: Data) -> MacResourceFork {
+            MacResourceFork(resources: valid.map {
+                $0.type == original.type && $0.id == original.id
+                    ? .init(type: $0.type, id: $0.id, name: nil, attributes: 0, data: bytes) : $0
+            })
+        }
+        for original in valid where original.type != "PICT" {
+            for length in 0..<original.data.count {
+                #expect(throws: (any Error).self) {
+                    try CDUserGuide(fork: replacing(original, with: original.data.prefix(length)))
+                }
+            }
+            #expect(throws: (any Error).self) {
+                try CDUserGuide(fork: replacing(original, with: original.data + Data([0])))
+            }
+        }
+        for original in valid {
+            #expect(throws: (any Error).self) {
+                try CDUserGuide(fork: MacResourceFork(resources: valid.filter { $0 != original }))
+            }
+        }
+        let changes: [(String, Int, Int, UInt16)] = [
+            ("PMAP", 128, 0, 256), ("PMAP", 128, 8, 10), ("PMAP", 128, 4, 0xffff),
+            ("SCNM", 128, 2, 0), ("SCNM", 128, 8, 1), ("SCNM", 128, 10, 4),
+            ("SCNM", 128, 10, 2), ("SCNM", 128, 6, 99), ("STR#", 128, 0, 1),
+            ("RECT", 10, 0, 4097), ("RECT", 10, 2, 25), ("RECT", 10, 10, 4),
+            ("RECT", 10, 12, 0x0200), ("RECT", 10, 16, 90), ("RECT", 10, 40, 91),
+            ("RECT", 10, 18, 150), ("PICT", 90, 10, 0x1111), ("PICT", 90, 8, 0xffff)
+        ]
+        for (type, id, offset, value) in changes {
+            let original = try #require(valid.first { $0.type == type && $0.id == id })
+            var bytes = original.data
+            bytes[offset] = UInt8(value >> 8); bytes[offset + 1] = UInt8(value & 255)
+            #expect(throws: (any Error).self) { try CDUserGuide(fork: replacing(original, with: bytes)) }
+        }
+        #expect(throws: (any Error).self) {
+            try CDUserGuide(fork: MacResourceFork(resources: valid + [valid[0]]))
+        }
+        let picture = try #require(valid.first { $0.type == "PICT" })
+        #expect(throws: (any Error).self) {
+            try CDUserGuide(fork: replacing(picture, with: Data(repeating: 0, count: 4 * 1024 * 1024 + 1)))
+        }
+        // An orphan empty RECT is present in the supplied reader. It is not document content.
+        let orphan = MacResource(type: "RECT", id: 91, name: nil, attributes: 0, data: Data([0, 0]))
+        #expect(try CDUserGuide(fork: MacResourceFork(resources: valid + [orphan])).pictures.count == 4)
+    }
+
 }
