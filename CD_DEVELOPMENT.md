@@ -579,3 +579,20 @@ and 9008 after checking the direct calls, dynamic ID domains, and audio queue
 forwarding. These six recordings remain imported and validated. Their presence
 does not imply an additional event or menu command in this edition. Original
 speaker playback and interactive platform comparisons remain acceptance work.
+
+### Regional store artwork
+
+Deluxe later-game stores now select the six authored backgrounds by location:
+Matt’s uses the base image; Kearney, Laramie, Bridger/Hall, Boise, and Walla Walla
+use their regional variants. Initial outfitting still uses Matt’s. Oversized
+source images retain their authored dimensions and clip at the right and bottom
+edges, keeping the artwork and table aligned. Classic store presentation is
+unchanged.
+
+Verification covers literal expectations for all seven stores, independent
+execution of 36 original selection branches, and 54 native selection checks
+across the three display modes. The visible artwork in 21 offscreen store panes
+matches independently selected source images under identical native color
+management. The native suite passes 790 test summaries with 74 skips and no
+failures; the iPad target builds. Foreground interaction remains overall-goal
+acceptance work.

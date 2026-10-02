@@ -6,6 +6,23 @@ enum OriginalStoreRules {
     static let basePrices = [2000, 1000, 200, 1000, 1000, 1000, 20]
     static let capacities = [40, 50, 1980, 3, 3, 3, 2000]
     static let inputDigits = [2, 2, 2, 1, 1, 1, 4]
+    /// CD CODE8:0182–01c6 selects the later store's regional backdrop.
+    /// Initial outfitting uses the separate view and always selects base0.
+    static func artworkResource(in trip: Journey) -> Int {
+        guard trip.edition == .macintoshCD12,
+              let index = TrailCatalog.stops.firstIndex(where: { $0.id == trip.locationID }) else { return 19030 }
+        let destination = index - 1
+        let variant: Int
+        switch destination {
+        case -1: variant = 0
+        case ..<3: variant = 4
+        case ..<5: variant = 2
+        case ..<11: variant = 3
+        case ..<13: variant = 1
+        default: variant = 5
+        }
+        return 19030 + variant
+    }
     private static let entryLimits = [99, 99, 99, 9, 9, 9, 9999]
     private static let storeIDs: Set<String> = ["independence", "kearney", "laramie", "bridger", "hall", "boise", "walla"]
 

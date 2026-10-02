@@ -8,6 +8,18 @@ struct OriginalStoreRulesTests {
         trip.inventory[.oxen] = 3; trip.inventory[.bullets] = 39
         return trip
     }
+    @Test func cdStoresUseTheAuthoredRegionalBackground() {
+        let cases: [(String, Int)] = [("independence", 19030), ("kearney", 19034),
+            ("laramie", 19032), ("bridger", 19033), ("hall", 19033),
+            ("boise", 19031), ("walla", 19035)]
+        for (location, resource) in cases {
+            var trip = fort(location); trip.edition = .macintoshCD12
+            #expect(OriginalStoreRules.artworkResource(in: trip) == resource)
+            trip.edition = .macintosh11
+            #expect(OriginalStoreRules.artworkResource(in: trip) == 19030)
+        }
+    }
+
     @Test func cdStoreSellsOnlyStoredFoodAndPreservesIndependentFreshCapacity() throws {
         var trip = fort(); trip.edition = .macintoshCD12
         trip.inventory[.food] = 1900; trip.inventory.perishableFood = 1000
