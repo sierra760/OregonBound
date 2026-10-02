@@ -14,7 +14,7 @@ struct OriginalGuide {
     var hasNarration: Bool { edition == .macintoshCD12 }
     static func pageCount(for edition: GameEdition) -> Int { edition == .macintoshCD12 ? 73 : 61 }
 
-    init(locationID: String, edition: GameEdition = .macintosh11) {
+    init(locationID: String, edition: GameEdition = .macintosh11, initialPage: Int? = nil) {
         self.edition = edition
         // Native Journey.locationID is the last reached landmark, including
         // while traveling and after skipping a branch stop. This is already the
@@ -28,6 +28,7 @@ struct OriginalGuide {
             "walla": (28,30), "dalles": (17,18), "oregon": (61,72)]
         let topic = pages[locationID]
         page = (edition == .macintoshCD12 ? topic?.cd : topic?.classic) ?? 1
+        if let initialPage { page = min(Self.pageCount(for: edition), max(1, initialPage)) }
         selection = page
     }
 

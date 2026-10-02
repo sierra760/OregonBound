@@ -70,7 +70,7 @@ struct GameRootView: View {
         }
         .onReceive(timer) { _ in game.tick() }
         .onReceive(conditionsTimer) { _ in game.pollConditions() }
-        .onReceive(landmarkTimer) { _ in game.pollLandmarkAudio() }
+        .onReceive(landmarkTimer) { _ in game.pollLandmarkAudio(); game.pollNotification() }
         .onAppear {
             game.chooseGameData = chooseGameData
             BundleAssets.validateManifest()
@@ -110,7 +110,7 @@ struct GameRootView: View {
         .focusedSceneObject(game)
         #if os(macOS)
         .background(OriginalWindowActivation(changed: game.gameWindowActivationChanged,
-            redraw: { game.endingAction()(.redraw) }))
+            redraw: { game.endingAction()(.redraw); game.notificationAction()(.redraw) }))
         #endif
         .onChange(of: scenePhase) { phase in
             game.applicationActive = phase == .active

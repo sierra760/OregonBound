@@ -207,6 +207,99 @@ enum GamePanel: String, Identifiable {
         if !creatingGame && trip?.phase == .departure { presentSetupDialog(.departure) }
     }
 
+    @Published private(set) var cdNotification: CDNotificationRules.Selection?
+    @Published private(set) var notificationPalette = CDNotificationRules.PaletteCycle()
+    @Published private(set) var guidePage: Int?
+    private var notificationSelection = CDNotificationRules.State()
+    private var notificationTimer: CDNotificationRules.Presentation?
+    private var notificationOpening: UUID?
+    private var notificationJourney: UUID?
+    private var notificationWasVisible = false
+    enum NotificationAction { case redraw, dismiss, guide }
+
+    private var notificationPresence: LandmarkPresence {
+        guard !creatingGame, let trip,
+              ![.outfitting, .departure, .finished].contains(trip.phase),
+              panel == nil, memorialID == nil, actionNotice == nil, huntResult == nil,
+              pendingDeparture == nil, !showingSaveTimeOut, trip.originalTradeSession == nil,
+              !showingRouteDecision || trip.phase == .river else { return .closed }
+        if showingRouteDecision || trip.originalRiverOutcome != nil ||
+            [.hunting, .rafting].contains(trip.phase) { return .hidden }
+        return .visible
+    }
+    var notificationPaneVisible: Bool { cdNotification != nil && notificationPresence == .visible }
+
+    private func closeNotification() {
+        guard cdNotification != nil else { return }
+        notificationOpening = nil; notificationJourney = nil; notificationTimer = nil
+        notificationWasVisible = false; cdNotification = nil
+        audio.clear()
+    }
+
+    private func reconcileNotification() {
+        guard cdNotification != nil else { return }
+        guard notificationJourney == trip?.id, notificationPresence != .closed else {
+            closeNotification(); return
+        }
+        let visible = notificationPaneVisible
+        if visible && !notificationWasVisible { notificationTimer?.redraw(at: clock()) }
+        notificationWasVisible = visible
+    }
+
+    /// A command consumes only the records it just created. Saved journal
+    /// metadata is never replayed by assigning/loading a journey or polling UI.
+    private func receiveNotifications(after entryID: Int, in value: Journey) {
+        guard value.gameEdition == .macintoshCD12 else { return }
+        let events = value.journal.filter { $0.id > entryID }.compactMap(\.cdNotification)
+        guard !events.isEmpty else { return }
+        notificationSelection.beginBatch()
+        let context = CDNotificationRules.Context(weather: value.originalWeatherCategory,
+            snow: Int(value.original?.weather.snow ?? 0), destination: OriginalTrailEvents.destinationIndex(value))
+        for event in events { notificationSelection.receive(event, in: context) }
+        // CODE17's flush requires the traveling picture or an existing notice.
+        // Selection/once-per-destination guards still advance when it is absent.
+        guard notificationPresence != .closed,
+              cdNotification != nil || value.phase == .travel || showingTravelMap,
+              let selected = notificationSelection.selected else { return }
+        closeNotification()
+        closeLandmark()
+        cdNotification = selected
+        notificationJourney = value.id; notificationOpening = UUID()
+        notificationTimer = .init(openedAt: clock())
+        notificationWasVisible = notificationPaneVisible
+        audio.request(selected.sound)
+    }
+
+    func notificationAction() -> (NotificationAction) -> Void {
+        let opening = notificationOpening
+        return { [weak self] action in
+            guard let self, let opening, self.notificationOpening == opening,
+                  self.notificationPaneVisible, self.applicationActive,
+                  !self.fileMenu.windowInactive, !self.isOriginalModalPresented else { return }
+            switch action {
+            case .redraw: self.notificationTimer?.redraw(at: self.clock())
+            case .dismiss:
+                self.closeNotification(); self.reconcileLandmark()
+            case .guide:
+                guard let page = self.cdNotification?.guide, page != 0 else { return }
+                self.closeNotification()
+                self.panel = .guide; self.guidePage = page
+                self.reconcileLandmark()
+            }
+        }
+    }
+
+    func pollNotification() {
+        guard cdNotification != nil, applicationActive, !fileMenu.windowInactive,
+              !isOriginalModalPresented else { return }
+        let tick = clock()
+        guard let poll = notificationTimer?.poll(at: tick), poll != .none else { return }
+        if notificationPaneVisible, cdNotification?.cycle == true, OriginalResources.colorMode == .color256 {
+            notificationPalette.poll(at: tick)
+        }
+        if poll == .expired { closeNotification(); reconcileLandmark() }
+    }
+
     @Published private(set) var cdLandmark = CDLandmarkPresentation()
     private var landmarkAudio = CDLandmarkAudio()
     // The source's last drawn weather category is initialized to zero and
@@ -219,7 +312,7 @@ enum GamePanel: String, Identifiable {
               ![.outfitting, .departure, .travel, .finished].contains(trip.phase),
               !showingTravelMap else { return .closed }
         // Overlapping priority-one panes replace the landmark (CODE10:20a8).
-        guard panel == nil, memorialID == nil, actionNotice == nil, huntResult == nil,
+        guard panel == nil, memorialID == nil, actionNotice == nil, cdNotification == nil, huntResult == nil,
               pendingDeparture == nil, !showingSaveTimeOut, trip.originalTradeSession == nil,
               !showingRouteDecision || trip.phase == .river else { return .closed }
         // Priority-three river/minigame panes hide it instead (CODE10:20b6).
@@ -246,6 +339,7 @@ enum GamePanel: String, Identifiable {
     }
 
     private func reconcileLandmark(replacingJourney: Bool = false) {
+        reconcileNotification()
         guard store.edition == .macintoshCD12 else { return }
         let index = trip.flatMap { trip in TrailCatalog.stops.firstIndex { $0.id == trip.locationID } }
         if replacingJourney || landmarkAudio.index != index { closeLandmark() }
@@ -333,6 +427,7 @@ enum GamePanel: String, Identifiable {
         didSet {
             if trip != nil { closeAttract() }
             retireEnding(for: trip)
+            if oldValue?.locationID != trip?.locationID { closeNotification() }
             if oldValue?.id != trip?.id || (oldValue?.phase == .rafting && trip?.phase != .rafting) {
                 raftScene?.close()
                 raftScene = nil
@@ -400,7 +495,7 @@ enum GamePanel: String, Identifiable {
             // Native window activation and SwiftUI scene activation can arrive
             // in either order. The last eligible edge redraws; duplicate edges
             // and an edge arriving while the other input is inactive do not.
-            if applicationActive, !oldValue { endingAction()(.redraw) }
+            if applicationActive, !oldValue { endingAction()(.redraw); notificationAction()(.redraw) }
         }
     }
     private var dayTimerCounter: UInt8 = 0
@@ -468,6 +563,7 @@ enum GamePanel: String, Identifiable {
         guard var value = trip else { return }
         value.randomState = random.seed
         let oldPhase = value.phase
+        let lastJournalEntry = value.journal.last?.id ?? -1
         let wasBlocking = [.hunting, .rafting].contains(value.phase) || value.originalRiverOutcome != nil
         let oldLocation = value.locationID
         let oldLiving = value.livingMembers.count
@@ -500,6 +596,7 @@ enum GamePanel: String, Identifiable {
                 if oldPhase != .finished { buildEndingReport(value) }
             }
             trip = value
+            receiveNotifications(after: lastJournalEntry, in: value)
             // CODE17:2c8e publishes Oregon arrival before the enclosing timer.
             // Its terminal receiver copies the world without advancing the
             // Conditions revision. Losses and ordinary commands do not send it.
@@ -636,6 +733,7 @@ enum GamePanel: String, Identifiable {
         // CODE6:1c6c toggles stopped-landmark pictures and wagon/map panes.
         // A just-crossed river suppresses its picture until the next destination.
         if panel == .map {
+            closeNotification()
             let forced = trip?.phase == .travel || trip?.locationID == "oregon" ||
                 (trip?.originalMapSuppressedLandmarkID != nil && trip?.originalMapSuppressedLandmarkID == trip?.locationID)
             showingTravelMap = forced || (self.panel == nil && memorialID == nil && !showingRouteDecision && !showingTravelMap)
@@ -651,6 +749,7 @@ enum GamePanel: String, Identifiable {
             guard let trip, let selection = OriginalTalkRules.open(trip: trip, state: &talkState) else { return }
             talkSelection = selection
         }
+        if panel == .guide { guidePage = nil }
         self.panel = panel
         if panel == .talk, let sound = talkSelection?.soundResourceID { audio.request(sound) }
     }

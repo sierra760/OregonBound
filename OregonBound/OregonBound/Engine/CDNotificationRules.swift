@@ -3,6 +3,12 @@ import Foundation
 /// CD CODE17's illustrated notices use separate event codes from the journal.
 /// Selection does not consume gameplay randomness or choose from message text.
 enum CDNotificationRules {
+    /// The click callback uses pane10's rectangle, while the icon's draw
+    /// callback uses DITL6370's differently sized child rectangle.
+    static func opensGuide(x: Double, y: Double) -> Bool {
+        x >= 235 && x < 267 && y >= 156 && y < 188
+    }
+
     struct Event: Equatable, Codable {
         let code: Int
         var parameter: Int = 0
@@ -21,6 +27,58 @@ enum CDNotificationRules {
         let cycle: Bool
         let priority: Bool
         let low: Bool
+    }
+
+    /// CODE4:0dfa/0e92. Creation registers a four-tick timer. Logical
+    /// redraws refresh only the absolute deadline, not that timer's progress.
+    struct Presentation {
+        enum Poll { case none, update, expired }
+        private var deadline: UInt32
+        private var lastTick: UInt32
+        private var counter = 0
+
+        init(openedAt tick: UInt32) {
+            deadline = tick &+ 480
+            lastTick = tick
+        }
+        mutating func redraw(at tick: UInt32) { deadline = tick &+ 480 }
+        mutating func poll(at tick: UInt32) -> Poll {
+            guard tick > lastTick else { return .none }
+            lastTick = tick
+            counter += 1
+            guard counter == 4 else { return .none }
+            counter = 0
+            return tick >= deadline ? .expired : .update
+        }
+    }
+
+    /// CODE4:0000–01e8 rotates two nine-color rings in the eight-bit display.
+    /// Entry209 is deliberately excluded by the source's lookup table. This
+    /// state belongs to the display session, and survives individual notices.
+    struct PaletteCycle: Equatable {
+        private var slowPhase = 0
+        private var fastPhase = 0
+        private var slowDeadline: UInt32?
+        private var fastDeadline: UInt32?
+        private static let slow = [207,208,210,211,212,213,214,215,216]
+
+        mutating func poll(at tick: UInt32) {
+            // Palette comparisons are signed (BLT); the notice deadline above
+            // is unsigned (BCS). Preserve both, including wrap behavior.
+            if slowDeadline == nil || Int32(bitPattern: tick) >= Int32(bitPattern: slowDeadline!) {
+                slowPhase = (slowPhase + 1) % 9
+                slowDeadline = tick &+ 6
+            }
+            if fastDeadline == nil || Int32(bitPattern: tick) >= Int32(bitPattern: fastDeadline!) {
+                fastPhase = (fastPhase + 1) % 9
+                fastDeadline = tick &+ 2
+            }
+        }
+        func sourceIndex(for index: Int) -> Int {
+            if let offset = Self.slow.firstIndex(of: index) { return Self.slow[(offset + slowPhase) % 9] }
+            if (217...225).contains(index) { return 217 + (index - 217 + fastPhase) % 9 }
+            return index
+        }
     }
 
     struct State {

@@ -3,6 +3,125 @@ import Foundation
 @testable import OregonBound
 
 struct OriginalAudioBackendTests {
+    @MainActor @Test func arrivalAndMapReplaceAnIllustratedNoticeBeforeLandmarkNarration() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        var tick: UInt32 = 0
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        var trip = Journey(seed: 1, edition: .macintoshCD12); trip.phase = .travel
+        trip.destinationID = "kansas"; trip.legDistance = 102
+        game.trip = trip
+        game.perform { OriginalTrailEvents.record(65, in: &$0) }
+        let notice = game.notificationAction()
+        game.perform { $0.phase = .river; $0.locationID = "kansas" }
+        #expect(game.cdNotification == nil && game.landmarkPaneVisible)
+        for now in UInt32(1)...64 { tick = now; game.pollLandmarkAudio() }
+        notice(.dismiss)
+        #expect(output.started == [4001,1001] && audio.isPlaying)
+        game.showingTravelMap = true
+        game.perform { OriginalTrailEvents.record(65, in: &$0) }
+        #expect(game.cdNotification != nil)
+        game.open(.map)
+        #expect(game.cdNotification == nil && !audio.isPlaying)
+    }
+
+    @MainActor @Test func cdNoticeConsumesOnlyNewEventsAndOwnsItsOpening() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        var tick: UInt32 = 0
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), random: OriginalRandomStream(seed: 17), audio: audio, clock: { tick })
+        var trip = Journey(seed: 17, edition: .macintoshCD12); trip.phase = .travel
+        OriginalTrailEvents.record(65, in: &trip)
+        game.trip = trip
+        game.perform { $0.record("A new journal entry without an illustrated event.") }
+        #expect(game.cdNotification == nil && output.started.isEmpty)
+        game.perform { OriginalTrailEvents.record(29, in: &$0); OriginalTrailEvents.record(65, in: &$0) }
+        #expect(game.cdNotification?.art == 2 && output.started == [4007])
+        #expect(game.random.seed == 17)
+        let old = game.notificationAction()
+        old(.redraw)
+        #expect(output.started == [4007])
+        tick = 20
+        game.perform { OriginalTrailEvents.record(65, in: &$0) }
+        #expect(game.cdNotification?.art == 1 && output.started == [4007,4001])
+        old(.dismiss); old(.guide)
+        #expect(game.cdNotification?.art == 1 && game.panel == nil && audio.isPlaying)
+        let fire = game.notificationAction()
+        fire(.dismiss)
+        #expect(game.cdNotification == nil && !audio.isPlaying)
+        game.perform { OriginalTrailEvents.record(29, in: &$0) }
+        game.notificationAction()(.guide)
+        #expect(game.panel == .guide && game.guidePage == 61 && game.cdNotification == nil)
+        #expect(!audio.isPlaying && game.random.seed == 17)
+    }
+
+    @MainActor @Test func cdNoticeExpiresWhileCoveredButDoesNotDispatchDuringModal() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        var trip = Journey(seed: 3, edition: .macintoshCD12); trip.phase = .travel
+        game.trip = trip
+        game.perform { OriginalTrailEvents.record(65, in: &$0) }
+        game.trip?.phase = .hunting
+        #expect(game.cdNotification != nil && !game.notificationPaneVisible)
+        game.showingIntroduction = true
+        for now in UInt32(1)...600 { tick = now; game.pollNotification() }
+        #expect(game.cdNotification != nil && audio.isPlaying)
+        game.showingIntroduction = false
+        for now in UInt32(601)...604 { tick = now; game.pollNotification() }
+        #expect(game.cdNotification == nil && !audio.isPlaying)
+    }
+
+    @MainActor @Test func cdNoticeReplacementClosesBeforeIncomingEndingAudio() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio)
+        var trip = Journey(seed: 3, edition: .macintoshCD12); trip.phase = .travel
+        game.trip = trip
+        game.perform { OriginalTrailEvents.record(65, in: &$0) }
+        let old = game.notificationAction()
+        game.perform { $0.phase = .finished; $0.won = false }
+        old(.dismiss)
+        #expect(game.cdNotification == nil && output.started == [4001,9001] && audio.isPlaying)
+    }
+
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func illustratedEventsRespectTheCurrentPaneAndEdition(edition: GameEdition) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let game = GameController(store: JourneyStore(directory: root, edition: edition,
+            defaultPreferences: .init()), audio: GameAudio(playback: output, scheduleIdle: { _ in }))
+        var trip = Journey(seed: 1, edition: edition); trip.phase = .landmark
+        game.trip = trip
+        game.perform { OriginalTrailEvents.record(65, in: &$0) }
+        #expect(game.cdNotification == nil)
+        game.trip?.phase = .travel
+        game.panel = .guide
+        game.perform { OriginalTrailEvents.record(65, in: &$0) }
+        #expect(game.cdNotification == nil)
+        game.panel = nil
+        game.perform { $0.record("An uneventful pulse.") }
+        #expect(game.cdNotification == nil)
+        game.perform { OriginalTrailEvents.record(65, in: &$0) }
+        #expect((game.cdNotification != nil) == (edition == .macintoshCD12))
+        game.panel = .supplies
+        #expect(game.cdNotification == nil && !game.audio.isPlaying)
+    }
+
     @MainActor @Test(arguments: [false, true], [false, true])
     func cdLossReactivationWaitsForBothInputsOnce(nativeFirst: Bool, modal: Bool) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)

@@ -1,4 +1,5 @@
 import SwiftUI
+import ImageIO
 
 /// Layout from DLOG/DITL 5000, 5400, 5600, 5700 and 5800.
 struct OriginalTrailView: View {
@@ -35,6 +36,10 @@ struct OriginalTrailView: View {
                         .originalPaneFrame(width: 262, height: 41)
                         .offset(x: OriginalWindowLayout.centerOffsetX, y: 158)
                 }
+                if let notice = game.cdNotification, game.notificationPaneVisible {
+                    CDNotificationPane(game: game, notice: notice)
+                        .originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
+                }
                 conditions.frame(width: 119, height: 251, alignment: .topLeading)
                     .originalPaneFrame(width: 119, height: 251).offset(x: 320)
                 OriginalPaneFrame(width: 119, height: 50).offset(x: 320, y: 254)
@@ -56,7 +61,7 @@ struct OriginalTrailView: View {
                             OriginalTradePane(game: game, trip: trip).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
                         }
                     } else if panel == .guide {
-                        OriginalGuidePane(trip: trip, audio: game.audio).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
+                        OriginalGuidePane(trip: trip, audio: game.audio, initialPage: game.guidePage).id(game.guidePage).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
                     } else if panel == .supplies {
                         OriginalStatusPane(trip: trip).frame(width: 262, height: 199).originalPaneFrame(width: 262, height: 199).offset(x: OriginalWindowLayout.centerOffsetX)
                     } else if panel == .rest {
@@ -227,5 +232,78 @@ struct CDSidebarArtwork: View {
         CDIconControlArtwork(resource: resource, pressed: pressed, enabled: enabled)
             .offset(x: 5, y: 2)
             .frame(width: 52, height: 60, alignment: .topLeading)
+    }
+}
+
+/// CODE4:0dd0 uses the full 262×199 illustrated event pane. The guide
+/// corner comes from DITL6370's child rectangle and OffsetRect(5,-11).
+struct CDNotificationPane: View {
+    @ObservedObject var game: GameController
+    let notice: CDNotificationRules.Selection
+    var body: some View {
+        let action = game.notificationAction()
+        ZStack(alignment: .topLeading) {
+            CDNotificationArtwork(art: notice.art, palette: game.notificationPalette)
+                .frame(width: 262, height: 199)
+            if notice.guide != 0 {
+                PixelArtwork(resource: 6002, type: OriginalResources.iconType).frame(width: 32, height: 32)
+                    .offset(x: 231, y: 167).allowsHitTesting(false)
+            }
+        }.frame(width: 262, height: 199).clipped().contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onEnded { value in
+                let point = value.location
+                guard point.x >= 0, point.x < 262, point.y >= 0, point.y < 199 else { return }
+                action(notice.guide != 0 && CDNotificationRules.opensGuide(x: point.x, y: point.y) ? .guide : .dismiss)
+            })
+            .accessibilityElement(children: .ignore).accessibilityLabel("Event notice")
+            .accessibilityAddTraits(.isButton).accessibilityAction { action(.dismiss) }
+            .accessibilityActions {
+                if notice.guide != 0 { Button("Read about this event") { action(.guide) } }
+            }
+            .onChange(of: game.isOriginalModalPresented) { blocked in if !blocked { action(.redraw) } }
+            #if os(iOS)
+            .onReceive(NotificationCenter.default.publisher(for: UIScreen.modeDidChangeNotification)) { _ in action(.redraw) }
+            #endif
+    }
+}
+
+struct CDNotificationArtwork: View {
+    let art: Int
+    let palette: CDNotificationRules.PaletteCycle
+    private static let images = SessionResourceCache<String, CGImage>()
+    var body: some View {
+        let resource = OriginalResources.resource(monochrome: 10200 + art, color: 20200 + art)
+        let key = "\(OriginalResources.imageType):\(resource)"
+        let source = Self.images.value(for: key, session: GameData.sessionID) {
+            guard let entry = OriginalResources.manifest?.image(resource: resource, type: OriginalResources.imageType, frame: 0),
+                  let url = GameData.resourceURL(entry.image_path),
+                  let source = CGImageSourceCreateWithURL(url as CFURL, nil) else { return nil }
+            return CGImageSourceCreateImageAtIndex(source, 0, nil)
+        }
+        if let source {
+            let image = OriginalResources.colorMode == .color256 ? (Self.recolored(source, palette: palette) ?? source) : source
+            Image(decorative: image, scale: 1).resizable().interpolation(.none)
+                .frame(width: CGFloat(image.width), height: CGFloat(image.height))
+                .frame(width: 262, height: 199, alignment: .topLeading).clipped()
+        }
+    }
+
+    /// Keep authored indices: RGB replacement would recolor unrelated entries
+    /// that happen to have the same color. Monochrome/16-color bypass this path.
+    static func recolored(_ image: CGImage, palette: CDNotificationRules.PaletteCycle) -> CGImage? {
+        guard let original = image.colorSpace, original.model == .indexed,
+              let base = original.baseColorSpace, base.numberOfComponents == 3,
+              let source = original.colorTable, source.count == 256 * 3,
+              let provider = image.dataProvider else { return nil }
+        var colors = source
+        for index in 207...225 {
+            let from = palette.sourceIndex(for: index) * 3
+            colors.replaceSubrange(index * 3..<index * 3 + 3, with: source[from..<from + 3])
+        }
+        guard let space = CGColorSpace(indexedBaseSpace: base, last: 255, colorTable: &colors) else { return nil }
+        return CGImage(width: image.width, height: image.height, bitsPerComponent: image.bitsPerComponent,
+            bitsPerPixel: image.bitsPerPixel, bytesPerRow: image.bytesPerRow, space: space,
+            bitmapInfo: image.bitmapInfo, provider: provider, decode: nil,
+            shouldInterpolate: false, intent: image.renderingIntent)
     }
 }

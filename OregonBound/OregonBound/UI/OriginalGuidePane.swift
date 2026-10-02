@@ -48,9 +48,9 @@ struct OriginalGuidePane: View {
     @State private var guide: OriginalGuide
     let audio: GameAudio
 
-    init(trip: Journey, audio: GameAudio = .shared) {
+    init(trip: Journey, audio: GameAudio = .shared, initialPage: Int? = nil) {
         self.audio = audio
-        _guide = State(initialValue: OriginalGuide(locationID: trip.locationID, edition: GameData.edition))
+        _guide = State(initialValue: OriginalGuide(locationID: trip.locationID, edition: GameData.edition, initialPage: initialPage))
     }
 
     var body: some View {

@@ -338,24 +338,37 @@ display modes, exact sample bytes/rates, and unchanged RNG. Eighteen offscreen
 captures cover arrival, score and loss with both sound settings. Foreground
 interaction and listening remain separate acceptance work.
 
-## CD event notifications in progress
+## CD illustrated event notices
 
-The Foundation selector now reproduces the CD's event-artwork variants, guide
-links, sound choice, daily priority selection and destination guards. Typed
-notification metadata accompanies newly recorded CD model events; old saves
-remain readable and classic entries remain unchanged. Private verification
-matches 7,560 original selection cases and 20,000 stateful steps.
+New CD model events select their illustrated notice using the source's priority,
+weather/snow variants, destination guards, guide topic and sound rules. Typed
+journal metadata preserves event order and parameters without parsing message
+text. Old saves remain readable; loading a save never replays its historical
+notices, and classic entries remain unchanged.
 
-This is an intermediate implementation. The native notification pane, timer,
-audio lifecycle, guide shortcut and palette animation still require integration;
-these messages are not yet presented during play.
+The native pane uses the imported 10200/20200 artwork family at authored size,
+clipped to its original bounds. It expires at the eight-second source deadline,
+checks on four distinct timer ticks, and refreshes its deadline on logical
+redraw without repeating audio. Travel continues while it is open. Replacement,
+arrival, guide navigation and dismissal retire its audio synchronously; callbacks
+retained by an old view cannot affect a later opening. The guide icon and its
+source hit rectangle are preserved. In 256-color mode, two nine-color palette
+rings animate eligible notices; monochrome and 16-color artwork stays static.
+
+Private checks match 7,560 original selector cases, 20,000 stateful selection
+steps, and 38 original palette timing steps. They also cover 330 source-data
+controller flows, exact bytes/rates for all eight notice recordings, unchanged
+model/RNG results over 15 days, and 567 pixel-exact artwork renders across the
+three display modes. Three additional native panes were captured in windows
+that were never shown. Original foreground interaction and listening remain
+separate acceptance work.
 
 ## Current acceptance boundary
 
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 955 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 967 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.
