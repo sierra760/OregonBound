@@ -653,3 +653,13 @@ These cases force event rejection and fail on unexpected helper calls; they
 verify dispatch gates and random sequencing, not every triggered event's effects.
 No runtime changes were needed for these comparisons. Original binaries and
 generated reference cases remain private; foreground acceptance remains open.
+
+Triggered environmental events also agree with the CD instructions: 4,812
+isolated helper cases and 3,456 daily sequences compare snowbound delays,
+severe-weather priority, fog/hail, lost trails, rough terrain, dry ground, food
+aid, and fruit collection. Checks cover state changes, random-call order,
+journal requests, notification codes/parameters, and preservation of unrelated
+state. The daily sequences include interacting events and both food pools.
+Journal text uses the existing native renderer; these checks do not independently
+verify its prose or the original network/message transport. Illness, injuries,
+equipment events, and theft/fire remain separate source-comparison work.
