@@ -880,7 +880,7 @@ struct OriginalAudioBackendTests {
         #expect(audio.isPlaying == (edition == .macintoshCD12))
         game.dismissSetupDialog(.buyingAdvice)
         game.presentSetupDialog(.buyingAdvice)
-        game.perform { try JourneyEngine.completeOutfitting([:], in: &$0) }
+        game.perform { try JourneyEngine.completeOutfitting([.oxen: 1, .food: 1], in: &$0) }
         #expect(game.setupDialog == .departure)
         let stops = output.stops
         output.onStop = { #expect(game.trip?.phase == .departure) }

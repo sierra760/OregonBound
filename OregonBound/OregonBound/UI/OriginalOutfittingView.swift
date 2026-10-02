@@ -30,7 +30,7 @@ struct OriginalOutfittingView: View {
                         OriginalTextEntry(label: labels[i], text: $quantities[i], font: .plain12)
                             .frame(width: 29, height: 13).offset(x: 207, y: CGFloat(137 + i * 18))
                             .onChange(of: quantities[i]) { value in
-                                let digits = String(value.filter { $0.isASCII && $0.isNumber }.prefix(4))
+                                let digits = String(value.filter { $0.isASCII && $0.isNumber }.prefix(OriginalStoreRules.inputDigits[i]))
                                 if quantities[i] != digits { quantities[i] = digits }
                             }
                         label(labels[i], x: 242, y: 137 + i * 18, width: 126)
@@ -50,9 +50,6 @@ struct OriginalOutfittingView: View {
         OriginalText(text: text, font: font).frame(width: CGFloat(width), alignment: alignment).offset(x: CGFloat(x), y: CGFloat(y))
     }
     private func purchase() {
-        guard quantities.indices.allSatisfy({ amount($0) <= maxima[$0] }) else {
-            game.error = "Choose quantities within the maximum amounts shown."; return
-        }
         let cart = Dictionary(uniqueKeysWithValues: Supply.allCases.enumerated().map { i, item in
             (item, amount(i) * (item == .bullets ? 20 : 1))
         })

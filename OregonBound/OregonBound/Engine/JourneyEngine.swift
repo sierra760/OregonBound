@@ -24,13 +24,18 @@ enum JourneyEngine {
     }
     static func completeOutfitting(_ quantities: [Supply: Int], in trip: inout Journey) throws {
         guard trip.phase == .outfitting else { throw GameRuleError("Initial outfitting is already complete.") }
-        var purchase = trip
-        for item in Supply.allCases {
-            let quantity = quantities[item, default: 0]
-            guard quantity >= 0 else { throw GameRuleError("Enter a positive quantity.") }
-            if item == .oxen && quantity > 20 { throw GameRuleError("You can buy at most 20 oxen here.") }
-            if quantity > 0 { try buy(item, quantity: quantity, in: &purchase) }
+        // This API receives loose bullet units; the original setup sells whole boxes.
+        let bullets = quantities[.bullets, default: 0]
+        guard bullets >= 0, bullets % 20 == 0 else { throw OriginalStoreRules.Rejection.invalidQuantity }
+        let counts = Supply.allCases.map { item in
+            item == .bullets ? bullets / 20 : quantities[item, default: 0]
         }
+        let quote = try OriginalStoreRules.quoteOutfitting(counts, in: trip)
+        var purchase = trip
+        purchase.ensureOriginalState()
+        for (index, item) in Supply.allCases.enumerated() { purchase.inventory[item] = quote.rawAdditions[index] }
+        purchase.inventory.perishableFood = 0
+        purchase.cash -= quote.total
         purchase.phase = .departure
         trip = purchase
     }

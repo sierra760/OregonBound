@@ -596,3 +596,29 @@ matches independently selected source images under identical native color
 management. The native suite passes 790 test summaries with 74 skips and no
 failures; the iPad target builds. Foreground interaction remains overall-goal
 acceptance work.
+
+
+### Starting purchases and route parity
+
+Starting purchases now require oxen and stored food before advancing to departure.
+Both editions share the original row order: required supplies, cumulative payment,
+then capacity. A failed cart preserves the entire journey. Setup fields use the
+original two digits for oxen/clothing/bullet boxes, one for spares, and four for
+food. The engine accepts only whole bullet boxes for initial outfitting; its API
+continues to express bullets as loose units (20 units per box).
+
+The CD source comparison covers 1,020 initial and later purchase cases, including
+cash/capacity boundaries, error precedence, regional markups, and the independent
+fresh-food pool. Later stores sell stored food and preserve fresh food. Initial
+outfitting starts that pool empty. Three new regression tests cover both editions;
+the audio navigation test now uses a valid starting cart.
+
+The recovered CD route table and branch instructions agree with the existing
+native graph: both fort bypasses, the 100-mile Barlow road with its $5 toll, and
+the separate Columbia River rafting transition. Verification compares 68 route
+branch cases and 30 fork/toll/raft dispatch cases with bounded execution of the
+original instructions. Another 72 source cases verify that a nonzero remaining
+leg is retained. These checks establish rule parity, not foreground audiovisual
+acceptance. The full native suite reports 793 passed, 74 skipped, no failures;
+the subsequent iPad simulator build passed. Original binaries and generated
+reference cases remain private.
