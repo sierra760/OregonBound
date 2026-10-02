@@ -31,6 +31,13 @@ or reconstructed game globals. This does not rule out constructed types or
 implicit operating-system loading. An empty `pendingResources` list does not
 close these inventory questions.
 
+[Resource-family accounting](docs/CD_RESOURCE_ACCOUNTING.md) now assigns an
+explicit treatment to all 58 non-System families. A subsequent instruction and
+argument-stack audit found 97 fixed-type resource fetch sites and three add
+sites across all 40 game/manual executable resources, with no explicit fetch
+for the four ancillary types above. That stronger trace still leaves the stated
+reachability and foreground acceptance limits open.
+
 ## CD food system
 
 CD journeys keep non-perishable food (capacity 2,000 pounds) and perishable food
