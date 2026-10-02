@@ -66,8 +66,9 @@ before playing. Saves and preferences are kept separately by edition.
 
 New imports live under `~/Library/Application Support/OregonBound/Installations/`
 (inside the app container on iPad). Existing classic imports in the sibling
-`GameData` folder remain selectable. Use **Game Data…** to re-import; removing
-the old `GameData` folder does not remove the new installations.
+`GameData` folder remain selectable when they use layout 3. Older layouts need
+to be re-imported through **Game Data…**. Removing the old `GameData` folder does
+not remove the new installations.
 
 The legacy **classic 1.1** importer can also run from a terminal. This command
 does not prepare CD data; use the app's import screen for CD:
@@ -309,7 +310,8 @@ GitHub Actions builds both platforms, runs tests without proprietary fixtures an
 The current prepared import format is schema 10. Earlier prepared formats remain
 readable where supported; features needing newly decoded resources show a
 re-import instruction. Re-import the same source files to add those resources.
-The legacy classic importer uses layout 3. Native saves carry edition and source
-identity; loading a save against incompatible game data reports an error.
+The legacy classic importer uses layout 3. Native saves carry their edition;
+loading a save with another edition reports an error. Source hashes identify
+imported installations and their resources; saves are not tied to those hashes.
 
 The Python extraction pipeline also needs `python3 scripts/extract_runtime.py` to produce these runtime files.
