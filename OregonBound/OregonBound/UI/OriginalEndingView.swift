@@ -11,9 +11,13 @@ struct OriginalEndingView: View {
         self.game = game; self.trip = trip
         _name = State(initialValue: trip.members.first?.name ?? "")
     }
-    private var qualifies: Bool {
-        OriginalEndingPresentation.insertionIndex(score: JourneyEngine.score(trip),
-            legends: game.legends.filter { $0.id != trip.id.uuidString }) != nil
+    var qualifies: Bool {
+        // Replaying an earlier save retains the journey ID. Persistence records
+        // it only once, even when its old score has fallen out of the visible list.
+        guard !game.scores.contains(where: { $0.id == trip.id }),
+              !game.legends.contains(where: { $0.id == trip.id.uuidString }) else { return false }
+        return OriginalEndingPresentation.insertionIndex(score: JourneyEngine.score(trip),
+            legends: game.legends) != nil
     }
     var body: some View {
         let action = game.endingAction()
