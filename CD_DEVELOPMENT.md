@@ -622,3 +622,17 @@ leg is retained. These checks establish rule parity, not foreground audiovisual
 acceptance. The full native suite reports 793 passed, 74 skipped, no failures;
 the subsequent iPad simulator build passed. Original binaries and generated
 reference cases remain private.
+
+
+### Preserved artwork without an observed display path
+
+The supplied CD contains 24 additional landmark variant images across its three
+artwork modes and 44 extra color rafting frames. The source-use audit found no
+load site for these 68 frames. All remain available in the prepared import;
+the runtime follows the original's observed image selection.
+
+The audit accounts for 38 image requests, 18 image-callback registrations,
+the internal loader calls, and 792 executions of the landmark selection branch.
+It checks every retained frame in the actual prepared data. This finding is
+specific to the supplied Macintosh CD executable and does not establish the
+unused artwork's intended role or its use in other releases.
