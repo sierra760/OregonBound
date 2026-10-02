@@ -32,7 +32,14 @@ jobs:
         run: >-
           xcodebuild -quiet -project OregonBound/OregonBound.xcodeproj
           -scheme OregonBound -destination 'platform=macOS'
-          -derivedDataPath /tmp/oregon-bound-ci test CODE_SIGNING_ALLOWED=NO OREGON_BOUND_DATA="$OREGON_BOUND_DATA"
+          -derivedDataPath /tmp/oregon-bound-ci -resultBundlePath /tmp/oregon-bound-tests.xcresult
+          test CODE_SIGNING_ALLOWED=NO OREGON_BOUND_DATA="$OREGON_BOUND_DATA"
+      - name: Report macOS test failures
+        if: failure()
+        run: |
+          if [ -d /tmp/oregon-bound-tests.xcresult ]; then
+            xcrun xcresulttool get test-results summary --path /tmp/oregon-bound-tests.xcresult
+          fi
       - name: Build iPad
         run: >-
           xcodebuild -quiet -project OregonBound/OregonBound.xcodeproj
