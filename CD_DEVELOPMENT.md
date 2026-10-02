@@ -564,3 +564,18 @@ unchanged random state. Five native offscreen Help-bar states were rendered;
 a mounted-view regression also verifies Help updates when application activity
 changes without another controller publication. Foreground touch and VoiceOver
 acceptance remain part of the overall goal.
+
+
+### Sound inventory
+
+All 175 CD recordings are preserved with their original sample bytes and rates.
+The recovered game code has 29 sound-request sites: 24 pass fixed IDs and five
+derive IDs from the guide page, landmark, conversation, or event descriptor.
+Together they account for 169 recordings: 73 guide readings, 54 conversations,
+and 42 other recordings. Their runtime paths are implemented.
+
+No playback site was found in CD 1.2 for resources 4011, 4013, 4015, 4020, 9005,
+and 9008 after checking the direct calls, dynamic ID domains, and audio queue
+forwarding. These six recordings remain imported and validated. Their presence
+does not imply an additional event or menu command in this edition. Original
+speaker playback and interactive platform comparisons remain acceptance work.
