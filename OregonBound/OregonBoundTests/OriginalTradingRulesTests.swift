@@ -153,7 +153,8 @@ struct OriginalTradingRulesTests {
             let result = try OriginalTradingRules.presentation(request: .init(item: 3, quantity: 1), trip: wagon(), draw: draws.next)
             #expect((result.offer != nil) == (roll == 334))
             #expect(result.portrait == 2)
-            #expect(draws.trace == [0x43d2] + (roll == 334 ? [0x3f7c,0x3f7c,0x4096] : []) + [0x4712,0x4712])
+            let expectedTrace: [Int] = [0x43d2] + (roll == 334 ? [0x3f7c,0x3f7c,0x4096] : []) + [0x4712,0x4712]
+            #expect(draws.trace == expectedTrace)
         }
     }
 

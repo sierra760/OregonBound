@@ -8,6 +8,20 @@ struct EditionPersistenceTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         return root
     }
+    @Test func absentSessionUsesClassicDefaultsAndRequiresCDDefaults() throws {
+        let root = try folder(); defer { try? FileManager.default.removeItem(at: root) }
+        let classic = JourneyStore(directory: root, edition: .macintosh11, session: nil)
+        #expect(try classic.preferences() == OriginalPreferences.Configuration())
+        let cd = JourneyStore(directory: root, edition: .macintoshCD12, session: nil)
+        #expect(throws: GameRuleError.self) { try cd.preferences() }
+        var supplied = OriginalPreferences.Configuration()
+        supplied.timing = .init(speed: .slow, huntTime: .minutes2)
+        for edition in GameEdition.allCases {
+            let store = JourneyStore(directory: root, edition: edition,
+                                     defaultPreferences: supplied, session: nil)
+            #expect(try store.preferences() == supplied)
+        }
+    }
     @Test(arguments: [UInt8(10), UInt8(0x8a)])
     func cdDustStormSaveReloadAndClassicRejection(category: UInt8) throws {
         let root = try folder(); defer { try? FileManager.default.removeItem(at: root) }
