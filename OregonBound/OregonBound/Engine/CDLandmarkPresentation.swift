@@ -32,3 +32,48 @@ struct CDLandmarkPresentation {
         self.visible = visible
     }
 }
+
+/// CD landmark pane's delayed narration. Its timer advances once per distinct
+/// active host tick, polls every four ticks, and never catches up missed polls.
+struct CDLandmarkAudio {
+    private(set) var index: Int?
+    private var deadline: UInt32 = 0
+    private var lastTick: UInt32 = 0
+    private var pollCounter = 0
+
+    mutating func open(index: Int, at tick: UInt32) {
+        precondition((0..<18).contains(index))
+        self.index = index
+        recreate(at: tick)
+    }
+
+    /// A Conditions weather redraw recreates an existing pane without stopping
+    /// the shared channel. Snow/model changes alone do not call this operation.
+    mutating func recreate(at tick: UInt32) {
+        guard index != nil else { return }
+        deadline = tick &+ 60
+        lastTick = tick
+        pollCounter = 0
+    }
+
+    mutating func close() -> [OriginalAudioQueue.Command] {
+        guard index != nil else { return [] }
+        index = nil
+        deadline = 0
+        pollCounter = 0
+        return [.stop]
+    }
+
+    mutating func poll(at tick: UInt32, visible: Bool, active: Bool = true) -> [OriginalAudioQueue.Command] {
+        guard let index, active, tick > lastTick else { return [] }
+        lastTick = tick
+        pollCounter += 1
+        guard pollCounter == 4 else { return [] }
+        pollCounter = 0
+        guard visible, deadline != 0, tick > deadline else { return [] }
+        deadline = 0
+        // The source requests even when busy or muted, consuming this opening's
+        // deadline once; the existing shared queue decides what actually plays.
+        return [.start(1000 + index)]
+    }
+}

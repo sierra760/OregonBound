@@ -69,9 +69,77 @@ enum GamePanel: String, Identifiable {
         if !creatingGame && trip?.phase == .departure { presentSetupDialog(.departure) }
     }
 
+    @Published private(set) var cdLandmark = CDLandmarkPresentation()
+    private var landmarkAudio = CDLandmarkAudio()
+    // The source's last drawn weather category is initialized to zero and
+    // survives journey changes, independently of whether a landmark exists.
+    private var landmarkDisplayedWeather = 0
+    private enum LandmarkPresence { case closed, hidden, visible }
+
+    private var landmarkPresence: LandmarkPresence {
+        guard !creatingGame, let trip,
+              ![.outfitting, .departure, .travel, .finished].contains(trip.phase),
+              !showingTravelMap else { return .closed }
+        // Overlapping priority-one panes replace the landmark (CODE10:20a8).
+        guard panel == nil, memorialID == nil, actionNotice == nil, huntResult == nil,
+              pendingDeparture == nil, !showingSaveTimeOut, trip.originalTradeSession == nil,
+              !showingRouteDecision || trip.phase == .river else { return .closed }
+        // Priority-three river/minigame panes hide it instead (CODE10:20b6).
+        if showingRouteDecision || trip.originalRiverOutcome != nil ||
+            [.hunting, .rafting].contains(trip.phase) { return .hidden }
+        return .visible
+    }
+
+    var landmarkPaneVisible: Bool { landmarkPresence == .visible }
+
+    private func applyLandmarkAudio(_ commands: [OriginalAudioQueue.Command]) {
+        for command in commands {
+            switch command {
+            case .stop: audio.clear()
+            case .start(let id): audio.request(id)
+            }
+        }
+    }
+
+    private func closeLandmark() {
+        guard landmarkAudio.index != nil else { return }
+        applyLandmarkAudio(landmarkAudio.close())
+        cdLandmark = CDLandmarkPresentation()
+    }
+
+    private func reconcileLandmark(replacingJourney: Bool = false) {
+        guard store.edition == .macintoshCD12 else { return }
+        let index = trip.flatMap { trip in TrailCatalog.stops.firstIndex { $0.id == trip.locationID } }
+        if replacingJourney || landmarkAudio.index != index { closeLandmark() }
+        guard let trip, let index, landmarkPresence != .closed else { closeLandmark(); return }
+        // An overlay can preserve an existing pane, but does not create an
+        // unseen landmark beneath an activity that began elsewhere.
+        guard landmarkPresence == .visible, landmarkAudio.index == nil else { return }
+        landmarkAudio.open(index: index, at: clock())
+        cdLandmark.update(index: index, weather: trip.originalWeatherCategory,
+            snow: Int(trip.original?.weather.snow ?? 0), displayedWeather: landmarkDisplayedWeather, visible: true)
+    }
+
+    private func landmarkWeatherDidDraw() {
+        guard let drawn = cdConditions.displayedSnapshot else { return }
+        let weather = drawn.originalWeatherCategory
+        guard weather != landmarkDisplayedWeather else { return }
+        landmarkDisplayedWeather = weather
+        guard let index = landmarkAudio.index, let trip else { return }
+        landmarkAudio.recreate(at: clock())
+        cdLandmark.update(index: index, weather: trip.originalWeatherCategory,
+            snow: Int(trip.original?.weather.snow ?? 0), displayedWeather: weather, visible: true)
+    }
+
+    func pollLandmarkAudio() {
+        guard store.edition == .macintoshCD12 else { return }
+        applyLandmarkAudio(landmarkAudio.poll(at: clock(), visible: landmarkPaneVisible,
+            active: applicationActive && !isOriginalModalPresented))
+    }
+
     @Published var fileMenu = OriginalFileMenuRules.State()
-    @Published var pendingDeparture: OriginalFileMenuRules.Departure?
-    @Published var showingSaveTimeOut = false
+    @Published var pendingDeparture: OriginalFileMenuRules.Departure? { didSet { reconcileLandmark() } }
+    @Published var showingSaveTimeOut = false { didSet { reconcileLandmark() } }
     @Published var showingAbout = false
     @Published var fileChooserPresented = false
     #if os(iOS)
@@ -89,6 +157,7 @@ enum GamePanel: String, Identifiable {
                 raftScene?.close()
                 raftScene = nil
             }
+            reconcileLandmark(replacingJourney: oldValue?.id != trip?.id)
             reconcileSetupDialog(replacingJourney: oldValue?.id != trip?.id)
         }
     }
@@ -109,17 +178,18 @@ enum GamePanel: String, Identifiable {
                oldValue == .talk || (oldValue == .guide && panel != .guide) {
                 audio.clear()
             }
+            reconcileLandmark()
         }
     }
     @Published var error: String?
     @Published var running = false
-    @Published var creatingGame = false { didSet { reconcileSetupDialog() } }
-    @Published var showingRouteDecision = false
+    @Published var creatingGame = false { didSet { reconcileLandmark(); reconcileSetupDialog() } }
+    @Published var showingRouteDecision = false { didSet { reconcileLandmark() } }
     @Published var showingIntroduction = false
-    @Published var showingTravelMap = false
-    @Published var memorialID: UUID?
-    @Published var actionNotice: OriginalActionNotice?
-    @Published var huntResult: OriginalHuntSession.Result?
+    @Published var showingTravelMap = false { didSet { reconcileLandmark() } }
+    @Published var memorialID: UUID? { didSet { reconcileLandmark() } }
+    @Published var actionNotice: OriginalActionNotice? { didSet { reconcileLandmark() } }
+    @Published var huntResult: OriginalHuntSession.Result? { didSet { reconcileLandmark() } }
     @Published var talkSelection: OriginalTalkRules.Selection?
     private var talkState = OriginalTalkRules.State()
     @Published var hasSave: Bool
@@ -135,6 +205,7 @@ enum GamePanel: String, Identifiable {
     let random: OriginalRandomStream
     let store: JourneyStore
     let audio: GameAudio
+    private let clock: () -> UInt32
     var chooseGameData: (() -> Void)?
     var canChooseGameData: Bool {
         trip == nil && !creatingGame && !isOriginalModalPresented && panel == nil && pendingDeparture == nil
@@ -150,7 +221,9 @@ enum GamePanel: String, Identifiable {
         chooseGameData()
     }
 
-    init(store: JourneyStore = JourneyStore(), random: OriginalRandomStream? = nil, audio: GameAudio = .shared) {
+    init(store: JourneyStore = JourneyStore(), random: OriginalRandomStream? = nil, audio: GameAudio = .shared,
+         clock: @escaping () -> UInt32 = { UInt32(truncatingIfNeeded: Int(ProcessInfo.processInfo.systemUptime * 60)) }) {
+        self.clock = clock
         self.audio = audio
         self.store = store; self.random = random ?? .shared; hasSave = store.hasSave
         do { preferences = try store.preferences() }
@@ -206,7 +279,10 @@ enum GamePanel: String, Identifiable {
             if value.livingMembers.count < oldLiving && oldPhase != .rafting {
                 value.original?.flags &= ~2
                 if value.livingMembers.isEmpty {
+                    // Retire the old pane before the terminal recording enters
+                    // the queue; the later trip assignment also closes panes.
                     memorialID = nil
+                    closeLandmark()
                     audio.enqueue(OriginalDeathPresentationRules.soundResource)
                 } else { memorialID = UUID() }
             }
@@ -256,6 +332,7 @@ enum GamePanel: String, Identifiable {
     func showConditions() {
         guard let trip, trip.gameEdition == .macintoshCD12 else { return }
         cdConditions.show(trip)
+        landmarkWeatherDidDraw()
     }
 
     func setConditionsVisible(_ visible: Bool) {
@@ -265,7 +342,9 @@ enum GamePanel: String, Identifiable {
 
     func pollConditions() {
         guard store.edition == .macintoshCD12 else { return }
-        cdConditions.poll(active: applicationActive, modalBlocked: isOriginalModalPresented)
+        if cdConditions.poll(active: applicationActive, modalBlocked: isOriginalModalPresented) {
+            landmarkWeatherDidDraw()
+        }
     }
 
     func continueJourney() {

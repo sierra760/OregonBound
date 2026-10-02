@@ -4,6 +4,185 @@ import Foundation
 
 struct OriginalAudioBackendTests {
 
+    @MainActor @Test(arguments: [GameEdition.macintosh11, .macintoshCD12])
+    func landmarkNarrationFollowsLogicalPaneReplacement(edition: GameEdition) {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        var tick: UInt32 = 0
+        let game = GameController(store: JourneyStore(directory: root, edition: edition,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        var trip = Journey(seed: 1, edition: edition); trip.phase = .landmark; trip.locationID = "kearney"
+        game.trip = trip
+        let seed = game.random.seed
+        for now in UInt32(1)...63 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started.isEmpty)
+        tick = 64; game.pollLandmarkAudio()
+        #expect(output.started == (edition == .macintoshCD12 ? [1003] : []))
+        game.panel = .talk
+        #expect(!audio.isPlaying && !game.landmarkPaneVisible)
+        audio.request(5000) // Incoming pane recording must survive outgoing cleanup.
+        game.pollLandmarkAudio()
+        #expect(audio.isPlaying && output.started.last == 5000)
+        game.panel = nil
+        tick = 65; game.pollLandmarkAudio()
+        #expect(game.landmarkPaneVisible)
+        for now in UInt32(66)...128 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == (edition == .macintoshCD12 ? [1003,5000,1003] : [5000]))
+        game.open(.map)
+        #expect(!game.landmarkPaneVisible)
+        if edition == .macintoshCD12 { #expect(!audio.isPlaying) }
+        game.open(.map)
+        for now in UInt32(129)...192 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == (edition == .macintoshCD12 ? [1003,5000,1003,1003] : [5000]))
+        #expect(game.random.seed == seed)
+        game.trip = nil
+        if edition == .macintoshCD12 { #expect(!audio.isPlaying) }
+    }
+
+    @MainActor @Test func riverCoveragePreservesLandmarkDeadlineWhileForkReplacesIt() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        var trip = Journey(seed: 1, edition: .macintoshCD12); trip.phase = .river; trip.locationID = "kansas"
+        game.trip = trip
+        game.showingRouteDecision = true
+        for now in UInt32(1)...100 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started.isEmpty && !game.landmarkPaneVisible)
+        game.showingRouteDecision = false
+        for now in UInt32(101)...104 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == [1001])
+        trip.phase = .fork; trip.locationID = "south-pass"; game.trip = trip
+        game.showingRouteDecision = true
+        #expect(!audio.isPlaying)
+        for now in UInt32(105)...200 { tick = now; game.pollLandmarkAudio() }
+        game.showingRouteDecision = false
+        for now in UInt32(201)...263 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == [1001])
+        tick = 264; game.pollLandmarkAudio()
+        #expect(output.started == [1001,1007])
+    }
+
+    @MainActor @Test func landmarkWeatherRecreationWaitsForConditionsDrawAndPreservesAudio() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var idle: [() -> Void] = [], tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        var trip = Journey(seed: 1, edition: .macintoshCD12); trip.phase = .landmark; trip.locationID = "kearney"
+        trip.original?.weather.category = 0; trip.original?.weather.snow = 0
+        game.trip = trip; game.showConditions()
+        for now in UInt32(1)...64 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == [1003] && game.cdLandmark.artwork?.colorResource == 15430)
+        tick = 80; trip.original?.weather.category = 2; trip.original?.weather.snow = 1
+        game.trip = trip; game.tick()
+        #expect(game.cdLandmark.artwork?.colorResource == 15430)
+        game.pollConditions()
+        #expect(game.cdLandmark.artwork?.colorResource == 15433 && audio.isPlaying && output.stops == 0)
+        output.callbacks.last?(); while !idle.isEmpty { idle.removeFirst()() }
+        for now in UInt32(81)...143 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == [1003])
+        tick = 144; game.pollLandmarkAudio()
+        #expect(output.started == [1003,1003])
+        tick = 160; trip.original?.weather.snow = 0; game.trip = trip; game.tick(); game.pollConditions()
+        #expect(game.cdLandmark.artwork?.colorResource == 15433)
+        output.callbacks.last?(); while !idle.isEmpty { idle.removeFirst()() }
+        for now in UInt32(161)...240 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == [1003,1003])
+    }
+
+    @MainActor @Test func landmarkMuteConsumesCueAndBusyPlaybackUsesSharedQueue() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var idle: [() -> Void] = [], tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        var trip = Journey(seed: 1, edition: .macintoshCD12); trip.phase = .landmark
+        game.trip = trip; game.sound = false
+        for now in UInt32(1)...64 { tick = now; game.pollLandmarkAudio() }
+        game.sound = true
+        for now in UInt32(65)...128 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started.isEmpty)
+        game.open(.map); game.open(.map)
+        audio.request(9007)
+        for now in UInt32(129)...192 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == [9007])
+        output.callbacks.last?(); while !idle.isEmpty { idle.removeFirst()() }
+        #expect(output.started == [9007,1000])
+        let stops = output.stops
+        game.applicationActive = false; game.showingAbout = true
+        for now in UInt32(193)...300 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started == [9007,1000] && output.stops == stops && audio.isPlaying)
+        game.applicationActive = true; game.showingAbout = false
+        var replacement = Journey(seed: 2, edition: .macintoshCD12); replacement.phase = .departure
+        game.trip = replacement
+        #expect(output.started == [9007,1000,10002] && audio.isPlaying)
+        // The retired landmark must not clear the new setup recording.
+        for now in UInt32(301)...400 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started.last == 10002 && audio.isPlaying)
+        game.completeDeparture(.exitGame)
+        #expect(!audio.isPlaying)
+    }
+
+    @MainActor @Test func coveredLandmarkKeepsArtworkUntilWeatherActuallyRedraws() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        var trip = Journey(seed: 1, edition: .macintoshCD12); trip.phase = .river; trip.locationID = "kansas"
+        trip.original?.weather.category = 0; trip.original?.weather.snow = 0
+        game.trip = trip; game.showConditions(); game.showingRouteDecision = true
+        tick = 20; trip.original?.weather.snow = 1; game.trip = trip
+        game.tick(); game.pollConditions()
+        #expect(game.cdLandmark.artwork?.colorResource == 15410)
+        game.showingRouteDecision = false
+        #expect(game.cdLandmark.artwork?.colorResource == 15410) // Reveal is not recreation.
+        game.showingRouteDecision = true
+        tick = 30; trip.original?.weather.category = 2; game.trip = trip
+        game.tick(); game.pollConditions()
+        #expect(game.cdLandmark.artwork?.colorResource == 15413)
+        for now in UInt32(31)...100 { tick = now; game.pollLandmarkAudio() }
+        #expect(output.started.isEmpty)
+        game.showingRouteDecision = false
+        tick = 101; game.pollLandmarkAudio(); tick = 102; game.pollLandmarkAudio()
+        #expect(output.started == [1001])
+        game.pendingDeparture = .exitGame
+        #expect(!audio.isPlaying && !game.landmarkPaneVisible)
+    }
+
+    @MainActor @Test func landmarkClosePrecedesTerminalDeathRecording() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let output = Output()
+        var idle: [() -> Void] = [], tick: UInt32 = 0
+        let audio = GameAudio(playback: output, scheduleIdle: { idle.append($0) })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        var trip = Journey(seed: 1, edition: .macintoshCD12); trip.phase = .landmark
+        game.trip = trip
+        for now in UInt32(1)...64 { tick = now; game.pollLandmarkAudio() }
+        game.perform { value in
+            for index in value.members.indices { value.members[index].health = 0 }
+            value.phase = .finished; value.won = false
+        }
+        while !idle.isEmpty { idle.removeFirst()() }
+        #expect(game.trip?.phase == .finished)
+        #expect(output.started == [1000,9001])
+        #expect(audio.isPlaying)
+    }
+
     @MainActor @Test func cdWelcomeRequestsNarrationOnRegistrationEntry() {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }

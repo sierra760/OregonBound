@@ -88,6 +88,39 @@ struct RuntimeResourceTests {
         #expect(CDLandmarkPresentation.artwork(index: 18, weather: 0, snow: 0) == nil)
     }
 
+    @Test(arguments: 0..<18) func cdLandmarkNarrationUsesStrictDeadlineAndFourTickPolls(index: Int) {
+        var audio = CDLandmarkAudio()
+        audio.open(index: index, at: 100)
+        for tick in UInt32(101)...163 { #expect(audio.poll(at: tick, visible: true).isEmpty) }
+        #expect(audio.poll(at: 164, visible: true) == [.start(1000 + index)])
+        for tick in UInt32(165)...300 { #expect(audio.poll(at: tick, visible: true).isEmpty) }
+        #expect(audio.close() == [.stop])
+        #expect(audio.close().isEmpty)
+        #expect(audio.poll(at: 500, visible: true).isEmpty)
+    }
+
+    @Test func cdHiddenLandmarkPreservesDeadlineAndWeatherRecreationDoesNotClear() {
+        var audio = CDLandmarkAudio()
+        audio.open(index: 3, at: 0)
+        for tick in UInt32(1)...100 { #expect(audio.poll(at: tick, visible: false).isEmpty) }
+        for tick in UInt32(101)...103 { #expect(audio.poll(at: tick, visible: true).isEmpty) }
+        #expect(audio.poll(at: 104, visible: true) == [.start(1003)])
+        audio.recreate(at: 120)
+        for tick in UInt32(121)...183 { #expect(audio.poll(at: tick, visible: true).isEmpty) }
+        #expect(audio.poll(at: 184, visible: true) == [.start(1003)])
+    }
+
+    @Test func cdLandmarkBlockedDispatchPreservesPollCounterWithoutCatchup() {
+        var audio = CDLandmarkAudio()
+        audio.open(index: 0, at: 0)
+        #expect(audio.poll(at: 1, visible: true).isEmpty)
+        #expect(audio.poll(at: 1, visible: true).isEmpty) // Duplicate host tick is not another original timer tick.
+        #expect(audio.poll(at: 100, visible: true, active: false).isEmpty)
+        #expect(audio.poll(at: 101, visible: true).isEmpty)
+        #expect(audio.poll(at: 102, visible: true).isEmpty)
+        #expect(audio.poll(at: 103, visible: true) == [.start(1000)])
+    }
+
     @Test func cdLandmarkRefreshesOnReopeningAndDisplayedWeatherOnly() {
         var pane = CDLandmarkPresentation()
         pane.update(index: 3, weather: 0, snow: 0, displayedWeather: 0, visible: true)

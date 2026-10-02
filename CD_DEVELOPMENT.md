@@ -257,12 +257,29 @@ source-data check completes all six departure months in all three display modes
 and verifies each recording against original PCM hashes and exact sample rates.
 Original foreground listening remains part of the final acceptance work.
 
+## CD landmark audio
+
+Landmarks request their recordings after the original 60-tick delay and four-tick
+poll interval. Ordinary sidebar panes replace the landmark and clear its audio;
+higher-priority river overlays preserve the pending recording while hidden.
+Weather changes redraw an existing landmark and restart its delay without stopping
+current playback. Snow changes alone and temporary coverage preserve its image.
+The controller owns artwork and audio together, keeps both tied to the journey,
+and retires the pane before an incoming terminal death recording is queued.
+
+Native tests cover source timing, all 18 sound IDs, pane replacement and coverage,
+weather draws, mute, busy playback, terminal ordering and classic compatibility.
+A private verifier matches 972 original branch decisions and exercises 54 bindings
+and reopenings across the display modes. All 18 recordings match source PCM/rates;
+54 offscreen landmark artwork regions match their selected source pixels exactly.
+These are data and scheduling checks; foreground listening remains pending.
+
 ## Current acceptance boundary
 
 Local verification includes 201 offscreen AppKit-hosted pane renders across the
 three modes, 186 exact artwork-region comparisons, and neutral ink throughout
 all 67 monochrome panes. Native controls are hosted in hidden windows for these
-checks; no original-game foreground interaction is implied. The latest native run has 887 parameterized passes and 74 skips; Python has
+checks; no original-game foreground interaction is implied. The latest native run has 914 parameterized passes and 74 skips; Python has
 125 passes and 403 skips. The iPad simulator target builds. Tests requiring
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.

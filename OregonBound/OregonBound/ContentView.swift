@@ -45,6 +45,7 @@ struct GameRootView: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
     private let timer = Timer.publish(every: Double(OriginalActionScheduler.timerIntervalTicks) / 60, on: .main, in: .common).autoconnect()
+    private let landmarkTimer = Timer.publish(every: 1.0 / 60, on: .main, in: .common).autoconnect()
     private let conditionsTimer = Timer.publish(every: 15.0 / 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
@@ -69,6 +70,7 @@ struct GameRootView: View {
         }
         .onReceive(timer) { _ in game.tick() }
         .onReceive(conditionsTimer) { _ in game.pollConditions() }
+        .onReceive(landmarkTimer) { _ in game.pollLandmarkAudio() }
         .onAppear {
             game.chooseGameData = chooseGameData
             BundleAssets.validateManifest()
