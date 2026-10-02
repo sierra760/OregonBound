@@ -403,7 +403,9 @@ the viewport and restart its source row without resetting the audio clock.
 Closing and reopening clears both scroll state and old callbacks. VoiceOver
 receives the complete imported credits without waiting for the visible scroll.
 
-The full native suite passes 981 parameterized tests; the iPad build passes.
+The full native suite passes 983 parameterized tests; the iPad build passes.
+About polling pauses while either the app or its game window is inactive; both
+activation-event orders are covered by controller regressions.
 Private source-data checks match a 107-line, 190×1613 bitmap exactly, execute
 3,230 original row-advance steps, and compare 36 rendered viewport frames across
 all three display modes with zero pixel differences. The prior 144 audio branch

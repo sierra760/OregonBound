@@ -431,7 +431,7 @@ enum GamePanel: String, Identifiable {
             case .redraw: self.aboutCreditScroll?.reset()
             case .poll(let information):
                 self.setAboutInformation(information)
-                guard self.store.edition == .macintoshCD12, self.applicationActive,
+                guard self.store.edition == .macintoshCD12, self.applicationActive, !self.fileMenu.windowInactive,
                       let id = self.aboutAudio?.poll(at: self.clock(), showsSystemInformation: information) else { return }
                 self.audio.request(id)
                 self.aboutCreditScroll?.advance()

@@ -1202,6 +1202,37 @@ struct OriginalAudioBackendTests {
         while !idle.isEmpty { idle.removeFirst()() }
         #expect(output.started == [9002,9003])
     }
+    @MainActor @Test(arguments: [false, true])
+    func aboutPausesUntilApplicationAndWindowAreBothActive(applicationFirst: Bool) throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        var tick: UInt32 = 100
+        let output = Output()
+        let audio = GameAudio(playback: output, scheduleIdle: { _ in })
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: audio, clock: { tick })
+        game.presentAbout()
+        let action = game.aboutAction()
+        #expect(output.started == [2000])
+        game.gameWindowActivationChanged(false)
+        tick = 103; action(.poll(showsSystemInformation: false))
+        #expect(output.started == [2000])
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        game.applicationActive = false
+        if applicationFirst { game.applicationActive = true }
+        else { game.gameWindowActivationChanged(true) }
+        action(.poll(showsSystemInformation: false))
+        #expect(output.started == [2000])
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == nil)
+        if applicationFirst { game.gameWindowActivationChanged(true) }
+        else { game.applicationActive = true }
+        // Rejected polls consumed neither the clock nor a row, so this same tick is eligible.
+        action(.poll(showsSystemInformation: false))
+        #expect(output.started == [2000, 2000])
+        #expect(game.aboutCreditScroll?.sourceRow(at: 114) == 0)
+        game.aboutAction()(.close)
+    }
+
     @MainActor @Test func creditsScrollSharesAcceptedAudioPulseAndOpeningLifetime() throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
