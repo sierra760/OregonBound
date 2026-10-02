@@ -100,7 +100,7 @@ struct OriginalTrailEventsTests {
         let (destination, roll, selected) = input
         var trip = prepared()
         trip.destinationID = TrailCatalog.stops[destination + 1].id
-        var values = [99,99,roll] + (selected ? [1] : []) + [99]
+        var values: [Int] = [99,99,roll] + (selected ? [1] : []) + [99]
         if destination > 11 { values.append(99) }
         values += [99,99]
         let rng = Draws(values)
