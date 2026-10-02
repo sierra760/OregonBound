@@ -22,7 +22,12 @@ struct OriginalHuntImageTests {
     }
 
     @Test func replacementsPreserveOriginalIndicesAndOtherPaletteColors() throws {
-        var table = (0..<256).flatMap { [UInt8($0),UInt8(255-$0),UInt8($0/2)] }
+        var table: [UInt8] = []
+        for index in 0..<256 {
+            table.append(UInt8(index))
+            table.append(UInt8(255 - index))
+            table.append(UInt8(index / 2))
+        }
         let sourceSpace = try #require(CGColorSpace(indexedBaseSpace: CGColorSpace(name: CGColorSpace.sRGB)!,
                                                    last: 255,colorTable: &table))
         let data = Data([0,1,2,42,255])
