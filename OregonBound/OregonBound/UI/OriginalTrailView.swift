@@ -255,7 +255,7 @@ struct CDNotificationPane: View {
                 guard point.x >= 0, point.x < 262, point.y >= 0, point.y < 199 else { return }
                 action(notice.guide != 0 && CDNotificationRules.opensGuide(x: point.x, y: point.y) ? .guide : .dismiss)
             })
-            .accessibilityElement(children: .ignore).accessibilityLabel("Event notice")
+            .accessibilityElement(children: .ignore).accessibilityLabel(game.notificationDescription ?? "Event notice")
             .accessibilityAddTraits(.isButton).accessibilityAction { action(.dismiss) }
             .accessibilityActions {
                 if notice.guide != 0 { Button("Read about this event") { action(.guide) } }

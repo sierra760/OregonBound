@@ -208,6 +208,7 @@ enum GamePanel: String, Identifiable {
     }
 
     @Published private(set) var cdNotification: CDNotificationRules.Selection?
+    @Published private(set) var notificationDescription: String?
     @Published private(set) var notificationPalette = CDNotificationRules.PaletteCycle()
     @Published private(set) var guidePage: Int?
     private var notificationSelection = CDNotificationRules.State()
@@ -232,7 +233,7 @@ enum GamePanel: String, Identifiable {
     private func closeNotification() {
         guard cdNotification != nil else { return }
         notificationOpening = nil; notificationJourney = nil; notificationTimer = nil
-        notificationWasVisible = false; cdNotification = nil
+        notificationWasVisible = false; cdNotification = nil; notificationDescription = nil
         audio.clear()
     }
 
@@ -250,12 +251,17 @@ enum GamePanel: String, Identifiable {
     /// metadata is never replayed by assigning/loading a journey or polling UI.
     private func receiveNotifications(after entryID: Int, in value: Journey) {
         guard value.gameEdition == .macintoshCD12 else { return }
-        let events = value.journal.filter { $0.id > entryID }.compactMap(\.cdNotification)
-        guard !events.isEmpty else { return }
+        let entries = value.journal.filter { $0.id > entryID && $0.cdNotification != nil }
+        guard !entries.isEmpty else { return }
         notificationSelection.beginBatch()
         let context = CDNotificationRules.Context(weather: value.originalWeatherCategory,
             snow: Int(value.original?.weather.snow ?? 0), destination: OriginalTrailEvents.destinationIndex(value))
-        for event in events { notificationSelection.receive(event, in: context) }
+        var selectedDescription: String?
+        for entry in entries {
+            if let event = entry.cdNotification, notificationSelection.receive(event, in: context) {
+                selectedDescription = entry.text
+            }
+        }
         // CODE17's flush requires the traveling picture or an existing notice.
         // Selection/once-per-destination guards still advance when it is absent.
         guard notificationPresence != .closed,
@@ -264,6 +270,7 @@ enum GamePanel: String, Identifiable {
         closeNotification()
         closeLandmark()
         cdNotification = selected
+        notificationDescription = selectedDescription
         notificationJourney = value.id; notificationOpening = UUID()
         notificationTimer = .init(openedAt: clock())
         notificationWasVisible = notificationPaneVisible

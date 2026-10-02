@@ -96,7 +96,11 @@ enum CDNotificationRules {
             snowyFoodAid = 0
         }
 
-        mutating func receive(_ event: Event, in context: Context) {
+        /// True only when this candidate becomes the selected notice, even if
+        /// its artwork matches the previous selection. Callers can retain the
+        /// corresponding journal description without rerunning priority rules.
+        @discardableResult
+        mutating func receive(_ event: Event, in context: Context) -> Bool {
             let snow = context.snow > 0
             let weather = context.weather > 1
             var art: Int?
@@ -106,7 +110,7 @@ enum CDNotificationRules {
             var cycle = false
             let low = [9,10,11,25].contains(event.code)
             if low {
-                guard (lastDestination[event.code] ?? 0) != context.destination else { return }
+                guard (lastDestination[event.code] ?? 0) != context.destination else { return false }
                 lastDestination[event.code] = context.destination
             }
             switch event.code {
@@ -160,18 +164,19 @@ enum CDNotificationRules {
             case 64: art = snow ? 43 : 5; sound = 4001; cycle = true
             case 65: art = snow ? 48 : 1; sound = 4001; cycle = true
             case 69: art = 62; sound = 4001
-            default: return
+            default: return false
             }
             // Candidate state updates even when priority rejects its display.
             if let sound { lastSound = sound }
-            guard let art else { return }
+            guard let art else { return false }
             let priority = [23,24,26,29,37].contains(event.code)
             let candidate = Selection(event: event.code, art: art, guide: guide, sound: lastSound,
                 external: external, cycle: cycle, priority: priority, low: low)
-            if priority { selected = candidate }
+            if priority { selected = candidate; return true }
             else if low {
-                if selected == nil || selected?.low == true { selected = candidate }
-            } else if selected?.priority != true { selected = candidate }
+                if selected == nil || selected?.low == true { selected = candidate; return true }
+            } else if selected?.priority != true { selected = candidate; return true }
+            return false
         }
     }
 }

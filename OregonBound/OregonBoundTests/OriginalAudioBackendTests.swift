@@ -134,6 +134,59 @@ struct OriginalAudioBackendTests {
         #expect(game.cdNotification == nil && !audio.isPlaying)
     }
 
+    @MainActor @Test func cdNoticeDescriptionTracksTheSelectedEntryAcrossPriorityAndReplacement() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), random: OriginalRandomStream(seed: 17),
+            audio: GameAudio(playback: Output(), scheduleIdle: { _ in }))
+        var trip = Journey(seed: 17, edition: .macintoshCD12); trip.phase = .travel
+        game.trip = trip
+        game.perform {
+            $0.record("Selected priority event.", cdNotification: .init(code: 29))
+            $0.record("Later ordinary event.", cdNotification: .init(code: 65))
+        }
+        #expect(game.cdNotification?.event == 29)
+        #expect(game.notificationDescription == "Selected priority event.")
+        game.perform { $0.record("Unrelated journal update.") }
+        #expect(game.notificationDescription == "Selected priority event.")
+        let staleAction = game.notificationAction()
+        game.perform {
+            $0.record("First injured traveler.", cdNotification: .init(code: 26))
+            $0.record("Second injured traveler.", cdNotification: .init(code: 26))
+        }
+        #expect(game.cdNotification?.art == 18)
+        #expect(game.notificationDescription == "Second injured traveler.")
+        staleAction(.dismiss)
+        #expect(game.notificationDescription == "Second injured traveler.")
+        game.notificationAction()(.dismiss)
+        #expect(game.cdNotification == nil && game.notificationDescription == nil)
+        game.perform { $0.record("An event with a guide page.", cdNotification: .init(code: 29)) }
+        game.notificationAction()(.guide)
+        #expect(game.panel == .guide && game.guidePage == 61 && game.notificationDescription == nil)
+        #expect(game.random.seed == 17)
+    }
+
+    @MainActor @Test func cdNoticeDescriptionIgnoresRejectedDuplicatesAndClearsWithJourney() {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let game = GameController(store: JourneyStore(directory: root, edition: .macintoshCD12,
+            defaultPreferences: .init()), audio: GameAudio(playback: Output(), scheduleIdle: { _ in }))
+        var trip = Journey(seed: 17, edition: .macintoshCD12)
+        trip.phase = .travel; trip.destinationID = "kearney"
+        game.trip = trip
+        game.perform {
+            $0.record("First bad water event.", cdNotification: .init(code: 9))
+            $0.record("Ignored duplicate in this batch.", cdNotification: .init(code: 9))
+        }
+        #expect(game.cdNotification?.event == 9)
+        #expect(game.notificationDescription == "First bad water event.")
+        game.perform { $0.record("Ignored duplicate in another batch.", cdNotification: .init(code: 9)) }
+        #expect(game.notificationDescription == "First bad water event.")
+        game.trip = Journey(seed: 18, edition: .macintoshCD12)
+        #expect(game.cdNotification == nil && game.notificationDescription == nil)
+    }
+
     @MainActor @Test func cdNoticeConsumesOnlyNewEventsAndOwnsItsOpening() {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
