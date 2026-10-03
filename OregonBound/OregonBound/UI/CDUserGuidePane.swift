@@ -261,6 +261,9 @@ private struct CDUserGuideColumn: View {
                     ScrollView {
                         Text(picture.text()).textSelection(.enabled)
                             .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 6)
+                            // Recreate the selectable text when navigating: macOS
+                            // otherwise retains the previous page's accessibility value.
+                            .id(state.pageID)
                     }.frame(maxHeight: 160)
                 }
             case .failure(let error):
