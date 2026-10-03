@@ -187,14 +187,6 @@ struct OriginalTitleView: View {
             ZStack(alignment: .topLeading) {
                 originalPaper.onTapGesture(perform: advance)
                 OriginalTitleArtwork().frame(width: 494, height: 304).allowsHitTesting(false)
-                // App branding covers only the imported title lettering; the
-                // player-supplied scenery and animation remain underneath.
-                OriginalText(text: "Oregon Bound", font: .bold14)
-                    .scaleEffect(2)
-                    .frame(width: 340, height: 42)
-                    .background(.white).offset(x: 77, y: 8)
-                    .allowsHitTesting(false)
-
                 // DITL 9000, items 2 and 3. The load action remains available even with no save.
                 OriginalButton(title: "Load Game", action: load)
                     .frame(width: 110, height: 20).offset(x: 20, y: 270)
