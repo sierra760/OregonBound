@@ -4,7 +4,6 @@ struct OriginalOutfittingView: View {
     @ObservedObject var game: GameController
     let trip: Journey
     @State private var quantities = Array(repeating: "", count: 7)
-    @State private var help = false
     private let labels = ["Oxen", "Sets of Clothing", "Boxes of Bullets (20/box)", "Spare Wagon Wheels", "Spare Wagon Axles", "Spare Wagon Tongues", "Pounds of Food"]
     private let maxima = [20, 50, 99, 3, 3, 3, 2000]
     private let prices = [2000, 1000, 200, 1000, 1000, 1000, 20]
@@ -13,11 +12,13 @@ struct OriginalOutfittingView: View {
     private func money(_ cents: Int) -> String { String(format: "%d.%02d", cents / 100, cents % 100) }
 
     var body: some View {
-        if help { OriginalTextDialogView(resource: 9031) { _ in help = false } }
+        if game.setupDialog == .buyingAdvice {
+            OriginalTextDialogView(resource: 9031, proceed: game.setupDialogAction(for: .buyingAdvice))
+        }
         else {
             OriginalWindow {
                 ZStack(alignment: .topLeading) {
-                    PixelArtwork(resource: 19030).frame(width: 494, height: 304)
+                    PixelArtwork(resource: 19030, monochromeResource: 9030).frame(width: 494, height: 304)
                     label("Matt’s General Store", x: 168, y: 94, width: 321, font: .bold14, alignment: .center)
                     label("Max", x: 168, y: 120, width: 33, font: .bold12, alignment: .trailing)
                     label("Buy", x: 207, y: 120, width: 31, font: .bold12)
@@ -29,7 +30,7 @@ struct OriginalOutfittingView: View {
                         OriginalTextEntry(label: labels[i], text: $quantities[i], font: .plain12)
                             .frame(width: 29, height: 13).offset(x: 207, y: CGFloat(137 + i * 18))
                             .onChange(of: quantities[i]) { value in
-                                let digits = String(value.filter { $0.isASCII && $0.isNumber }.prefix(4))
+                                let digits = String(value.filter { $0.isASCII && $0.isNumber }.prefix(OriginalStoreRules.inputDigits[i]))
                                 if quantities[i] != digits { quantities[i] = digits }
                             }
                         label(labels[i], x: 242, y: 137 + i * 18, width: 126)
@@ -39,7 +40,7 @@ struct OriginalOutfittingView: View {
                     label("Total:", x: 395, y: 265, width: 37, font: .bold12)
                     label("$" + money(total), x: 435, y: 263, width: 52, alignment: .trailing)
                     label("You have \(dollars(trip.cash))", x: 329, y: 287, width: 158, font: .bold12, alignment: .trailing)
-                    OriginalButton(title: "Help") { help = true }.frame(width: 60, height: 20).offset(x: 171, y: 278)
+                    OriginalButton(title: "Help") { game.presentSetupDialog(.buyingAdvice) }.frame(width: 60, height: 20).offset(x: 171, y: 278)
                     OriginalButton(title: "Buy", action: purchase).frame(width: 60, height: 20).offset(x: 245, y: 278)
                 }
             }
@@ -49,9 +50,6 @@ struct OriginalOutfittingView: View {
         OriginalText(text: text, font: font).frame(width: CGFloat(width), alignment: alignment).offset(x: CGFloat(x), y: CGFloat(y))
     }
     private func purchase() {
-        guard quantities.indices.allSatisfy({ amount($0) <= maxima[$0] }) else {
-            game.error = "Choose quantities within the maximum amounts shown."; return
-        }
         let cart = Dictionary(uniqueKeysWithValues: Supply.allCases.enumerated().map { i, item in
             (item, amount(i) * (item == .bullets ? 20 : 1))
         })

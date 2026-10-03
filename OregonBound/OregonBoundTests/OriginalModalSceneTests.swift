@@ -10,12 +10,12 @@ import XCTest
         XCTAssertTrue(environment.originalModalDispatchBlocked)
     }
 
-    func testModalHookDoesNotUseHuntClockPauseOrConsumeRandomDraws() {
+    func testModalHookDoesNotUseHuntClockPauseOrConsumeRandomDraws() throws {
         let input = OriginalHuntSession.Input(destination: 2,month: 4,weatherCategory: 0,
             snow: false,mileage: 20,lastSuccessfulHuntMileage: 20,ammunition: 99,
             survivors: 5,currentFood: 0,foodCapacity: 2000,timeSetting: 1,originalDisplayFlag: false)
         let random = OriginalRandomStream(seed: 1234)
-        let scene = OriginalHuntScene(input: input,random: random) { _ in }
+        let scene = try OriginalHuntScene(input: input,random: random) { _ in }
         scene.setActive(true)
         let deadline = scene.session.endTick, seed = random.seed
         scene.setModalDispatchBlocked(true)

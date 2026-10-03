@@ -4,12 +4,45 @@ import Testing
 @testable import OregonBound
 
 struct OriginalTravelAnimationTests {
+    @Test func selectedGeometrySurvivesTravelLandmarkFrameChanges() {
+        var sizes = OriginalTravelAnimation.frameSizes
+        sizes[11] = (117, 24)
+        var animation = OriginalTravelAnimation(input: input(destination: 5, remaining: 1), frameSizes: sizes)
+        #expect(animation.landmark.frame == 11 && animation.landmark.height == 24)
+        #expect(animation.drawCommands[3].destination.height == 24)
+        animation.step()
+        animation.apply(input(destination: 6, remaining: 2))
+        animation.step()
+        #expect(animation.landmark.frame == 12 && animation.landmark.height == 16)
+        animation.apply(input(destination: 5, remaining: 3))
+        animation.step()
+        #expect(animation.landmark.frame == 11 && animation.landmark.height == 24)
+        #expect(animation.drawCommands[3].destination.height == 24)
+        let color = OriginalTravelAnimation(input: input(destination: 5, remaining: 1))
+        #expect(color.landmark.height == 25)
+    }
+
     private func input(pace: Int = 0, destination: Int = 0, remaining: Int = 102,
                        month: Int = 4, weather: Int = 0, snow: Int = 0) -> OriginalTravelAnimation.Input {
         .init(pace: pace, destinationIndex: destination, remainingMiles: remaining,
               month: month, weather: weather, snow: snow)
     }
 
+    @Test func alternateStripUsesItsOwnWidthAtCreationAndWrap() {
+        var animation = OriginalTravelAnimation(input: input(pace: 2, remaining: 1000), upperStripWidth: 581, lowerStripWidth: 700)
+        #expect(animation.upperStripX == -255 && animation.lowerStripX == -374)
+        #expect(animation.drawCommands[1].destination.width == 581)
+        #expect(animation.drawCommands[1].clipped?.source.x == 319)
+        // Keep the landmark in transit while exercising a complete strip cycle.
+        for tick in 0..<319 {
+            animation.apply(input(pace: 2, remaining: 1000+tick))
+            animation.step()
+        }
+        #expect(animation.upperStripX == 64)
+        animation.step()
+        #expect(animation.upperStripX == -254)
+        #expect(animation.drawCommands[2].destination.width == 700)
+    }
     @Test func originalCompositionAndStripCrop() {
         let animation = OriginalTravelAnimation(input: input())
         let commands = animation.drawCommands

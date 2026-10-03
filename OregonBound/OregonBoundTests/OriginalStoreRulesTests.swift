@@ -8,6 +8,36 @@ struct OriginalStoreRulesTests {
         trip.inventory[.oxen] = 3; trip.inventory[.bullets] = 39
         return trip
     }
+    @Test func cdStoresUseTheAuthoredRegionalBackground() {
+        let cases: [(String, Int)] = [("independence", 19030), ("kearney", 19034),
+            ("laramie", 19032), ("bridger", 19033), ("hall", 19033),
+            ("boise", 19031), ("walla", 19035)]
+        for (location, resource) in cases {
+            var trip = fort(location); trip.edition = .macintoshCD12
+            #expect(OriginalStoreRules.artworkResource(in: trip) == resource)
+            trip.edition = .macintosh11
+            #expect(OriginalStoreRules.artworkResource(in: trip) == 19030)
+        }
+    }
+
+    @Test func cdStoreSellsOnlyStoredFoodAndPreservesIndependentFreshCapacity() throws {
+        var trip = fort(); trip.edition = .macintoshCD12
+        trip.inventory[.food] = 1900; trip.inventory.perishableFood = 1000
+        #expect(OriginalStoreRules.have(in: trip).count == 7)
+        #expect(OriginalStoreRules.have(in: trip)[6] == 1900)
+        let purchase = try OriginalStoreRules.buy([0,0,0,0,0,0,100], in: &trip)
+        #expect(purchase.total == 2500 && trip.inventory[.food] == 2000)
+        #expect(trip.inventory.perishableFood == 1000)
+        let before = trip
+        #expect(throws: OriginalStoreRules.Rejection.self) {
+            try OriginalStoreRules.buy([0,0,0,0,0,0,1], in: &trip)
+        }
+        #expect(throws: OriginalStoreRules.Rejection.self) {
+            try OriginalStoreRules.buy([0,0,0,0,0,0,0,1], in: &trip)
+        }
+        #expect(trip == before)
+    }
+
     @Test func eligibilityMatchesOriginalStoppedDestinationSet() {
         let stores = Set(["independence","kearney","laramie","bridger","hall","boise","walla"])
         for stop in TrailCatalog.stops { #expect(OriginalStoreRules.isAvailable(in: fort(stop.id)) == stores.contains(stop.id)) }

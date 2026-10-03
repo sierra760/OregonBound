@@ -468,4 +468,87 @@ struct OriginalRiverRulesTests {
         try JourneyEngine.rest(days: 1, in: &trip)
         #expect(trip.riverDepth == 1 && trip.riverWidth == 600)
     }
+    @Test(arguments: [(2750,49,false), (2751,49,true), (2751,50,false)])
+    func cdRiverIncludesBothFoodsAndUsesCachedOverloadBoundary(input: (Int,Int,Bool)) {
+        let (weight, roll, loses) = input
+        var sites: [Int] = []
+        let result = OriginalRiverRules.resolve(method: .ford, destination: 0, dimensions: depth(6), rain: 0,
+            inventory: [0,0,0,0,0,0,25,25], living: [true], edition: .macintoshCD12, wagonWeight: weight) { bound, site in
+                sites.append(site)
+                if site == 0x1608 { return roll }
+                if site == 0x1626 { return 1 }
+                return bound - 1
+            }
+        #expect(result.losses == [0,0,0,0,0,0,loses ? 1 : 0,loses ? 1 : 0])
+        #expect(result.drownedMembers.isEmpty)
+        #expect(sites == (loses ? [0x1608,0x1626,0x1608,0x1626,0x15a4,0x2296] : [0x1608,0x1608,0x15a4,0x2296]))
+    }
+
+    @Test func cdPaidChoiceLeavesEightInTheOriginalCurrentRegister() {
+        let result = OriginalRiverRules.choose(method: .guide, destination: 11, dimensions: depth(12), rain: 92,
+                                               edition: .macintoshCD12) { _, _ in 0 }
+        #expect(result.currentFactor == 1 && result.status == 2 && result.losses.count == 8)
+        let classic = OriginalRiverRules.choose(method: .guide, destination: 11, dimensions: depth(12), rain: 92) { _, _ in 0 }
+        #expect(classic.currentFactor == 0 && classic.status == 0 && classic.losses.count == 7)
+    }
+
+    @Test func cdCrossingSaveReloadSettlesBothFoodLossesOnce() throws {
+        var trip = try restingRiver(); trip.edition = .macintoshCD12
+        trip.inventory.perishableFood = 100
+        JourneyEngine.refreshWagonWeight(in: &trip)
+        try JourneyEngine.beginCrossing(.ford, in: &trip)
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = JourneyStore(directory: root, edition: .macintoshCD12)
+        try store.save(trip)
+        trip = try store.load()
+        #expect(trip.originalRiverOutcome?.losses.count == 8)
+        let result = try #require(JourneyEngine.prepareCrossingResult(in: &trip))
+        #expect(result.losses.count == 8)
+        try store.save(trip)
+        var restored = try store.load()
+        #expect(restored.originalRiverOutcome == result)
+        let before = restored.inventory
+        JourneyEngine.completeCrossing(in: &restored)
+        #expect(restored.inventory[.food] == before[.food] - result.losses[6])
+        #expect(restored.inventory.perishableFood == before.perishableFood - result.losses[7])
+        let settled = restored
+        #expect(JourneyEngine.completeCrossing(in: &restored) == nil && restored == settled)
+    }
+
+    @Test func cdSavedCrossingRejectsBadEighthLossAndMigratesLegacySeven() throws {
+        var trip = try restingRiver(); trip.edition = .macintoshCD12
+        try JourneyEngine.beginCrossing(.ford, in: &trip)
+        trip.originalRiverOutcome?.phase = nil
+        trip.originalRiverOutcome?.losses = [0,0,0,0,0,0,0,1001]
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = JourneyStore(directory: root, edition: .macintoshCD12)
+        #expect(throws: GameRuleError.self) { try store.validate(trip) }
+        trip.originalRiverOutcome?.losses = [0,0,0,0,0,0,10]
+        let legacy = SavedJourney(format: "OregonBound", version: 2, journey: trip, edition: .macintoshCD12)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        let url = root.appendingPathComponent("legacy.json")
+        try JSONEncoder().encode(legacy).write(to: url)
+        var loaded = try store.load(from: url)
+        #expect(loaded.originalRiverOutcome?.losses == [0,0,0,0,0,0,10,0])
+        let seed = loaded.randomState
+        JourneyEngine.prepareCrossingResult(in: &loaded)
+        #expect(loaded.randomState == seed)
+        JourneyEngine.completeCrossing(in: &loaded)
+        #expect(loaded.inventory[.food] == 990 && loaded.inventory.perishableFood == 0)
+    }
+
+    @Test func cdLoadIsCachedAcrossMealsUntilNextPulseAndSurvivesSave() throws {
+        var trip = try restingRiver(food: 2000); trip.edition = .macintoshCD12
+        trip.inventory.perishableFood = 260
+        #expect(JourneyEngine.advanceActionDay(in: &trip))
+        #expect(trip.original?.cdWagonWeight == 2760)
+        #expect(trip.inventory.cdWagonWeight == 2745)
+        let restored = try JSONDecoder().decode(Journey.self, from: JSONEncoder().encode(trip))
+        #expect(restored.original?.cdWagonWeight == 2760)
+        JourneyEngine.refreshWagonWeight(in: &trip)
+        #expect(trip.original?.cdWagonWeight == 2745)
+    }
+
 }

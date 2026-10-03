@@ -2,7 +2,6 @@ import XCTest
 @testable import OregonBound
 
 final class OriginalGuideTests: XCTestCase {
-    override func setUpWithError() throws { try GameDataTestSupport.requireGameData() }
 
     func testInitialTopicMatchesOriginalLandmarkMapping() {
         XCTAssertEqual(OriginalGuide(locationID: "independence").page, 33)
@@ -58,6 +57,7 @@ final class OriginalGuideTests: XCTestCase {
     }
 
     func testIndependenceUsesEightOriginalTextLines() throws {
+        try GameDataTestSupport.requireGameData()
         XCTAssertEqual(OriginalResources.guide.count, 61)
         let entry = try XCTUnwrap(OriginalResources.guide.first { $0.id == 32 })
         XCTAssertEqual(entry.title, "Independence, Missouri")

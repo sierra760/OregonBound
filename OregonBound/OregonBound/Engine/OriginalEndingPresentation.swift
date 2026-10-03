@@ -38,7 +38,8 @@ enum OriginalEndingPresentation {
         let points: Int
     }
     static func rows(_ trip: Journey, strings: [String]) -> [Row] {
-        guard trip.won, strings.count >= 24 else { return [] }
+        let cd = trip.gameEdition == .macintoshCD12
+        guard trip.won, strings.count >= (cd ? 26 : 24) else { return [] }
         let survivors = trip.livingMembers.count
         let perPerson = OriginalHealth.scorePerSurvivor(badness: trip.healthBadness)
         let oxen = trip.displayQuantity(.oxen)
@@ -46,13 +47,14 @@ enum OriginalEndingPresentation {
         let clothing = trip.inventory[.clothing]
         let bullets = trip.inventory[.bullets]
         let food = trip.inventory[.food]
-        let counts = [survivors, 1, oxen, parts, clothing, bullets, food, trip.cash / 100]
-        let bases = [10, 4, 11, 12, 13, 14, 15, 16]
-        let divisors = [perPerson, 50, 4, 2, 2, 50, 25, 5]
+        let counts = [survivors, 1, oxen, parts, clothing, bullets, food] +
+            (cd ? [trip.inventory.perishableFood] : []) + [trip.cash / 100]
+        let bases = cd ? [10, 4, 11, 12, 13, 14, 15, 16, 17] : [10, 4, 11, 12, 13, 14, 15, 16]
+        let divisors = [perPerson, 50, 4, 2, 2, 50, 25] + (cd ? [25] : []) + [5]
         let points = JourneyEngine.scoreLines(trip).map(\.points)
         return counts.indices.map { index in
-            let singular = index == 7 ? trip.cash == 1 : counts[index] == 1
-            let resourceIndex = bases[index] + (index != 1 && singular ? 7 : 0)
+            let singular = index == counts.count - 1 ? trip.cash == 1 : counts[index] == 1
+            let resourceIndex = bases[index] + (index != 1 && singular ? (cd ? 8 : 7) : 0)
             let label = "\(counts[index])" + strings[resourceIndex]
                 .replacingOccurrences(of: "^0", with: trip.healthLabel.lowercased())
                 .replacingOccurrences(of: "^1", with: "\(divisors[index])")

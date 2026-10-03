@@ -19,12 +19,8 @@ struct OriginalRiverOptions: View {
             if JourneyEngine.availableCrossings(in: trip).contains(.guide) {
                 choice(.guide, icon: 8073, text: "Hire an Indian to help", y: 190)
             }
-            Button { help = true } label: {
-                ZStack {
-                    PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                    PixelArtwork(resource: 9999).frame(width: 32, height: 32)
-                }
-            }.buttonStyle(.plain).accessibilityLabel("River Crossing Help").offset(x: 192, y: 246)
+            OriginalIconChoice(icon: 9999, title: "", width: 42) { help = true }
+                .accessibilityLabel("River Crossing Help").offset(x: 192, y: 246)
             }.allowsHitTesting(!help && warning == nil).accessibilityHidden(help || warning != nil)
             if help {
                 OriginalDialogContents(resource: 8075, hiddenItems: trip.locationID == "snake" ? [2] : [3]) { _ in help = false }
@@ -35,16 +31,10 @@ struct OriginalRiverOptions: View {
         }
     }
     private func choice(_ method: CrossingMethod, icon: Int, text: String, y: Int) -> some View {
-        Button { choose(method) } label: {
-            HStack(spacing: 5) {
-                ZStack {
-                    PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                    PixelArtwork(resource: icon).frame(width: 32, height: 32)
-                }
-                OriginalText(text: text)
-            }.frame(width: 240, height: 46, alignment: .leading).contentShape(Rectangle())
-        }.buttonStyle(.plain).accessibilityLabel(text).offset(x: 13, y: CGFloat(y))
+        OriginalIconChoice(icon: icon, title: text, width: 240) { choose(method) }
+            .accessibilityLabel(text).offset(x: 13, y: CGFloat(y))
     }
+
     private func choose(_ method: CrossingMethod) {
         let dimensions = OriginalRiverRules.dimensions(in: trip)
         if OriginalRiverRules.rejection(method, destination: OriginalRiverRules.destinationIndex(trip),

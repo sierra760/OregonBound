@@ -4,7 +4,7 @@ extract_snd.py — Extract Mac snd resources from Oregon Trail resource fork to 
 
 Mac snd resource format reference:
   - Format 1: 2-byte format id (0x0001), synth list, command list, then sound data
-  - bufferCmd (0x0051 | 0x8000 dataOffsetFlag): param2 = offset to SoundHeader
+  - soundCmd/bufferCmd (0x0050/0x0051 | 0x8000): param2 = SoundHeader offset
   - SoundHeader (stdSH, encode=0): 4B samplePtr, 4B length, 4B sampleRate (Fixed 16.16),
     4B loopStart, 4B loopEnd, 1B encode, 1B baseFrequency, then inline 8-bit unsigned PCM
 
@@ -23,7 +23,7 @@ INVENTORY_FILE = "assets/resource_inventory.json"
 OUTPUT_DIR = "assets/sounds"
 
 
-def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
+def parse_snd_format1(data: bytes, strict: bool = False) -> tuple[int, int, bytes]:
     """Parse a Format 1 Mac snd resource.
 
     Returns:
@@ -43,20 +43,27 @@ def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
     # Each synth entry: 2-byte id + 4-byte initOption = 6 bytes
     offset = 4 + num_synths * 6
 
+    if offset + 2 > len(data):
+        raise ValueError("snd command count is truncated")
     num_cmds = struct.unpack_from(">H", data, offset)[0]
     offset += 2
+    if offset + num_cmds * 8 > len(data):
+        raise ValueError("snd command list is truncated")
 
+    command_end = offset + num_cmds * 8
     hdr_offset = None
     for _ in range(num_cmds):
         cmd, _p1, p2 = struct.unpack_from(">HHI", data, offset)
         offset += 8
-        # bufferCmd = 0x0051; dataOffsetFlag = 0x8000 means p2 is an offset into resource
-        if (cmd & 0x7FFF) == 0x0051:
+        # CD 1.2 includes both standard sampled-sound command forms.
+        if (cmd & 0x7FFF) in (0x0050, 0x0051):
+            if not cmd & 0x8000:
+                raise ValueError("snd sample command must use a resource offset, not a pointer")
             hdr_offset = p2
             break
 
     if hdr_offset is None:
-        raise ValueError("No bufferCmd found in snd resource")
+        raise ValueError("No sampled-sound command found in snd resource")
 
     # SoundHeader layout at hdr_offset:
     #   0: samplePtr  (4B) — pointer; 0 means samples follow inline
@@ -67,12 +74,16 @@ def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
     #  20: encode     (1B) — 0=stdSH, 0xFF=extSH, 0xFE=cmpSH
     #  21: baseFreq   (1B)
     #  22: sampleArea (length bytes) if samplePtr == 0
+    if strict and hdr_offset < command_end:
+        raise ValueError("SoundHeader overlaps the snd command list")
     if hdr_offset + 22 > len(data):
         raise ValueError(f"SoundHeader at {hdr_offset} truncated (resource length={len(data)})")
 
     sample_ptr, length, sr_fixed, loop_start, loop_end = struct.unpack_from(
         ">IIIII", data, hdr_offset
     )
+    if sample_ptr != 0:
+        raise ValueError("SoundHeader samples must be inline, not a memory pointer")
     encode = data[hdr_offset + 20]
 
     if encode != 0x00:
@@ -82,11 +93,15 @@ def parse_snd_format1(data: bytes) -> tuple[int, int, bytes]:
 
     # Convert Fixed 16.16 to Hz (round to nearest integer for WAV header)
     sample_rate_hz = round(sr_fixed / 65536.0)
+    if strict and sample_rate_hz <= 0:
+        raise ValueError("SoundHeader sample rate must be positive")
 
     # Extract inline PCM samples
     samples_start = hdr_offset + 22
     samples_end = samples_start + length
     if samples_end > len(data):
+        if strict:
+            raise ValueError("SoundHeader sample payload is truncated")
         print(
             f"  Warning: declared length {length} exceeds resource bounds "
             f"({len(data) - samples_start} bytes available); truncating"

@@ -25,13 +25,41 @@ enum OriginalTradingRules {
             return quantity <= (item == 7 ? savedCashLimit : item == 0 ? 40 : capacities[item])
         }
     }
+    struct Artwork: Equatable {
+        let portraitResource: Int?
+        let portraitFrame: Int
+        let backgroundResource: Int
+        let backgroundFrame: Int
+    }
+    private static let cdFallbackLimits = [2, 3, 20, 1, 1, 1, 100]
+
     struct Session: Codable, Equatable {
         var request: Request
         var offer: Offer?
         var portrait: Int
+        var edition: GameEdition? = nil // Absent in legacy native offers.
         var isValid: Bool {
-            request.isValid && (0..<9).contains(portrait) && portrait != 6 &&
-            (offer.map { $0.isValid && $0.item != request.item } ?? true)
+            guard request.isValid else { return false }
+            let cd = edition == .macintoshCD12
+            guard cd ? ((1...23).contains(portrait) && portrait != 16 && portrait != 18)
+                     : ((0..<9).contains(portrait) && portrait != 6) else { return false }
+            guard let offer else { return true }
+            guard offer.isValid else { return false }
+            return offer.item != request.item || (cd && request.item < 7 &&
+                offer.quantity == request.quantity && request.quantity <= cdFallbackLimits[request.item])
+        }
+        func isValid(in edition: GameEdition) -> Bool {
+            isValid && (self.edition == nil || self.edition == edition)
+        }
+        func artwork(in edition: GameEdition) -> Artwork {
+            if edition == .macintoshCD12 {
+                // Legacy CD saves have classic frame indices with no reliable CD
+                // identity. Preserve their offer, without guessing a new portrait.
+                return Artwork(portraitResource: self.edition == .macintoshCD12 ? 16180 + portrait : nil,
+                               portraitFrame: 0, backgroundResource: 16180, backgroundFrame: 0)
+            }
+            return Artwork(portraitResource: 16080, portraitFrame: portrait,
+                           backgroundResource: 16080, backgroundFrame: 9)
         }
     }
     enum Resolution: Equatable { case accepted, refused, noOffer, noSpace, cannotPay }
@@ -67,26 +95,48 @@ enum OriginalTradingRules {
 
     static func presentation(request: Request, trip: Journey, draw: Draw) throws -> Session {
         guard request.isValid, hasSpace(request, in: trip) else { throw GameRuleError("That trade request is not valid.") }
+        let cd = trip.gameEdition == .macintoshCD12
         var offer: Offer?
-        if draw(1000, 0x43d2) > 333 {
+        if draw(1000, cd ? 0x451e : 0x43d2) > 333 {
             var available = Supply.allCases.map { trip.inventory[$0] }
             available[0] /= 2 // Original affordability floors odd raw oxen.
             available.append(max(0, trip.cash) / 100)
             var untried = Set(0..<8); untried.remove(request.item)
             while !untried.isEmpty {
-                let item = draw(8, 0x3f7c)
+                let sourceItem = draw(cd ? 9 : 8, cd ? 0x40fc : 0x3f7c)
+                if cd && sourceItem == 7 { continue } // Perishables cannot be traded.
+                let item = cd && sourceItem == 8 ? 7 : sourceItem
                 if item == request.item { continue }
-                let amount = paymentQuantity(request: request, paymentItem: item, percent: 80 + draw(41, 0x4096))
+                let amount = paymentQuantity(request: request, paymentItem: item, percent: 80 + draw(41, cd ? 0x4220 : 0x4096))
                 if amount < available[item] || (item != 0 && amount == available[item]) {
                     offer = Offer(item: item, quantity: amount * (item == 7 ? 100 : 1))
                     break
                 }
                 untried.remove(item) // Failed types remain drawable with new prices.
             }
+            if cd && offer == nil && permitsCDFallback(request, in: trip) {
+                offer = Offer(item: request.item, quantity: request.quantity)
+            }
         }
-        var portrait = draw(9, 0x4712)
-        while portrait == 6 { portrait = draw(9, 0x4712) }
-        return Session(request: request, offer: offer, portrait: portrait)
+        let portrait: Int
+        if cd {
+            let roll = draw(22, 0x48b0)
+            portrait = (roll == 15 ? 21 : roll == 17 ? 22 : roll) + 1
+        } else {
+            var roll = draw(9, 0x4712)
+            while roll == 6 { roll = draw(9, 0x4712) }
+            portrait = roll
+        }
+        return Session(request: request, offer: offer, portrait: portrait, edition: trip.gameEdition)
+    }
+
+    static func permitsCDFallback(_ request: Request, in trip: Journey) -> Bool {
+        guard trip.gameEdition == .macintoshCD12, request.isValid, request.item < 7,
+              request.quantity <= cdFallbackLimits[request.item], trip.cash / 100 <= 1000,
+              trip.inventory.perishableFood <= 100 else { return false }
+        var holdings = Supply.allCases.map { trip.inventory[$0] }
+        holdings[0] /= 2
+        return zip(holdings, [5, 5, 20, 1, 1, 1, 100]).allSatisfy { $0 <= $1 }
     }
 
     /// Atomically generate and save the complete pending presentation, including
@@ -107,7 +157,7 @@ enum OriginalTradingRules {
     /// Consume the saved session once; fresh validation precedes all resource writes.
     @discardableResult static func finish(accept: Bool, in trip: inout Journey) throws -> Resolution? {
         guard let session = trip.originalTradeSession else { return nil }
-        guard session.isValid else { throw GameRuleError("The saved trade offer is invalid.") }
+        guard session.isValid(in: trip.gameEdition) else { throw GameRuleError("The saved trade offer is invalid.") }
         trip.originalTradeSession = nil
         guard let offer = session.offer else { return .noOffer }
         guard accept else { return .refused }
@@ -123,8 +173,12 @@ enum OriginalTradingRules {
             trip.record("You no longer have the \(payment) to trade")
             return .cannotPay
         }
-        if offer.item == 7 { trip.cash -= rawPayment }
-        else { trip.inventory[Supply.allCases[offer.item]] -= rawPayment }
+        // CD CODE4:4c20/4c46 writes both deltas to the same packet slot;
+        // the receipt overwrites the payment for its low-supply self-trade.
+        if offer.item != session.request.item {
+            if offer.item == 7 { trip.cash -= rawPayment }
+            else { trip.inventory[Supply.allCases[offer.item]] -= rawPayment }
+        }
         if session.request.item == 7 { trip.cash += session.request.quantity }
         else { trip.inventory[Supply.allCases[session.request.item]] += session.request.quantity * (session.request.item == 0 ? 2 : 1) }
         trip.record("You traded \(payment) for \(requested).")

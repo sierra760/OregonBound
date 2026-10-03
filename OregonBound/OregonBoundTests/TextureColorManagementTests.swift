@@ -1,9 +1,36 @@
 import Foundation
 import CoreGraphics
 import Testing
+import SpriteKit
 @testable import OregonBound
 
 struct TextureColorManagementTests {
+    @Test func monochromeScrollbarPatternUsesOriginalBitsAndNegativePortPhase() throws {
+        let image = try #require(TextureLoader.quickDrawPattern(rows: OriginalClassicScrollBarColors.trackPattern,
+            width: 5, height: 2, originX: -2, originY: -1))
+        #expect(Array(image.dataProvider!.data! as Data) == [0,255,255,255,0,255,255,0,255,255])
+        #expect(TextureLoader.quickDrawPattern(rows: [], width: 8, height: 8, originX: 0, originY: 0) == nil)
+    }
+
+    @Test func quickDrawGrayUsesAbsolutePortPhase() throws {
+        let odd = try #require(TextureLoader.quickDrawGray(width: 3, height: 2, originX: 9, originY: 36))
+        let even = try #require(TextureLoader.quickDrawGray(width: 3, height: 2, originX: 10, originY: 36))
+        #expect(Array(odd.dataProvider!.data! as Data) == [255,0,255,0,255,0])
+        #expect(Array(even.dataProvider!.data! as Data) == [0,255,0,255,0,255])
+        #expect(TextureLoader.quickDrawGray(width: 0, height: 2, originX: 0, originY: 0) == nil)
+    }
+
+    @Test(arguments: [CGColorSpace.sRGB, CGColorSpace.displayP3])
+    func monochromeBitmapConvertsToOpaqueRGBA(destination: CFString) throws {
+        let source = try #require(CGImage(width: 4, height: 1, bitsPerComponent: 1, bitsPerPixel: 1,
+            bytesPerRow: 1, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: [],
+            provider: CGDataProvider(data: Data([0b01010000]) as CFData)!, decode: nil,
+            shouldInterpolate: false, intent: .defaultIntent))
+        let converted = try #require(TextureLoader.convertedImage(source, to: CGColorSpace(name: destination)!))
+        #expect(Array(converted.dataProvider!.data! as Data) == [0,0,0,255,255,255,255,255,0,0,0,255,255,255,255,255])
+        #expect(source.bitsPerPixel == 1 && source.dataProvider!.data! as Data == Data([0b01010000]))
+    }
+
     private func rgba(_ bytes: [UInt8]) -> CGImage {
         CGImage(width: bytes.count / 4, height: 1, bitsPerComponent: 8, bitsPerPixel: 32,
                 bytesPerRow: bytes.count, space: CGColorSpace(name: CGColorSpace.sRGB)!,
@@ -40,4 +67,36 @@ struct TextureColorManagementTests {
         #expect(source.dataProvider!.data! as Data == indices)
         #expect(Array(output.dataProvider!.data! as Data) == [132, 214, 251, 255, 234, 51, 35, 255])
     }
+    #if os(macOS)
+    @MainActor @Test func nativeUploadPreservesEveryTransparentCorner() throws {
+        var pixels = Array(repeating: [UInt8(0),0,0,255],count: 25)
+        for index in [0,4,20,24] { pixels[index] = [0,0,0,0] }
+        pixels[1] = [255,255,255,255]
+        let source = try #require(CGImage(width: 5,height: 5,bitsPerComponent: 8,bitsPerPixel: 32,
+            bytesPerRow: 20,space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGBitmapInfo(rawValue: CGImageAlphaInfo.premultipliedLast.rawValue),
+            provider: CGDataProvider(data: Data(pixels.flatMap { $0 }) as CFData)!,decode: nil,
+            shouldInterpolate: false,intent: .defaultIntent))
+        let view = SKView(frame: NSRect(x: 0,y: 0,width: 32,height: 32))
+        let window = NSWindow(contentRect: view.frame,styleMask: [.borderless],backing: .buffered,defer: false)
+        window.contentView = view
+        let scene = SKScene(size: view.frame.size); scene.backgroundColor = .white
+        let sprite = SKSpriteNode(texture: TextureLoader.texture(cgImage: source,renderingIn: view))
+        sprite.position = CGPoint(x: 10.5,y: 21.5)
+        scene.addChild(sprite); view.presentScene(scene); view.isPaused = true
+        let rendered = try #require(view.texture(from: scene,crop: CGRect(x: 0,y: 0,width: 32,height: 32))).cgImage()
+        let context = try #require(CGContext(data: nil,width: 32,height: 32,bitsPerComponent: 8,
+            bytesPerRow: 128,space: CGColorSpace(name: CGColorSpace.sRGB)!,
+            bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue))
+        context.interpolationQuality = .none
+        context.draw(rendered,in: CGRect(x: 0,y: 0,width: 32,height: 32))
+        let bytes = try #require(context.data).assumingMemoryBound(to: UInt8.self)
+        for y in 8...12 { for x in 8...12 {
+            let corner = (x == 8 || x == 12) && (y == 8 || y == 12)
+            #expect(bytes[(y*32+x)*4] == (corner || (x == 9 && y == 8) ? 255 : 0))
+        } }
+        withExtendedLifetime(window) {}
+    }
+    #endif
+
 }

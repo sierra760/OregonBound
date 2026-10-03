@@ -6,16 +6,19 @@ import AppKit
 /// is insufficient: Standard File and other windows can take keyboard focus.
 struct OriginalWindowActivation: NSViewRepresentable {
     let changed: (Bool) -> Void
+    var redraw: () -> Void = {}
 
-    func makeNSView(context: Context) -> ObserverView { ObserverView(changed: changed) }
-    func updateNSView(_ view: ObserverView, context: Context) { view.changed = changed }
+    func makeNSView(context: Context) -> ObserverView { ObserverView(changed: changed, redraw: redraw) }
+    func updateNSView(_ view: ObserverView, context: Context) { view.changed = changed; view.redraw = redraw }
 
     final class ObserverView: NSView {
         var changed: (Bool) -> Void
+        var redraw: () -> Void
         private var observers: [NSObjectProtocol] = []
 
-        init(changed: @escaping (Bool) -> Void) {
+        init(changed: @escaping (Bool) -> Void, redraw: @escaping () -> Void = {}) {
             self.changed = changed
+            self.redraw = redraw
             super.init(frame: .zero)
         }
         required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -25,6 +28,11 @@ struct OriginalWindowActivation: NSViewRepresentable {
             removeObservers()
             guard let window else { return }
             let center = NotificationCenter.default
+            for name in [NSWindow.didChangeScreenNotification, NSWindow.didChangeBackingPropertiesNotification] {
+                observers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.redraw() }
+                })
+            }
             for (name, active) in [(NSWindow.didBecomeKeyNotification, true), (NSWindow.didResignKeyNotification, false)] {
                 observers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] _ in
                     MainActor.assumeIsolated { self?.changed(active) }

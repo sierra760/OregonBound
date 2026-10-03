@@ -13,11 +13,11 @@ struct OriginalLegendsPane: View {
         ZStack(alignment: .topLeading) {
             originalPaper.onTapGesture(perform: advance)
             Group {
-            PixelArtwork(resource: 19010, frame: 0).frame(width: 135, height: 112)
-            PixelArtwork(resource: 19010, frame: 1).frame(width: 213, height: 45).offset(x: 146, y: 26)
-            PixelArtwork(resource: 19010, frame: 2).frame(width: 135, height: 112).offset(x: 359)
-            PixelArtwork(resource: 19010, frame: 3).frame(width: 26, height: 26).offset(y: 278)
-            PixelArtwork(resource: 19010, frame: 4).frame(width: 26, height: 26).offset(x: 468, y: 278)
+            PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 0).frame(width: 135, height: 112)
+            PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 1).frame(width: 213, height: 45).offset(x: 146, y: 26)
+            PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 2).frame(width: 135, height: 112).offset(x: 359)
+            PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 3).frame(width: 26, height: 26).offset(y: 278)
+            PixelArtwork(resource: 19010, monochromeResource: 9010, frame: 4).frame(width: 26, height: 26).offset(x: 468, y: 278)
             if rows.isEmpty {
                 OriginalText(text: OriginalLegendsRules.emptyMessage, font: .bold14)
                     .frame(width: 434, alignment: .center)

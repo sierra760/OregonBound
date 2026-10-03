@@ -83,11 +83,43 @@ enum Supply: String, Codable, CaseIterable, Identifiable {
 
 struct Inventory: Codable, Equatable {
     private var quantities: [String: Int] = [:]
+    static let perishableFoodCapacity = 1000
+    /// CD player+54. Absent in legacy saves; the existing food key stays stored food.
+    var perishableFood: Int {
+        get { quantities["perishableFood", default: 0] }
+        set { quantities["perishableFood"] = max(0, newValue) }
+    }
+    static func itemCount(for edition: GameEdition) -> Int { edition == .macintoshCD12 ? 8 : 7 }
+    /// Original player words start at +46; CD appends perishable food at +54.
+    subscript(originalIndex index: Int) -> Int {
+        get {
+            precondition((0..<8).contains(index))
+            return index == 7 ? perishableFood : self[Supply.allCases[index]]
+        }
+        set {
+            precondition((0..<8).contains(index))
+            if index == 7 { perishableFood = newValue }
+            else { self[Supply.allCases[index]] = newValue }
+        }
+    }
+    func rawQuantities(for edition: GameEdition) -> [Int] {
+        (0..<Self.itemCount(for: edition)).map { self[originalIndex: $0] }
+    }
+    /// CD CODE17:2056. Pounds: wagon500, clothing3, bullets one tenth,
+    /// wheels40, axles70, tongues50, and both food pools. Oxen are excluded.
+    var cdWagonWeight: Int {
+        Self.cdWagonWeight(rawQuantities: rawQuantities(for: .macintoshCD12))
+    }
+    static func cdWagonWeight(rawQuantities q: [Int]) -> Int {
+        precondition(q.count == 8)
+        return 500 + q[1] * 3 + q[2] / 10 + q[3] * 40 + q[4] * 70 + q[5] * 50 + q[6] + q[7]
+    }
     subscript(_ supply: Supply) -> Int {
         get { quantities[supply.rawValue, default: 0] }
         set { quantities[supply.rawValue] = max(0, newValue) }
     }
     var valid: Bool { quantities.allSatisfy { key, value in
+        if key == "perishableFood" { return (0...Self.perishableFoodCapacity).contains(value) }
         guard let supply = Supply(rawValue: key) else { return false }
         // Previously released saves allowed40 display pairs. Preserve their raw
         // count80 on migration; new purchases still enforce original capacity40.
@@ -117,9 +149,23 @@ struct JournalEntry: Codable, Equatable, Identifiable {
     var text: String
     /// Nil in older native saves; never infer an original face from the prose.
     var originalBold: Bool? = nil
+    /// Emitted with a new CD model event; older/imported prose has no inferred
+    /// notification. Loading history must not redispatch these records.
+    var cdNotification: CDNotificationRules.Event? = nil
 }
 
 struct Journey: Codable, Equatable {
+    var edition: GameEdition?
+    var gameEdition: GameEdition { edition ?? .macintosh11 }
+    var totalFood: Int { inventory[.food] + (gameEdition == .macintoshCD12 ? inventory.perishableFood : 0) }
+    var huntingFoodCapacity: Int { gameEdition == .macintoshCD12 ? Inventory.perishableFoodCapacity : Supply.food.capacity }
+    var huntingFood: Int {
+        get { gameEdition == .macintoshCD12 ? inventory.perishableFood : inventory[.food] }
+        set {
+            if gameEdition == .macintoshCD12 { inventory.perishableFood = newValue }
+            else { inventory[.food] = newValue }
+        }
+    }
     var id = UUID()
     var profession: Profession
     var difficulty: Difficulty
@@ -164,7 +210,8 @@ struct Journey: Codable, Equatable {
     var miniGameReturnPhase: JourneyPhase = .travel
 
     init(profession: Profession = .banker, difficulty: Difficulty = .greenhorn,
-         names: [String] = ["Sierra", "Anna", "Jed", "Zeke", "Mary"], departureMonth: Int = 4, seed: UInt32) {
+         names: [String] = ["Sierra", "Anna", "Jed", "Zeke", "Mary"], departureMonth: Int = 4, seed: UInt32, edition: GameEdition = .macintosh11) {
+        self.edition = edition
         self.profession = profession
         self.difficulty = difficulty
         self.departureMonth = min(8, max(3, departureMonth))
@@ -276,10 +323,12 @@ struct Journey: Codable, Equatable {
     var canHunt: Bool { canCamp && !livingMembers.isEmpty && huntEligibility == .allowed }
     var canSave: Bool { phase != .hunting && phase != .rafting }
 
-    mutating func record(_ text: String, originalEvent: Int? = nil) {
+    mutating func record(_ text: String, originalEvent: Int? = nil,
+                         cdNotification: CDNotificationRules.Event? = nil) {
         let face = originalEvent.map { OriginalSaveJournal.usesBoldFace(opcode: $0, actorWagonSlot: 0, localWagonSlot: 0) }
         journal.append(JournalEntry(id: (journal.last?.id ?? -1) + 1, day: daysElapsed,
-                                   text: OriginalJournalRules.finishSentence(text), originalBold: face))
+                                   text: OriginalJournalRules.finishSentence(text), originalBold: face,
+                                   cdNotification: gameEdition == .macintoshCD12 ? cdNotification : nil))
         if journal.count > 500 { journal.removeFirst(journal.count - 500) }
     }
 

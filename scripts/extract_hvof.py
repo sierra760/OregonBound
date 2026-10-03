@@ -45,6 +45,14 @@ def parse_orgn_resource(data: bytes, res_id: int, source_file: str) -> dict:
     return {"id": res_id, "text": text, "source_file": source_file}
 
 
+def parse_otcd_resource(data: bytes, res_id: int, source_file: str) -> dict:
+    """CD version metadata is a checked Mac Roman Pascal string."""
+    if not data or len(data) < 1 + data[0]:
+        raise ValueError("Truncated OTCD version string")
+    return {"id": res_id, "text": data[1:1 + data[0]].decode("mac_roman"),
+            "source_file": source_file, "source_type": "OTCD"}
+
+
 def main():
     os.makedirs(HVOF_OUT_DIR, exist_ok=True)
     os.makedirs(ORGN_OUT_DIR, exist_ok=True)

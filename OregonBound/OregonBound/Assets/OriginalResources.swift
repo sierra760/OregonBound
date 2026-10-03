@@ -2,7 +2,20 @@ import SwiftUI
 import AVFoundation
 
 enum OriginalResources {
-    static let manifest = BundleAssets.loadManifest()
+    private static let manifestCache = SessionResourceCache<String, GraphicsManifest>()
+    private static let guideCache = SessionResourceCache<String, [GuideEntry]>()
+    static var manifest: GraphicsManifest? {
+        manifestCache.value(for: "graphics", session: GameData.sessionID) { BundleAssets.loadManifest() }
+    }
+    static var colorMode: PreparedGameSession.ColorMode { GameData.preparedSession?.colorMode ?? .color256 }
+    static var imageType: String { colorMode.imageType }
+    static var iconType: String { colorMode.iconType }
+    static func resource(monochrome: Int, color: Int) -> Int {
+        colorMode.resource(monochrome: monochrome, color: color)
+    }
+    static func frames(_ resource: Int) -> [ManifestImage] {
+        manifest?.images(forResourceId: resource).filter { $0.resource.type == imageType } ?? []
+    }
     private struct Strings: Decodable { let strings: [String] }
     private struct GuideGroup: Decodable { struct Entry: Decodable { let text: String }; let entries: [Entry] }
     struct GuideEntry: Identifiable { let id: Int; let title: String; let text: String }
@@ -13,18 +26,33 @@ enum OriginalResources {
         return value.strings
     }
 
-    static let guide: [GuideEntry] = {
-        let titles = strings(3150)
-        var texts: [String] = []
-        for id in 3151...3171 {
-            if let url = GameData.url(forResource: "wst_\(id)", withExtension: "json", subdirectory: "guidebook"),
-               let data = try? Data(contentsOf: url), let group = try? JSONDecoder().decode(GuideGroup.self, from: data) { texts += group.entries.map(\.text) }
+    static var guide: [GuideEntry] {
+        guideCache.value(for: "guide", session: GameData.sessionID, load: loadGuide) ?? []
+    }
+    private static func loadGuide() -> [GuideEntry] {
+        loadGuide(edition: GameData.edition, titles: strings(3150)) { id in
+            guard let url = GameData.url(forResource: "wst_\(id)", withExtension: "json", subdirectory: "guidebook"),
+                  let data = try? Data(contentsOf: url),
+                  let group = try? JSONDecoder().decode(GuideGroup.self, from: data) else { return nil }
+            return group.entries.map(\.text)
         }
-        return zip(titles, texts).enumerated().map { index, entry in GuideEntry(id: index, title: entry.0, text: entry.1) }
-    }()
+    }
 
-    static func image(_ resource: Int, frame: Int = 0) -> Image? {
-        guard let entry = manifest?.images(forResourceId: resource).first(where: { $0.frame_index == frame }),
+    /// Preserve page identity even when a group/slot is unavailable. Concatenation
+    /// would incorrectly pair every subsequent title with an earlier page's text.
+    static func loadGuide(edition: GameEdition, titles: [String], group: (Int) -> [String]?) -> [GuideEntry] {
+        var result: [GuideEntry] = []
+        var entries: [String] = []
+        for index in 0..<min(titles.count, OriginalGuide.pageCount(for: edition)) {
+            if index % 3 == 0 { entries = group(3151 + index / 3) ?? [] }
+            guard entries.indices.contains(index % 3) else { continue }
+            result.append(GuideEntry(id: index, title: titles[index], text: entries[index % 3]))
+        }
+        return result
+    }
+
+    static func image(_ resource: Int, type: String? = nil, frame: Int = 0) -> Image? {
+        guard let entry = manifest?.image(resource: resource, type: type ?? imageType, frame: frame),
               let path = GameData.resourceURL(entry.image_path) else { return nil }
         #if os(macOS)
         guard let image = NSImage(contentsOf: path) else { return nil }
@@ -38,12 +66,22 @@ enum OriginalResources {
 
 struct PixelArtwork: View {
     let resource: Int
+    var monochromeResource: Int? = nil
     var frame = 0
+    var type: String? = nil
+    var preserveDimensions = false
     var body: some View {
-        if let image = OriginalResources.image(resource, frame: frame) {
-            image.resizable().interpolation(.none).aspectRatio(contentMode: .fit)
+        let selected = monochromeResource.map { OriginalResources.resource(monochrome: $0, color: resource) } ?? resource
+        if let image = OriginalResources.image(selected, type: type, frame: frame) {
+            if preserveDimensions || OriginalResources.colorMode == .monochrome,
+               let entry = OriginalResources.manifest?.image(resource: selected, type: type ?? OriginalResources.imageType, frame: frame) {
+                image.resizable().interpolation(.none).frame(width: CGFloat(entry.width), height: CGFloat(entry.height))
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else {
+                image.resizable().interpolation(.none).aspectRatio(contentMode: .fit)
+            }
         } else {
-            Text("Artwork unavailable (\(resource))").font(.caption).frame(maxWidth: .infinity, maxHeight: .infinity)
+            Text("Artwork unavailable (\(selected))").font(.caption).frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
@@ -58,6 +96,7 @@ final class GameAudio {
     private let playback: OriginalAudioPlayback
     private let scheduleIdle: (@escaping () -> Void) -> Void
     private var idleScheduled = false
+    private var sessionGeneration: UInt64 = 0
     private var generation: UInt64 = 0
     private var waitToken: UInt64 = 0
     private var waiters: [UInt64: () -> Void] = [:]
@@ -67,10 +106,27 @@ final class GameAudio {
         self.playback = playback
         self.scheduleIdle = scheduleIdle
     }
+    var isPlaying: Bool { queue.isPlaying }
+    func perform(_ action: OriginalGuide.AudioAction) {
+        switch action {
+        case .none: break
+        case .stop: clear()
+        case .request(let id): request(id)
+        }
+    }
     func play(_ id: Int) { request(id) }
     func request(_ id: Int) { apply(queue.request(id)) }
     func enqueue(_ id: Int) { queue.enqueue(id); schedulePump() }
     func clear() { apply(queue.clear()) }
+    /// End the old session without resuming its queued cleanup callbacks.
+    func resetForSession() {
+        sessionGeneration &+= 1
+        generation &+= 1
+        waiters.removeAll()
+        queue = OriginalAudioQueue()
+        idleScheduled = false
+        playback.stop()
+    }
     /// CODE1:33ba waits for current playback, with a180-tick maximum.
     func waitUntilIdle(_ completion: @escaping () -> Void) {
         guard queue.current != nil else { completion(); return }
@@ -94,8 +150,9 @@ final class GameAudio {
     private func schedulePump() {
         guard !idleScheduled else { return }
         idleScheduled = true
+        let session = sessionGeneration
         scheduleIdle { [weak self] in
-            guard let self else { return }
+            guard let self, self.sessionGeneration == session else { return }
             self.idleScheduled = false
             self.apply(self.queue.pump())
             // Muted enqueues consume one entry per idle, as CODE1:31e4 does.

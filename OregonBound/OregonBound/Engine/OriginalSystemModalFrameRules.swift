@@ -30,6 +30,13 @@ enum OriginalSystemModalFrameRules {
         (7,8,0),(7,8,1),(7,8,4),(9,10,0),(9,10,4),(9,10,6),(9,10,11),(9,10,15),
         (0,0,0),(9,10,0),(9,10,4),(9,10,6),(9,10,11),(11,8,0),(11,12,4),(7,12,15)
     ]
+    enum MonochromeInk { case black, white, gray }
+    /// WDEF0:0c52/0d36 maps requested entries to QuickDraw black/white.
+    /// 02dc installs gray only after the inactive outer ring has been drawn.
+    static func monochromeInk(_ index: Int, active: Bool) -> MonochromeInk {
+        if [0, 4, 7, 8, 21, 22, 23, 24, 25, 26, 33, 34, 35, 36].contains(index) { return .white }
+        return !active && index == 18 ? .gray : .black
+    }
     /// WDEF0:0cc6–0d34 searches actual AuxWin before wctb0/fallback.
     /// This port supplies the recovered defaults unless an actual base entry is supplied.
     static func color(_ index: Int, windowColors: [Int: RGB16] = [:]) -> RGB16 {

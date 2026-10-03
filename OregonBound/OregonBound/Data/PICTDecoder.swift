@@ -9,9 +9,8 @@ enum PICTDecoder {
     static let v2HeaderLength = 24
     static let packBitsRect: UInt16 = 0x0098
 
-    /// pict.convert_pict without the `sips` fallback. The one Oregon Color
-    /// PICT (10256) is an indexed PackBits rectangle and takes the native path;
-    /// anything else yields a failed record instead of a shell-out.
+    /// Native monochrome and indexed PackBits paths. Unsupported operations
+    /// produce a failed record; runtime decoding never invokes a platform converter.
     static func convert(resource: ResourceInfo, data: Data) -> DecodedImage {
         var diagnostics: [DecodeDiagnostic] = []
         var width: Int? = nil
@@ -27,7 +26,7 @@ enum PICTDecoder {
                     "error", "pict.invalid_dimensions", "Invalid PICT dimensions: \(frame.width)x\(frame.height)"))
                 return DecodedImage.failed(resource, diagnostics: diagnostics)
             }
-            if let image = try convertIndexedPackBits(normalized) {
+            if let image = try convertMonochromePackBits(ByteSource(data)) ?? convertIndexedPackBits(normalized) {
                 return DecodedImage(
                     resource: resource,
                     status: diagnostics.contains { $0.severity == "warning" } ? .partial : .ok,
@@ -43,7 +42,7 @@ enum PICTDecoder {
             }
             diagnostics.append(DecodeDiagnostic(
                 "error", "pict.unsupported_encoding",
-                "PICT is not an indexed PackBits rectangle; the reference pipeline's sips fallback is unavailable at runtime"))
+                "PICT raster encoding or operation is not supported by the native decoder"))
             return DecodedImage.failed(resource, width: width, height: height, diagnostics: diagnostics)
         } catch {
             diagnostics.append(DecodeDiagnostic("error", "pict.decode_failed", "\(error)"))
@@ -60,9 +59,26 @@ enum PICTDecoder {
             throw ReferenceDecodeError.value("PICT header requires \(headerLength) bytes; got \(data.count)")
         }
         let frame = try data.rect(2)
-        if frame.top >= 0 && frame.left >= 0 { return (data, []) }
-
         var working = data.bytes
+        var diagnostics: [DecodeDiagnostic] = []
+        // Some legacy pictures duplicate the first 16 bytes of HeaderOp. Match
+        // the entire fixed-bounds header before repairing; never scan for pixels.
+        var expected: [UInt8] = []
+        for value in [Int32(-1), Int32(frame.left) << 16, Int32(frame.top) << 16,
+                      Int32(frame.right) << 16, Int32(frame.bottom) << 16, Int32(0)] {
+            let bits = UInt32(bitPattern: value)
+            expected += [UInt8(bits >> 24), UInt8(truncatingIfNeeded: bits >> 16),
+                         UInt8(truncatingIfNeeded: bits >> 8), UInt8(truncatingIfNeeded: bits)]
+        }
+        if working.count >= 56, Array(working[10..<16]) == [0, 0x11, 2, 0xff, 0x0c, 0],
+           working[16..<32].elementsEqual(expected.prefix(16)),
+           working[32..<56].elementsEqual(expected) {
+            working.removeSubrange(16..<32)
+            diagnostics.append(DecodeDiagnostic("info", "pict.duplicate_legacy_header",
+                "Removed a duplicated legacy picture header prefix"))
+        }
+        if frame.top >= 0 && frame.left >= 0 { return (ByteSource(working), diagnostics) }
+
         let dt = max(0, -frame.top)
         let dl = max(0, -frame.left)
         writeRect(&working, at: 2, QuickDrawRect(top: frame.top + dt, left: frame.left + dl,
@@ -77,8 +93,8 @@ enum PICTDecoder {
                                                                   bottom: clip.bottom + dt, right: clip.right + dl))
             }
         }
-        return (ByteSource(working),
-                [DecodeDiagnostic("info", "pict.normalized_frame", "Shifted negative PICT frame to origin")])
+        diagnostics.append(DecodeDiagnostic("info", "pict.normalized_frame", "Shifted negative PICT frame to origin"))
+        return (ByteSource(working), diagnostics)
     }
 
     /// pict._scan_to_cliprgn: byte offset of the clip region size word, if a
@@ -109,28 +125,39 @@ enum PICTDecoder {
 
     // MARK: - Indexed PackBits rectangle
 
-    /// pict._convert_indexed_packbits_pict: walk word opcodes to the first
-    /// PackBitsRect and decode it; nil when the picture is anything else.
+    /// Consume a complete supported v2 picture, including its end marker.
     static func convertIndexedPackBits(_ data: ByteSource) throws -> PNGEncoder.Image? {
-        if data.count < headerLength { return nil }
+        guard data.count >= 14, try data.u16(10) == 0x0011,
+              try data.u16(12) == 0x02ff else { return nil }
         let frame = try data.rect(2)
-        var offset = headerLength
+        var offset = 14
+        var image: PNGEncoder.Image?
         while offset + 2 <= data.count {
+            if offset % 2 != 0 { offset += 1 }
+            guard offset + 2 <= data.count else { return nil }
             let opcodeOffset = offset
             let opcode = try data.u16(offset)
             offset += 2
             switch opcode {
             case packBitsRect:
-                return try decodePackBitsRect(data, opcodeOffset: opcodeOffset, frame: frame)
-            case 0x0011:
-                offset += 2
+                guard image == nil,
+                      let decoded = try decodePackBitsRect(data, opcodeOffset: opcodeOffset, frame: frame) else { return nil }
+                image = decoded.image
+                offset = decoded.next
             case 0x0C00:
+                guard offset + v2HeaderLength <= data.count else { return nil }
                 offset += v2HeaderLength
+            case 0x0000, 0x001E:
+                break
+            case 0x00A0:
+                try data.requireUnpack(offset, 2)
+                offset += 2
             case 0x0001:
-                if offset + 2 > data.count { return nil }
-                let regionSize = Int(try data.u16(offset))
-                if regionSize < 2 { return nil }
-                offset += regionSize
+                guard offset + 10 <= data.count, try data.u16(offset) == 10,
+                      try data.rect(offset + 2) == frame else { return nil }
+                offset += 10
+            case 0x00FF:
+                return offset == data.count ? image : nil
             default:
                 return nil
             }
@@ -140,11 +167,13 @@ enum PICTDecoder {
 
     /// pict._decode_packbits_rect: an 8-bit indexed PackBitsRect whose bounds,
     /// source and destination rectangles all equal the picture frame.
-    static func decodePackBitsRect(_ data: ByteSource, opcodeOffset: Int, frame: QuickDrawRect) throws -> PNGEncoder.Image? {
+    static func decodePackBitsRect(_ data: ByteSource, opcodeOffset: Int, frame: QuickDrawRect) throws -> (image: PNGEncoder.Image, next: Int)? {
         var cursor = opcodeOffset + 2
         if cursor + 46 > data.count { return nil }
 
-        let rowBytes = Int(try data.u16(cursor) & 0x3FFF)
+        let rowFlags = try data.u16(cursor)
+        let rowBytes = Int(rowFlags & 0x3FFF)
+        let packType = try data.u16(cursor + 12)
         let bounds = try data.rect(cursor + 2)
         let pixelSize = Int(try data.u16(cursor + 28))
         let componentCount = Int(try data.u16(cursor + 30))
@@ -153,7 +182,9 @@ enum PICTDecoder {
 
         let width = bounds.width
         let height = bounds.height
-        if rowBytes <= 0 || width <= 0 || height <= 0 { return nil }
+        guard rowFlags & 0x8000 != 0, rowBytes >= 8, width > 0, width <= rowBytes,
+              height > 0, width * height <= 16 * 1024 * 1024,
+              rowBytes * height <= 64 * 1024 * 1024, packType == 0 else { return nil }
         if pixelSize != 8 || componentCount != 1 || componentSize != 8 { return nil }
         if cursor + 8 > data.count { return nil }
 
@@ -191,8 +222,7 @@ enum PICTDecoder {
         if sourceRect != bounds { return nil }
         if destinationRect != bounds { return nil }
 
-        // PIL putdata fills sequentially: rows are concatenated, then padded
-        // or truncated to the image size.
+        // Source and bitmap bounds match, so each row starts at bitmap offset zero.
         var indices: [UInt8] = []
         indices.reserveCapacity(sourceWidth * sourceHeight)
         for _ in 0..<sourceHeight {
@@ -208,10 +238,9 @@ enum PICTDecoder {
             }
             let (row, next) = try unpackPackBitsRow(data, offset: cursor, byteCount: byteCount, rowBytes: rowBytes)
             cursor = next
-            indices.append(contentsOf: row[max(0, min(sourceRect.left, row.count))..<max(0, min(sourceRect.left + sourceWidth, row.count))])
+            indices.append(contentsOf: row.prefix(sourceWidth))
         }
         let pixelCount = sourceWidth * sourceHeight
-        if indices.count < pixelCount { indices += [UInt8](repeating: 0, count: pixelCount - indices.count) }
 
         var rgba = [UInt8](repeating: 255, count: pixelCount * 4)
         for pixel in 0..<pixelCount {
@@ -220,35 +249,101 @@ enum PICTDecoder {
             rgba[pixel * 4 + 1] = palette[index + 1]
             rgba[pixel * 4 + 2] = palette[index + 2]
         }
-        return PNGEncoder.Image(width: sourceWidth, height: sourceHeight, colorType: .rgba, pixels: rgba)
+        return (PNGEncoder.Image(width: sourceWidth, height: sourceHeight, colorType: .rgba, pixels: rgba), cursor)
     }
 
-    /// pict._unpack_packbits_row: one PackBits row, padded or trimmed to
-    /// `rowBytes`; the cursor always advances by the declared `byteCount`.
+    /// Decode a complete row without reading into the following row or
+    /// fabricating pixels for missing input. 0x80 is the PackBits no-op.
     static func unpackPackBitsRow(_ data: ByteSource, offset: Int, byteCount: Int, rowBytes: Int) throws -> (row: [UInt8], next: Int) {
+        guard offset >= 0, byteCount >= 0, rowBytes > 0 else {
+            throw ReferenceDecodeError.value("Invalid PackBits row")
+        }
+        try data.requireUnpack(offset, byteCount)
         let end = offset + byteCount
         var row: [UInt8] = []
-        row.reserveCapacity(rowBytes)
         var cursor = offset
-        while cursor < end && row.count < rowBytes {
+        while cursor < end {
             let control = Int(try data.byte(cursor))
             cursor += 1
-            if control <= 127 {
-                let count = control + 1
-                row.append(contentsOf: data.slice(cursor, cursor + count))
-                cursor += count
-            } else if control >= 129 {
-                let count = 257 - control
-                if cursor < end {
-                    let value = try data.byte(cursor)
-                    row.append(contentsOf: [UInt8](repeating: value, count: count))
-                }
-                cursor += 1
+            if control == 128 { continue }
+            let count = control < 128 ? control + 1 : 257 - control
+            let needed = control < 128 ? count : 1
+            guard cursor + needed <= end, row.count + count <= rowBytes else {
+                throw ReferenceDecodeError.value("PackBits command exceeds its row")
             }
+            if control < 128 { row.append(contentsOf: data.slice(cursor, cursor + count)) }
+            else { row.append(contentsOf: [UInt8](repeating: try data.byte(cursor), count: count)) }
+            cursor += needed
         }
-        if row.count < rowBytes { row += [UInt8](repeating: 0, count: rowBytes - row.count) }
-        return (Array(row.prefix(rowBytes)), end)
+        guard row.count == rowBytes else { throw ReferenceDecodeError.value("Incomplete PackBits row") }
+        return (row, end)
     }
+
+    /// The v1 monochrome PackBitsRgn form used for the application's logo.
+    /// Only rectangular, unscaled source-copy pictures are handled here.
+    static func convertMonochromePackBits(_ data: ByteSource) throws -> PNGEncoder.Image? {
+        guard data.count >= 12, try data.u16(10) == 0x1101 else { return nil }
+        let frame = try data.rect(2)
+        guard frame.width > 0, frame.height > 0, frame.width * frame.height <= 16 * 1024 * 1024 else {
+            throw ReferenceDecodeError.value("Invalid monochrome PICT dimensions")
+        }
+        var cursor = 12
+        var clip = frame
+        while cursor < data.count {
+            let opcode = try data.byte(cursor)
+            cursor += 1
+            if opcode == 0 { continue }
+            if opcode == 1 {
+                guard cursor + 10 <= data.count, try data.u16(cursor) == 10 else { return nil }
+                clip = try data.rect(cursor + 2)
+                cursor += 10
+                continue
+            }
+            guard opcode == 0x99, cursor + 38 <= data.count else { return nil }
+            let stride = Int(try data.u16(cursor))
+            let bounds = try data.rect(cursor + 2)
+            let source = try data.rect(cursor + 10)
+            let destination = try data.rect(cursor + 18)
+            let mode = try data.u16(cursor + 26)
+            let regionSize = try data.u16(cursor + 28)
+            let mask = try data.rect(cursor + 30)
+            cursor += 38
+            guard mode == 0, regionSize == 10, source == frame, destination == frame,
+                  clip == frame, mask == frame else { return nil }
+            guard stride > 0, stride & 0xc000 == 0, bounds.width > 0, bounds.height > 0,
+                  bounds.width <= stride * 8, stride * bounds.height <= 64 * 1024 * 1024,
+                  bounds.top <= frame.top, bounds.left <= frame.left,
+                  bounds.bottom >= frame.bottom, bounds.right >= frame.right else {
+                throw ReferenceDecodeError.value("Invalid monochrome PICT bitmap bounds")
+            }
+            var packed: [UInt8] = []
+            for _ in 0..<bounds.height {
+                if stride < 8 {
+                    try data.requireUnpack(cursor, stride)
+                    packed.append(contentsOf: data.slice(cursor, cursor + stride))
+                    cursor += stride
+                } else {
+                    let size = stride > 250 ? Int(try data.u16(cursor)) : Int(try data.byte(cursor))
+                    cursor += stride > 250 ? 2 : 1
+                    let decoded = try unpackPackBitsRow(data, offset: cursor, byteCount: size, rowBytes: stride)
+                    packed.append(contentsOf: decoded.row)
+                    cursor = decoded.next
+                }
+            }
+            guard cursor + 1 == data.count, try data.byte(cursor) == 0xff else { return nil }
+            var pixels: [UInt8] = []
+            pixels.reserveCapacity(frame.width * frame.height * 4)
+            for y in (frame.top - bounds.top)..<(frame.bottom - bounds.top) {
+                for x in (frame.left - bounds.left)..<(frame.right - bounds.left) {
+                    let value: UInt8 = packed[y * stride + x / 8] & (0x80 >> (x % 8)) != 0 ? 0 : 255
+                    pixels.append(contentsOf: [value, value, value, 255])
+                }
+            }
+            return PNGEncoder.Image(width: frame.width, height: frame.height, colorType: .rgba, pixels: pixels)
+        }
+        return nil
+    }
+
 }
 
 /// A text-only PICT v1 decoded to its original QuickDraw text runs

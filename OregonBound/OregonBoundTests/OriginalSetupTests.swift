@@ -24,6 +24,55 @@ final class OriginalSetupTests: XCTestCase {
         XCTAssertEqual(trip, original)
     }
 
+    func testBothEditionsRequireStartingOxenAndFoodWithoutMutatingSetup() {
+        for edition in [GameEdition.macintosh11, .macintoshCD12] {
+            for cart: [Supply: Int] in [[:], [.food: 10], [.oxen: 1]] {
+                var trip = Journey(seed: 42, edition: edition)
+                let before = trip
+                XCTAssertThrowsError(try JourneyEngine.completeOutfitting(cart, in: &trip)) { error in
+                    XCTAssertEqual(error.localizedDescription,
+                        "Matt says: You can’t set off on the trail without any oxen or food.")
+                }
+                XCTAssertEqual(trip, before)
+            }
+        }
+    }
+
+    func testStartingCartChecksMoneyBeforeCapacityButKeepsRowOrder() {
+        for edition in [GameEdition.macintosh11, .macintoshCD12] {
+            // Missing food in the last row cannot override an earlier row's error.
+            for (cash, expected): (Int, OriginalStoreRules.Rejection) in [
+                (0, .insufficientMoney), (160_000, .capacity(item: 0, quantity: 21))
+            ] {
+                var trip = Journey(seed: 42, edition: edition); trip.cash = cash
+                let before = trip
+                XCTAssertThrowsError(try JourneyEngine.completeOutfitting([.oxen: 21], in: &trip)) {
+                    XCTAssertEqual($0 as? OriginalStoreRules.Rejection, expected)
+                }
+                XCTAssertEqual(trip, before)
+            }
+        }
+    }
+
+    func testStartingCartRequiresWholeBulletBoxesAndAllowsExactBalance() throws {
+        for edition in [GameEdition.macintosh11, .macintoshCD12] {
+            var trip = Journey(seed: 42, edition: edition)
+            let before = trip
+            XCTAssertThrowsError(try JourneyEngine.completeOutfitting([.oxen: 1, .food: 1, .bullets: 1], in: &trip))
+            XCTAssertEqual(trip, before)
+            trip.cash = 2220
+            try JourneyEngine.completeOutfitting([.oxen: 1, .food: 1, .bullets: 20], in: &trip)
+            XCTAssertEqual(trip.phase, .departure)
+            XCTAssertEqual(trip.cash, 0)
+            XCTAssertEqual(trip.inventory[.oxen], 2)
+            XCTAssertEqual(trip.inventory[.food], 1)
+            XCTAssertEqual(trip.inventory[.bullets], 20)
+            XCTAssertEqual(trip.inventory.perishableFood, 0)
+            XCTAssertEqual(trip.randomState, before.randomState)
+            XCTAssertEqual(trip.daysElapsed, before.daysElapsed)
+        }
+    }
+
     func testOriginalSouthPassRoutesAndLandmarkScenes() {
         let routes = TrailCatalog.stop("south-pass").routes
         XCTAssertEqual(routes.first(where: { $0.destination == "bridger" })?.miles, 57)

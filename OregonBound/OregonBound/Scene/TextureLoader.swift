@@ -9,6 +9,30 @@ private let textureLogger = Logger(subsystem: "com.sierraburkhart.OregonBound", 
 enum TextureLoader {
     private static let cache = NSCache<NSString, SKTexture>()
 
+    /// QuickDraw qd.gray is an opaque AA55 pattern anchored to the drawing
+    /// port, not the rectangle being painted. Set bits use black ink.
+    static func quickDrawGray(width: Int, height: Int, originX: Int, originY: Int) -> CGImage? {
+        quickDrawPattern(rows: [0xaa,0x55,0xaa,0x55,0xaa,0x55,0xaa,0x55],
+                         width: width, height: height, originX: originX, originY: originY)
+    }
+
+    /// QuickDraw's eight-row, most-significant-bit-first patterns repeat in port coordinates.
+    static func quickDrawPattern(rows: [UInt8], width: Int, height: Int, originX: Int, originY: Int) -> CGImage? {
+        guard rows.count == 8, width > 0, height > 0, width <= 16384, height <= 16384,
+              width * height <= 16 * 1024 * 1024 else { return nil }
+        let phaseX = originX & 7, phaseY = originY & 7
+        var pixels = [UInt8](repeating: 255, count: width * height)
+        for y in 0..<height {
+            for x in 0..<width where rows[(y + phaseY) & 7] & (0x80 >> ((x + phaseX) & 7)) != 0 {
+                pixels[y * width + x] = 0
+            }
+        }
+        guard let provider = CGDataProvider(data: Data(pixels) as CFData) else { return nil }
+        return CGImage(width: width, height: height, bitsPerComponent: 8, bitsPerPixel: 8,
+            bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(), bitmapInfo: [],
+            provider: provider, decode: nil, shouldInterpolate: false, intent: .defaultIntent)
+    }
+
     /// Classic QuickDraw animal sprites use white as their transparent color key.
     /// Core Graphics color masks cannot be applied to an image that already has alpha.
     static func removingWhiteBackground(from source: CGImage) -> CGImage? {
@@ -86,6 +110,11 @@ enum TextureLoader {
                                              colorTable: &table),
                   let copy = source.copy(colorSpace: indexed) else { return nil }
             tagged = copy
+        } else if source.colorSpace?.model == .monochrome {
+            // A one-component bitmap cannot be retagged with a three-component
+            // RGB space. Draw its original black/white samples into the RGBA
+            // destination instead; river and hunt masks need that conversion.
+            tagged = source
         } else {
             guard let copy = source.copy(colorSpace: sRGB) else { return nil }
             tagged = copy
@@ -100,8 +129,15 @@ enum TextureLoader {
     }
 
     static func texture(cgImage source: CGImage, renderingIn view: SKView?) -> SKTexture {
-        let image = convertedImage(source, to: renderingColorSpace(for: view)) ?? source
-        let texture = SKTexture(cgImage: image)
+        let texture: SKTexture
+        if let image = convertedImage(source, to: renderingColorSpace(for: view)),
+           let data = image.dataProvider?.data {
+            // Upload the converted RGBA samples directly. SpriteKit's CGImage
+            // path can lose the final transparent pixel with a display ICC profile.
+            texture = SKTexture(data: data as Data,size: CGSize(width: image.width,height: image.height),flipped: true)
+        } else {
+            texture = SKTexture(cgImage: source)
+        }
         texture.filteringMode = .nearest
         return texture
     }
@@ -109,7 +145,7 @@ enum TextureLoader {
     static func texture(for image: ManifestImage, renderingIn view: SKView? = nil) -> SKTexture? {
         guard let resourceURL = GameData.resourceURL(image.image_path) else { return nil }
         // A texture converted for one monitor must never be reused on another profile.
-        let key = "\(resourceURL.path):\(renderingColorSpaceID(for: view))" as NSString
+        let key = "\(GameData.sessionID.uuidString):\(resourceURL.path):\(renderingColorSpaceID(for: view))" as NSString
         if let cached = cache.object(forKey: key) { return cached }
         guard let source = CGImageSourceCreateWithURL(resourceURL as CFURL, nil),
               let imageSource = CGImageSourceCreateImageAtIndex(source, 0, nil) else {

@@ -2,6 +2,35 @@ import Testing
 @testable import OregonBound
 
 struct OriginalLegendsRulesTests {
+    @Test(arguments: [true, false]) func cdAttractTimerCapturesSoundAndResetsBusyRetries(sound: Bool) {
+        var state = CDAttractPresentation(sound: sound, at: 0)
+        let titleTicks = sound ? 300 : 600
+        for tick in 1..<titleTicks { #expect(state.poll(at: UInt32(tick), sound: sound, busy: true) == false) }
+        #expect(state.poll(at: UInt32(titleTicks), sound: sound, busy: true) == !sound)
+        if sound {
+            for tick in 301..<600 { #expect(state.poll(at: UInt32(tick), sound: true, busy: false) == false) }
+            #expect(state.poll(at: 600, sound: true, busy: false) == true)
+        }
+        state.advance(sound: false, at: 600)
+        #expect(state.page == .legends)
+        // Muted creation captures 3600 even if sound is enabled afterwards.
+        for tick in 601..<4200 { #expect(state.poll(at: UInt32(tick), sound: true, busy: false) == false) }
+        #expect(state.poll(at: 4200, sound: true, busy: false) == true)
+        state.advance(sound: true, at: 4200)
+        #expect(state.page == .title)
+        for tick in 4201..<4500 { #expect(state.poll(at: UInt32(tick), sound: false, busy: true) == false) }
+        #expect(state.poll(at: 4500, sound: false, busy: true) == true)
+    }
+
+    @Test func cdAttractCountsDistinctAdvancingTicksWithoutCatchup() {
+        var state = CDAttractPresentation(sound: true, at: 100)
+        for _ in 0..<600 { #expect(state.poll(at: 100, sound: true, busy: false) == false) }
+        #expect(state.poll(at: 99, sound: true, busy: false) == false)
+        #expect(state.poll(at: 10000, sound: true, busy: false) == false)
+        for tick in 10001..<10299 { #expect(state.poll(at: UInt32(tick), sound: true, busy: false) == false) }
+        #expect(state.poll(at: 10299, sound: true, busy: false) == true)
+    }
+
     @Test func originalClassBoundariesAndScoreFormatting() {
         #expect(OriginalLegendsRules.classification(score: 2999) == "Greenhorn")
         #expect(OriginalLegendsRules.classification(score: 3000) == "Adventurer")

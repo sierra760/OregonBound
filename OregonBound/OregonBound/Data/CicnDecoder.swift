@@ -1,5 +1,25 @@
 import Foundation
 
+/// CD CODE1 loads separate ICON resources for monochrome controls and draws
+/// their 32×32 bitmap with srcOr. Unset bits preserve the destination paper.
+enum IconDecoder {
+    static func decode(resource: ResourceInfo, data: Data) -> [DecodedImage] {
+        guard data.count == 128 else {
+            return [.failed(resource, diagnostics: [DecodeDiagnostic("error", "icon.decode_failed",
+                "ICON must contain exactly 128 bytes")])]
+        }
+        let bytes = Array(data)
+        var pixels = [UInt8](repeating: 0, count: 32 * 32 * 4)
+        for index in 0..<1024 {
+            pixels[index * 4 + 3] = bytes[index / 8] & (0x80 >> (index % 8)) != 0 ? 255 : 0
+        }
+        return [DecodedImage(resource: resource, status: .ok, imagePath: nil,
+            width: 32, height: 32, mode: "RGBA", frameIndex: 0, frameCount: 1,
+            palette: nil, byteRanges: ["pixels": [0, 128]], diagnostics: [],
+            image: .init(width: 32, height: 32, colorType: .rgba, pixels: pixels))]
+    }
+}
+
 // Port of scripts/graphics_extract/cicn.py: color icon → RGBA, with the
 // 1-bit mask supplying alpha.
 

@@ -4,6 +4,32 @@ import Testing
 
 struct OriginalRiverAnimationTests {
     typealias VM = OriginalRiverAnimation
+
+    @Test(arguments: [0, 1, 2])
+    func cdCrossingAudioUsesDistinctFailureTimelines(failure: Int) {
+        let ending = failure == 0 ? 113 : failure == 1 ? 67 : 52
+        let endingSound = failure == 0 ? 4010 : 4014
+        for busy in [false, true] {
+            #expect(CDRiverAudio.commands(counter: 8, failureKind: failure, busy: busy) == [.stop, .start(4008)])
+            #expect(CDRiverAudio.commands(counter: ending, failureKind: failure, busy: busy) == [.stop, .start(endingSound)])
+            #expect(CDRiverAudio.commands(counter: 15, failureKind: failure, busy: busy).isEmpty)
+            #expect(CDRiverAudio.commands(counter: ending + 1, failureKind: failure, busy: busy).isEmpty)
+        }
+        let ambience = (0...150).filter {
+            CDRiverAudio.commands(counter: $0, failureKind: failure, busy: false) == [.start(4009)]
+        }
+        #expect(ambience == Array(16..<ending))
+        let interrupts = (0...150).filter {
+            !CDRiverAudio.commands(counter: $0, failureKind: failure, busy: true).isEmpty
+        }
+        #expect(interrupts == [8, ending])
+        #expect(CDRiverAudio.commands(counter: -1, failureKind: failure, busy: false).isEmpty)
+    }
+    @Test func invalidCDCrossingFailureDoesNotPlayGuessedAudio() {
+        for kind in [-1, 3, Int.max] {
+            #expect(CDRiverAudio.commands(counter: 8, failureKind: kind, busy: false).isEmpty)
+        }
+    }
     private func program(_ operations: [(Int,[Int])]) -> [VM.Instruction] {
         var offset = 0
         return operations.map { op, args in
@@ -11,6 +37,37 @@ struct OriginalRiverAnimationTests {
             offset += instruction.size
             return instruction
         }
+    }
+
+    @Test func cdFramesUseAuthoredDimensionsAndSnowSlotAliases() {
+        let sizes = (0..<20).map { (100 + $0, 50 + $0) }
+        let normal = VM.displayFrames(sizes: sizes, edition: .macintoshCD12, snow: false)
+        let snow = VM.displayFrames(sizes: sizes, edition: .macintoshCD12, snow: true)
+        #expect(normal.count == 20)
+        #expect(normal[7] == VM.Frame(index: 7, width: 107, height: 57))
+        #expect(snow[1] == normal[18])
+        #expect(snow[2] == normal[19])
+        #expect(snow.enumerated().allSatisfy { [1,2].contains($0.offset) || $0.element == normal[$0.offset] })
+        #expect(VM.displayFrames(sizes: sizes, edition: .macintoshCD12, snow: true, color: false) == normal)
+        let classic = VM.displayFrames(sizes: sizes, edition: .macintosh11, snow: true)
+        #expect(classic == Array(normal.prefix(18)))
+        #expect(VM.displayFrames(sizes: [], edition: .macintoshCD12, snow: true).isEmpty)
+    }
+
+    @Test func cdFrameBindingsClampSourceAndWrapTwentyLogicalSlots() {
+        let sizes = (0..<18).map { (100 + $0, 50 + $0) }
+        let frames = VM.displayFrames(sizes: sizes, edition: .macintoshCD12, snow: false)
+        #expect(frames[18] == frames[17])
+        #expect(frames[19] == frames[17])
+        var vm = VM(programs: [program([(9,[]),(4,[19]),(1,[1]),(5,[]),(1,[1]),(6,[]),(1,[1]),(255,[])])],
+                    creationOrder: [0], frames: frames)
+        vm.step()
+        #expect(vm.objects[0].frame == 19)
+        #expect(vm.drawCommands[0].frame == 17)
+        #expect(vm.drawCommands[0].width == 117)
+        #expect(vm.drawCommands[0].height == 67)
+        vm.step(); #expect(vm.objects[0].frame == 0)
+        vm.step(); #expect(vm.objects[0].frame == 19)
     }
 
     @Test(.enabled(if: GameData.isReady)) func resourceHasExactThirteenProgramsAndRepeatTargets() throws {

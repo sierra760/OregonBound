@@ -18,6 +18,8 @@ struct OriginalHuntSession {
         /// Original A5−2b76: color resource file available and display depth above one bit.
         /// The native color artwork uses true; false retains the original monochrome branch.
         var originalDisplayFlag: Bool
+        var edition: GameEdition = .macintosh11
+        var rain: Int = 0
     }
     struct Rect: Equatable {
         var x: Int, y: Int, width: Int, height: Int

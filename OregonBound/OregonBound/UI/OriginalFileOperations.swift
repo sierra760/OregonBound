@@ -9,7 +9,12 @@ import UniformTypeIdentifiers
         // These are real host-window events, even while a SwiftUI dialog covers
         // the game. Dropping an edge leaves File commands permanently stale
         // after dismissal. Modal command guards separately prevent dispatch.
+        let wasInactive = fileMenu.windowInactive
         fileMenu.activateWindow(active, stage: fileStage)
+        // CD CODE1:18ee clears on an actual deactivation edge, including when
+        // a modal is open. Coverage by a native in-canvas dialog is not an edge.
+        if store.edition == .macintoshCD12, !wasInactive, fileMenu.windowInactive { audio.clear() }
+        if wasInactive, !fileMenu.windowInactive { endingAction()(.redraw); notificationAction()(.redraw); aboutAction()(.redraw) }
     }
 
     var fileStage: OriginalFileMenuRules.Stage {
@@ -22,6 +27,7 @@ import UniformTypeIdentifiers
         fileMenu.leaveAttractViaButton()
         fileMenu.beginSetup()
         creatingGame = true
+        presentSetupDialog(.welcome)
     }
     func trailLogRecords() -> [OriginalTrailLogExport.Record] {
         guard let trip, trip.phase != .finished else { return retainedExportRecords }
@@ -72,6 +78,7 @@ import UniformTypeIdentifiers
         huntResult = nil; memorialID = nil; actionNotice = nil; showingTravelMap = false
         pendingDeparture = nil; showingSaveTimeOut = false
         fileMenu.enterAttract(hasExportText: !retainedExportRecords.isEmpty)
+        returnToAttractLegends()
         #if os(macOS)
         if departure == .quit {
             OriginalApplicationDelegate.allowTermination = true
@@ -97,7 +104,10 @@ import UniformTypeIdentifiers
     @discardableResult
     func prepareLoadGame(fromAttractButton: Bool) -> Bool {
         guard !isOriginalModalPresented, fileMenu.permits(.load) else { return false }
-        if fromAttractButton { fileMenu.leaveAttractViaButton() }
+        if fromAttractButton {
+            prepareAttractLoadAudio()
+            fileMenu.leaveAttractViaButton()
+        }
         return true
     }
     func requestLoadGame(fromAttractButton: Bool = false) {
@@ -108,7 +118,10 @@ import UniformTypeIdentifiers
         chooser.canChooseDirectories = false; chooser.allowsMultipleSelection = false
         chooser.allowedContentTypes = [.json]
         presentFileChooser(chooser) { [weak self] result in
-            guard result == .OK, let url = chooser.url else { return }
+            guard result == .OK, let url = chooser.url else {
+                self?.cancelLoadGameSelection()
+                return
+            }
             self?.resume(from: url)
         }
         #else

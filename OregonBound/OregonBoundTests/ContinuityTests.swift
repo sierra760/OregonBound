@@ -139,6 +139,34 @@ final class ContinuityTests: XCTestCase {
         XCTAssertEqual(try store.scores().count, 1)
     }
 
+    @MainActor func testReplayingRecordedJourneyDoesNotOfferAnotherLegendsName() throws {
+        for edition in [GameEdition.macintosh11, .macintoshCD12] {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            defer { try? FileManager.default.removeItem(at: folder) }
+            let store = JourneyStore(directory: folder, edition: edition, defaultPreferences: .init())
+            var trip = Journey(profession: .banker, seed: 73, edition: edition)
+            JourneyEngine.finish(&trip, won: true, reason: "Arrived")
+            let controller = GameController(store: store, random: OriginalRandomStream(seed: 73))
+            controller.trip = trip
+            controller.showOriginalScore()
+            XCTAssertTrue(OriginalEndingView(game: controller, trip: trip).qualifies)
+            try store.recordScore(trip, name: "First finish")
+            let originalScores = try store.scores()
+            let originalLegends = try store.legends()
+
+            // A player can reload an earlier save and finish the same journey again.
+            trip.members[1].health = 0
+            controller.trip = trip
+            controller.showOriginalScore()
+            XCTAssertFalse(OriginalEndingView(game: controller, trip: trip).qualifies,
+                           "The score screen must not request a name that persistence will discard")
+            controller.submitOriginalScore(name: "Replayed finish")
+            XCTAssertEqual(try store.scores(), originalScores)
+            XCTAssertEqual(try store.legends(), originalLegends)
+            XCTAssertNil(controller.error)
+        }
+    }
+
     func testSaveLoadAndMalformedSave() throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }

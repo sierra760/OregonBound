@@ -8,7 +8,7 @@ from PIL import Image, ImageDraw
 
 from .models import DecodeImage, Manifest
 
-ALLOWED_RESOURCE_TYPES = frozenset({"Imag", "PICT", "cicn", "clut"})
+ALLOWED_RESOURCE_TYPES = frozenset({"Imag", "Ima4", "PICT", "cicn", "ICON", "clut"})
 
 
 def safe_resource_type(resource_type: str) -> str:

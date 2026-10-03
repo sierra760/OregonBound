@@ -12,18 +12,25 @@ struct OriginalAttractView: View {
     private var tick: Int { Int(ProcessInfo.processInfo.systemUptime * 60) }
 
     var body: some View {
+        let isCD = game.store.edition == .macintoshCD12
+        let cdAction = game.attractAction()
+        let currentPage = isCD ? game.cdAttractPage : page
+        let load = { if isCD { cdAction(.load) } else { game.requestLoadGame(fromAttractButton: true) } }
+        let begin = { if isCD { cdAction(.travel) } else { travel() } }
+        let next = { if isCD { cdAction(.advance) } else { advance() } }
         Group {
-            if page == .title {
-                OriginalTitleView(load: { game.requestLoadGame(fromAttractButton: true) }, travel: travel, advance: advance)
+            if currentPage == .title {
+                OriginalTitleView(load: load, travel: begin, advance: next)
             } else {
                 OriginalWindow {
                     OriginalLegendsPane(legends: game.legends,
-                                        load: { game.requestLoadGame(fromAttractButton: true) }, travel: travel, advance: advance)
+                                        load: load, travel: begin, advance: next)
                 }
             }
-        }.onAppear { game.refreshOriginalLegends(); timing.advance(to: tick, active: true) }
+        }.onAppear { game.showAttract(); timing.advance(to: tick, active: true) }
             .onChange(of: scenePhase) { _ in timing.advance(to: tick, active: false) }
             .onReceive(timer) { _ in
+                if isCD { cdAction(.poll); return }
                 guard !game.isOriginalModalPresented else { return }
                 timing.advance(to: tick, active: scenePhase == .active)
                 if timing.isFinished { advance() }

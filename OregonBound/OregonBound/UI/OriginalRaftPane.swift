@@ -5,6 +5,10 @@ import Combine
 struct OriginalRaftPane: View {
     let input: OriginalRaftSession.Input
     let random: OriginalRandomStream
+    let audio: GameAudio
+    private let edition: GameEdition
+    @State private var preparedAudio = false
+    let onSceneCreated: (OriginalRaftScene) -> Void
     let onLand: (OriginalRaftSession.Result)->Void
     let onSubmit: (OriginalRaftSession.Result)->Void
     let onFinish: (OriginalRaftSession.Result)->Void
@@ -16,10 +20,13 @@ struct OriginalRaftPane: View {
     @Environment(\.originalModalDispatchBlocked) private var modalBlocked
     private let timer = Timer.publish(every: 1.0/60,on: .main,in: .common).autoconnect()
 
-    init(input: OriginalRaftSession.Input,random: OriginalRandomStream,
+    init(input: OriginalRaftSession.Input,random: OriginalRandomStream, audio: GameAudio = .shared,
+         onSceneCreated: @escaping (OriginalRaftScene) -> Void = { _ in },
          onLand: @escaping (OriginalRaftSession.Result)->Void = { _ in },
          onSubmit: @escaping (OriginalRaftSession.Result)->Void = { _ in },
          onFinish: @escaping (OriginalRaftSession.Result)->Void) {
+        self.onSceneCreated = onSceneCreated
+        self.audio = audio; self.edition = GameData.edition
         self.input = input; self.random = random; self.onLand = onLand; self.onSubmit = onSubmit; self.onFinish = onFinish
     }
     init(input: OriginalRaftSession.Input,seed: UInt32,
@@ -38,16 +45,25 @@ struct OriginalRaftPane: View {
                 OriginalDialogContents(resource: 9201) { _ in }
             }
         }.frame(width: 494,height: 304)
-            .onAppear { visible = true; if !modalBlocked { _ = presentation.advance(to: tick,active: scenePhase == .active) } }
+            .onAppear {
+                visible = true
+                if !preparedAudio {
+                    preparedAudio = true
+                    if edition == .macintoshCD12 { audio.clear() }
+                }
+                if !modalBlocked { _ = presentation.advance(to: tick,active: scenePhase == .active) }
+            }
             .onDisappear { visible = false; _ = presentation.advance(to: tick,active: false) }
             .onChange(of: scenePhase) { _ in _ = presentation.advance(to: tick,active: false) }
             .onReceive(timer) { _ in
                 guard !modalBlocked else { return }
                 switch presentation.advance(to: tick,active: visible && scenePhase == .active) {
                 case .beginRafting:
-                    scene = OriginalRaftScene(input: input,random: random) { value in
+                    let created = OriginalRaftScene(input: input,random: random, audio: audio) { value in
                         onLand(value); result = value; presentation.raftingFinished(survivors: value.survivors)
                     }
+                    scene = created
+                    onSceneCreated(created)
                 case .submitLosses:
                     if let result { onSubmit(result) }
                 case .complete:

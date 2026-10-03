@@ -9,7 +9,7 @@ private let dataLogger = Logger(subsystem: "com.sierraburkhart.OregonBound", cat
 enum GameData {
     /// Bump when the on-disk layout or any decoder output changes so stale
     /// imports are redone.
-    static let layoutVersion = 2
+    static let layoutVersion = 3
     static let manifestName = "import.json"
     static let environmentOverride = "OREGON_BOUND_DATA"
 
@@ -29,6 +29,9 @@ enum GameData {
     /// Folder holding the current import, or nil until an import has completed.
     private(set) static var root: URL? = resolveRoot()
 
+    private(set) static var sessionID = UUID()
+    private(set) static var preparedSession: PreparedGameSession?
+    static var edition: GameEdition { preparedSession?.edition ?? .macintosh11 }
     static var isReady: Bool { root != nil }
 
     static var manifest: ImportManifest? {
@@ -39,7 +42,7 @@ enum GameData {
     }
 
     /// Whether the System 7.0 fonts and control artwork were part of the import.
-    static var hasSystemResources: Bool { manifest?.hasSystemResources ?? false }
+    static var hasSystemResources: Bool { preparedSession?.hasSystemResources ?? manifest?.hasSystemResources ?? false }
 
     /// Application Support location shared by the app and its test bundle.
     static var storageDirectory: URL {
@@ -64,8 +67,20 @@ enum GameData {
 
     /// Adopt a freshly completed import.
     static func activate(_ location: URL) {
+        preparedSession = nil
+        sessionID = UUID()
         root = location
         dataLogger.info("Game data active at \(location.path, privacy: .public)")
+    }
+
+    /// Adopt after the previous scene/audio session has been torn down. The
+    /// player-facing edition selector owns that transition; this does not
+    /// migrate a running journey or certify pending content as playable.
+    static func activate(_ session: PreparedGameSession) {
+        root = session.root
+        preparedSession = session
+        sessionID = session.id
+        dataLogger.info("Prepared \(session.edition.rawValue, privacy: .public) session active")
     }
 
     static func resolveRoot() -> URL? {

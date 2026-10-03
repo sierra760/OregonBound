@@ -28,14 +28,14 @@ final class OriginalRandomTests: XCTestCase {
         XCTAssertEqual(high.seed, 16807)
     }
 
-    func testGameBoundedWrapperConsumesOnlyNontrivialDraws() {
+    func testGameBoundedWrapperConsumesEveryPositiveSpan() {
         var random = OriginalRandom(seed: 1)
         XCTAssertEqual(random.bounded(0), 0)
         XCTAssertEqual(random.bounded(1), 0)
-        XCTAssertEqual(random.seed, 1)
+        XCTAssertEqual(random.seed, 16807)
         XCTAssertEqual(random.bounded(2), 1)
-        XCTAssertEqual(random.bounded(1000), 89)
         XCTAssertEqual(random.bounded(1000), 287)
-        XCTAssertEqual(random.seed, 1622650073)
+        XCTAssertEqual(random.bounded(1000), 114)
+        XCTAssertEqual(random.seed, 984943658)
     }
 }

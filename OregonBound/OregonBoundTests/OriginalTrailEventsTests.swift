@@ -34,6 +34,56 @@ struct OriginalTrailEventsTests {
         return trip
     }
 
+    @Test(arguments: [3, 4, 11, 12])
+    func cdDustStormBoundariesPrecedeTemperature(destination: Int) {
+        for edition in [GameEdition.macintosh11, .macintoshCD12] {
+            for (rain, snow) in [(4,0), (5,0), (4,1)] {
+                for temperature in [0,2,5] {
+                    var trip = Journey(seed: 42, edition: edition)
+                    trip.destinationID = TrailCatalog.stops[destination + 1].id
+                    trip.original?.weather.rain = UInt16(rain)
+                    trip.original?.weather.snow = UInt16(snow)
+                    trip.original?.weather.temperature = UInt8(temperature)
+                    let dust = edition == .macintoshCD12 && rain < 5 && snow == 0 && (4...11).contains(destination)
+                    let rng = Draws([])
+                    OriginalTrailEvents.apply(.severeWeather, to: &trip, draw: rng.next)
+                    #expect(rng.sites.isEmpty)
+                    let category: UInt8 = dust ? 0x8a : temperature <= 1 ? 0x88 : temperature >= 4 ? 0x87 : 0
+                    #expect(trip.original?.weather.category == category)
+                    #expect(trip.delayDays == (category == 0 ? 0 : 1))
+                    if dust { #expect(trip.journal.last?.text == "Dust Storm.") }
+                }
+            }
+        }
+    }
+
+    @Test func cdDustStormRunsThroughNormalDispatchWithoutExtraDraws() {
+        var trip = Journey(seed: 42, edition: .macintoshCD12)
+        trip.inventory[.food] = 1000
+        trip.destinationID = TrailCatalog.stops[5].id
+        trip.original?.weather.temperature = 1
+        trip.original?.weather.rain = 4
+        let rng = Draws([99,0,99,99,99,99,99])
+        OriginalTrailEvents.run(&trip, draw: rng.next)
+        #expect(trip.original?.weather.category == 0x8a)
+        #expect(trip.journal.last?.text == "Dust Storm.")
+        #expect(rng.sites == [0x312c,0x3200,0x3216,0x322c,0x32a0,0x32de,0x3320])
+        #expect(rng.values.isEmpty)
+    }
+
+    @Test func dustOverrideLastsOneWeatherUpdateAndDoesNotAddPrecipitation() {
+        var state = OriginalDailyWeather.State()
+        state.category = 0x8a; state.rain = 4; state.temperature = 1
+        OriginalDailyWeather.update(&state, month: 4) { _ in Issue.record("Override must not draw"); return 0 }
+        #expect(state.category == 10 && state.rain == 3 && state.snow == 0)
+        #expect(state.rainIncrement == 0 && state.snowIncrement == 0)
+        var bounds: [Int] = []
+        OriginalDailyWeather.update(&state, month: 4) { bound in bounds.append(bound); return bound - 1 }
+        #expect(bounds == [3,41,1000])
+        #expect(state.category == 2)
+        #expect(OriginalHuntEligibility.evaluate(weatherCategory: 10, milesRemaining: 80, ammunition: 100) == .severeWeather)
+    }
+
     @Test func independentChecksInterleaveHelperDrawsAndTakeMaximumDelay() {
         var trip = prepared()
         trip.original?.weather.snow = 3001
@@ -50,7 +100,7 @@ struct OriginalTrailEventsTests {
         let (destination, roll, selected) = input
         var trip = prepared()
         trip.destinationID = TrailCatalog.stops[destination + 1].id
-        var values = [99,99,roll] + (selected ? [1] : []) + [99]
+        var values: [Int] = [99,99,roll] + (selected ? [1] : []) + [99]
         if destination > 11 { values.append(99) }
         values += [99,99]
         let rng = Draws(values)
@@ -189,4 +239,101 @@ struct OriginalTrailEventsTests {
         #expect(trip.randomState == random.seed)
         #expect(trip.original?.weather == state.weather)
     }
+    @Test(arguments: [(2,9,false), (3,9,true), (3,10,false)])
+    func cdWarmWeatherSpoilageRunsBetweenSnakebiteAndIllness(input: (Int,Int,Bool)) {
+        let (temperature, roll, spoils) = input
+        var trip = prepared(); trip.edition = .macintoshCD12
+        trip.inventory.perishableFood = 201
+        trip.original?.weather.temperature = UInt8(temperature)
+        var sites: [Int] = []
+        OriginalTrailEvents.run(&trip) { bound, site in
+            sites.append(site)
+            if site == 0x3be6 { return roll }
+            return bound - 1
+        }
+        #expect(trip.inventory.perishableFood == (spoils ? 181 : 201))
+        #expect(trip.inventory[.food] == 1000)
+        #expect(sites.contains(0x3be6) == (temperature >= 3))
+        if temperature >= 3 {
+            #expect(sites.first == 0x30d6)
+            #expect(sites[1] == 0x3be6)
+            #expect(sites.contains(0x312c))
+            if let spoilage = sites.firstIndex(of: 0x3be6), let illness = sites.firstIndex(of: 0x312c) {
+                #expect(spoilage < illness)
+            }
+        }
+        if spoils { #expect(trip.journal.last?.text == "You lost 20 pounds of perishable food due to spoilage.") }
+    }
+
+    @Test func cdFoodAidChecksBothPoolsAndFruitUsesPerishableCapacity() {
+        var trip = prepared(); trip.edition = .macintoshCD12
+        trip.inventory[.food] = 0; trip.inventory.perishableFood = 1
+        OriginalTrailEvents.run(&trip) { bound, site in
+            #expect(site != 0x3160)
+            return bound - 1
+        }
+        trip.inventory.perishableFood = 0
+        OriginalTrailEvents.run(&trip) { bound, site in site == 0x3160 ? 0 : bound - 1 }
+        #expect(trip.inventory[.food] == 0 && trip.inventory.perishableFood == 30)
+        trip.inventory[.food] = 2000; trip.inventory.perishableFood = 995
+        OriginalTrailEvents.apply(.wildFruit, to: &trip, draw: Draws([]).next)
+        #expect(trip.inventory[.food] == 2000 && trip.inventory.perishableFood == 1000)
+        let count = trip.journal.count
+        OriginalTrailEvents.apply(.wildFruit, to: &trip, draw: Draws([]).next)
+        #expect(trip.journal.count == count)
+    }
+
+    @Test func cdFireIncludesPerishableSlotAndTheftUsesWholeDollars() {
+        var trip = prepared(); trip.edition = .macintoshCD12
+        trip.inventory.perishableFood = 100
+        let fire = Draws([99,99,99,99,99,99,0,30])
+        OriginalTrailEvents.apply(.fire, to: &trip, draw: fire.next)
+        #expect(trip.inventory.perishableFood == 70 && trip.inventory[.food] == 1000)
+        #expect(fire.values.isEmpty)
+        #expect(trip.journal.last?.text == "A fire in your wagon destroyed 30 pounds of perishable food.")
+        trip.inventory[.food] = 0; trip.cash = 550
+        let thief = Draws([3,4])
+        OriginalTrailEvents.apply(.thief, to: &trip, draw: thief.next)
+        #expect(thief.bounds.last == 5)
+        #expect(trip.cash == 50 && trip.inventory.perishableFood == 70)
+    }
+
+    @Test(arguments: [(2750,99,false), (2751,90,false), (2751,91,true), (2800,89,false), (2800,90,true)])
+    func cdOverloadChecksUseWeightBeforeSpoilageAndStrictThreshold(input: (Int,Int,Bool)) {
+        let (weight, roll, breaks) = input
+        var trip = prepared(); trip.edition = .macintoshCD12
+        for item in Supply.allCases { trip.inventory[item] = 0 }
+        trip.inventory[.oxen] = 4; trip.inventory[.food] = 2000
+        trip.inventory.perishableFood = weight - 2500
+        trip.original?.weather.temperature = 3
+        var sites: [Int] = []
+        OriginalTrailEvents.run(&trip) { bound, site in
+            sites.append(site)
+            if site == 0x3be6 { return 0 } // Spoilage must not change this day's cached load.
+            if site == 0x324e { return roll }
+            if [0x2b68,0x2b76,0x2bb2,0x2bea].contains(site) { return 0 }
+            if site == 0x33ea { return 0 }
+            return bound - 1
+        }
+        #expect((trip.brokenPart == .wheels) == breaks)
+        #expect(sites.contains(0x324e) == (weight > 2750))
+        #expect(sites.contains(0x33ea) == (weight > 2750))
+        #expect(trip.inventory[.oxen] == 4)
+    }
+
+    @Test(arguments: [0,1]) func cdRandomBreakageSkipsOnlyItsCorrespondingOverloadCheck(selected: Int) {
+        var trip = prepared(); trip.edition = .macintoshCD12
+        trip.inventory[.food] = 2000; trip.inventory.perishableFood = 1000
+        var sites: [Int] = []
+        OriginalTrailEvents.run(&trip) { bound, site in
+            sites.append(site)
+            if site == 0x322c { return 0 }
+            if site == 0x326c { return selected }
+            if [0x324e,0x33ea].contains(site) { return 0 }
+            return bound - 1
+        }
+        #expect(sites.contains(0x324e) == (selected != 0))
+        #expect(sites.contains(0x33ea) == (selected != 1))
+    }
+
 }

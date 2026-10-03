@@ -2,7 +2,9 @@ import SwiftUI
 import Combine
 import UniformTypeIdentifiers
 
-let trailPaper = Color(red: 1, green: 0.98, blue: 0.86)
+var trailPaper: Color {
+    OriginalResources.colorMode == .monochrome ? .white : Color(red: 1, green: 0.98, blue: 0.86)
+}
 
 struct TrailButtonStyle: ButtonStyle {
     func makeBody(configuration: Configuration) -> some View {
@@ -15,13 +17,13 @@ struct TrailButtonStyle: ButtonStyle {
     }
 }
 
-/// Shows the import screen until the player's original files have been decoded.
+/// An edition is adopted before constructing its controller and resource views.
 struct ContentView: View {
     @StateObject private var dataState = GameDataState()
     var body: some View {
         ZStack {
             if dataState.isReady {
-                GameRootView()
+                GameRootView(chooseGameData: dataState.showLibrary).id(dataState.sessionID)
             } else {
                 GameDataSetupView(state: dataState)
                     .frame(minWidth: 512, minHeight: 322)
@@ -34,8 +36,8 @@ struct ContentView: View {
 }
 
 struct GameRootView: View {
+    var chooseGameData: () -> Void = {}
     @StateObject private var game = GameController()
-    @State private var showingWelcome = false
     @State private var managementAlert: OriginalManagementAlerts.Presentation?
     @State private var managementAlertID = UUID()
     @State private var managementAlertReady = false
@@ -43,8 +45,11 @@ struct GameRootView: View {
     @Environment(\.displayScale) private var displayScale
     @Environment(\.scenePhase) private var scenePhase
     private let timer = Timer.publish(every: Double(OriginalActionScheduler.timerIntervalTicks) / 60, on: .main, in: .common).autoconnect()
+    private let landmarkTimer = Timer.publish(every: 1.0 / 60, on: .main, in: .common).autoconnect()
+    private let conditionsTimer = Timer.publish(every: 15.0 / 60, on: .main, in: .common).autoconnect()
 
     var body: some View {
+        let closeGuide = game.userGuideCloseAction()
         GeometryReader { geometry in
             let canvasWidth: CGFloat = 512
             let canvasHeight: CGFloat = 322
@@ -65,21 +70,41 @@ struct GameRootView: View {
             }.frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .onReceive(timer) { _ in game.tick() }
+        .onReceive(conditionsTimer) { _ in game.pollConditions() }
+        .onReceive(landmarkTimer) { _ in game.pollLandmarkAudio(); game.pollNotification() }
+        .sheet(item: Binding(get: { game.userGuideOpening }, set: { if $0 == nil { closeGuide() } })) { opening in
+            CDUserGuidePane(guide: GameData.preparedSession?.userGuide,
+                fonts: GameData.preparedSession?.userGuideFonts,
+                unavailable: GameData.preparedSession?.userGuideUnavailableReason,
+                permitsActions: { game.userGuideOpening?.id == opening.id && game.applicationActive },
+                close: game.userGuideCloseAction(for: opening.id))
+                .id(opening.id)
+        }
         .onAppear {
+            game.chooseGameData = chooseGameData
             BundleAssets.validateManifest()
-            GameAudio.shared.request(9007)
             #if os(macOS)
             OriginalApplicationDelegate.game = game
             #endif
         }
+        .onDisappear {
+            game.applicationActive = false
+            game.chooseGameData = nil
+            #if os(macOS)
+            if OriginalApplicationDelegate.game === game { OriginalApplicationDelegate.game = nil }
+            #endif
+        }
         #if os(iOS)
+        .safeAreaInset(edge: .bottom) {
+            OriginalTabletHelpBar(game: game)
+        }
         .fileImporter(isPresented: $game.showingLoadDialog, allowedContentTypes: [.json]) { result in
             do {
                 let url = try result.get()
                 let scoped = url.startAccessingSecurityScopedResource()
                 defer { if scoped { url.stopAccessingSecurityScopedResource() } }
                 game.resume(from: url)
-            } catch { game.error = error.localizedDescription }
+            } catch { game.handleLoadGameFailure(error) }
         }
         .fileExporter(isPresented: $game.showingExportDialog, document: game.exportDocument,
             contentType: game.exportIsJourney ? .json : .plainText, defaultFilename: game.exportFilename) { result in
@@ -90,7 +115,8 @@ struct GameRootView: View {
         #endif
         .focusedSceneObject(game)
         #if os(macOS)
-        .background(OriginalWindowActivation(changed: game.gameWindowActivationChanged))
+        .background(OriginalWindowActivation(changed: game.gameWindowActivationChanged,
+            redraw: { game.endingAction()(.redraw); game.notificationAction()(.redraw); game.aboutAction()(.redraw) }))
         #endif
         .onChange(of: scenePhase) { phase in
             game.applicationActive = phase == .active
@@ -105,22 +131,26 @@ struct GameRootView: View {
         ZStack {
             ZStack {
             Group {
-            if game.creatingGame && showingWelcome { OriginalTextDialogView(resource: 9220) { _ in showingWelcome = false } }
+            if game.creatingGame && game.setupDialog == .welcome {
+                OriginalTextDialogView(resource: 9220, proceed: game.setupDialogAction(for: .welcome))
+            }
             else if game.creatingGame { OriginalRegistrationView(game: game) }
             else if let trip = game.trip {
                 if trip.phase == .outfitting { OriginalOutfittingView(game: game, trip: trip) }
-                else if trip.phase == .departure { OriginalTextDialogView(resource: 9080) { index in game.perform { try JourneyEngine.chooseDeparture(month: index + 3, in: &$0) } } }
+                else if trip.phase == .departure { OriginalTextDialogView(resource: 9080, proceed: game.setupDialogAction(for: .departure)) }
                 else if trip.phase == .finished { OriginalEndingView(game: game, trip: trip) }
                 else if trip.phase == .hunting {
                     OriginalWindow {
-                        OriginalHuntPane(input: huntInput(trip), random: game.random) { result in
+                        OriginalHuntPane(input: huntInput(trip), random: game.random, audio: game.audio,
+                            onCancel: { game.perform { try JourneyEngine.cancelHunt(&$0) } }) { result in
                             game.finishOriginalHunt(result)
                         }
                     }
                 }
                 else if trip.phase == .rafting {
                     OriginalWindow {
-                        OriginalRaftPane(input: JourneyEngine.originalRaftInput(trip), random: game.random,
+                        OriginalRaftPane(input: JourneyEngine.originalRaftInput(trip), random: game.random, audio: game.audio,
+                            onSceneCreated: game.registerRaftScene,
                             onLand: { result in game.perform { try JourneyEngine.prepareRaftLanding(result: result, in: &$0) } },
                             onSubmit: { result in game.perform { try JourneyEngine.applyRaftLosses(result: result, in: &$0) } },
                             onFinish: { _ in game.perform { try JourneyEngine.completeRaftLanding(in: &$0) } })
@@ -169,10 +199,16 @@ struct GameRootView: View {
                 }
             }
             if game.showingAbout {
+                let action = game.aboutAction()
                 originalModal(width: 400, height: 200) {
                     OriginalAboutPane(systemInformation: OriginalHostInformation.lines,
                         tickCount: { UInt32(truncatingIfNeeded: Int(ProcessInfo.processInfo.systemUptime * 60)) },
-                        doubleClickTicks: originalDoubleClickTicks, done: { game.showingAbout = false })
+                        doubleClickTicks: originalDoubleClickTicks,
+                        isCD: game.store.edition == .macintoshCD12,
+                        creditsText: game.aboutCreditText, creditsImage: game.aboutCreditImage,
+                        creditsScroll: game.aboutCreditScroll,
+                        informationChanged: { action(.information($0)) },
+                        pollAudio: { action(.poll(showsSystemInformation: $0)) }, done: { action(.close) })
                 }
             }
             if let pane = game.managementPane {
@@ -244,7 +280,7 @@ struct GameRootView: View {
                     Button("OK") { game.error = nil }.keyboardShortcut(.defaultAction)
                 }.padding(22).frame(width: 340).background(trailPaper).overlay(Rectangle().stroke(.black, lineWidth: 2))
             }
-        }
+        }.coordinateSpace(name: OriginalWindowLayout.portSpace)
     }
 
     /// Center the CONTENT with the original integer division. The System window
@@ -285,7 +321,7 @@ struct GameRootView: View {
     }
 
     private var titleScreen: some View {
-        OriginalAttractView(game: game, travel: { showingWelcome = true; game.beginRegistration() })
+        OriginalAttractView(game: game, travel: game.beginRegistration)
     }
 
     private func huntInput(_ trip: Journey) -> OriginalHuntSession.Input {
@@ -294,7 +330,8 @@ struct GameRootView: View {
               snow: (trip.original?.weather.snow ?? 0) != 0, mileage: trip.miles,
               lastSuccessfulHuntMileage: trip.original?.lastSuccessfulHuntMileage ?? 0,
               ammunition: trip.inventory[.bullets], survivors: trip.livingMembers.count,
-              currentFood: trip.inventory[.food], foodCapacity: Supply.food.capacity,
-              timeSetting: Int(trip.timing.huntSelector), originalDisplayFlag: true)
+              currentFood: trip.huntingFood, foodCapacity: trip.huntingFoodCapacity,
+              timeSetting: Int(trip.timing.huntSelector), originalDisplayFlag: true,
+              edition: trip.gameEdition, rain: Int(trip.original?.weather.rain ?? 0))
     }
 }

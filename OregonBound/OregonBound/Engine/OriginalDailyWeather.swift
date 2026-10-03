@@ -101,6 +101,8 @@ struct OriginalJourneyState: Codable, Equatable {
     var flags: UInt8 = 0
     var restDays: UInt8 = 0
     var lastMovement: UInt8 = 0
+    /// CD player+6e, recomputed by each active model timer pulse.
+    var cdWagonWeight: Int?
     var lastSuccessfulHuntMileage: Int?
     var weather = OriginalDailyWeather.State()
 }

@@ -24,13 +24,18 @@ enum JourneyEngine {
     }
     static func completeOutfitting(_ quantities: [Supply: Int], in trip: inout Journey) throws {
         guard trip.phase == .outfitting else { throw GameRuleError("Initial outfitting is already complete.") }
-        var purchase = trip
-        for item in Supply.allCases {
-            let quantity = quantities[item, default: 0]
-            guard quantity >= 0 else { throw GameRuleError("Enter a positive quantity.") }
-            if item == .oxen && quantity > 20 { throw GameRuleError("You can buy at most 20 oxen here.") }
-            if quantity > 0 { try buy(item, quantity: quantity, in: &purchase) }
+        // This API receives loose bullet units; the original setup sells whole boxes.
+        let bullets = quantities[.bullets, default: 0]
+        guard bullets >= 0, bullets % 20 == 0 else { throw OriginalStoreRules.Rejection.invalidQuantity }
+        let counts = Supply.allCases.map { item in
+            item == .bullets ? bullets / 20 : quantities[item, default: 0]
         }
+        let quote = try OriginalStoreRules.quoteOutfitting(counts, in: trip)
+        var purchase = trip
+        purchase.ensureOriginalState()
+        for (index, item) in Supply.allCases.enumerated() { purchase.inventory[item] = quote.rawAdditions[index] }
+        purchase.inventory.perishableFood = 0
+        purchase.cash -= quote.total
         purchase.phase = .departure
         trip = purchase
     }
@@ -90,6 +95,13 @@ enum JourneyEngine {
         trip.phase = .travel
         trip.ensureOriginalState()
         trip.original?.flags |= 2
+    }
+
+    /// CD CODE17:23f6 refreshes load even when a pulse does not advance a day.
+    static func refreshWagonWeight(in trip: inout Journey) {
+        guard trip.gameEdition == .macintoshCD12 else { return }
+        trip.ensureOriginalState()
+        trip.original?.cdWagonWeight = trip.inventory.cdWagonWeight
     }
 
     /// Compatibility entry point for an explicitly requested traveling day.
@@ -180,6 +192,7 @@ enum JourneyEngine {
     @discardableResult
     private static func dailyNeeds(_ trip: inout Journey, resting: Bool, traveling: Bool = false, preservingFlags: Bool = false) -> OriginalHealth.Output? {
         guard trip.phase != .finished, !trip.livingMembers.isEmpty else { return nil }
+        refreshWagonWeight(in: &trip)
         initializeWeather(&trip)
         if !preservingFlags {
             if traveling { trip.original?.flags |= 2 } else { trip.original?.flags &= ~2 }
@@ -210,6 +223,7 @@ enum JourneyEngine {
             badness: state.badness, auxiliary: state.auxiliary,
             pendingEventPenalty: state.pendingEventPenalty,
             survivors: UInt8(trip.livingMembers.count), food: Int16(trip.inventory[.food]),
+            perishableFood: Int16(trip.inventory.perishableFood), edition: trip.gameEdition,
             clothing: Int16(trip.inventory[.clothing]), rations: trip.rations.originalIndex,
             pace: trip.pace.originalIndex, stateFlags: state.flags,
             temperature: state.weather.temperature, weather: state.weather.category,
@@ -220,6 +234,7 @@ enum JourneyEngine {
         state.badness = output.storedBadnessBeforeThreshold
         trip.original = state
         trip.inventory[.food] = Int(output.food)
+        if trip.gameEdition == .macintoshCD12 { trip.inventory.perishableFood = Int(output.perishableFood) }
         for i in trip.members.indices {
             trip.members[i].sickDays = Int(output.members[i].remainingDays)
             if output.members[i].condition == 255 { trip.members[i].illness = nil }
@@ -234,7 +249,7 @@ enum JourneyEngine {
         switch state.weather.category {
         case 3, 4: trip.weather = .rain
         case 5, 6, 8: trip.weather = .snow
-        case 7, 9: trip.weather = .storm
+        case 7, 9, 10: trip.weather = .storm
         case 1, 2: trip.weather = .cold // legacy display only; UI uses exact category getter
         default: trip.weather = .sunny
         }
@@ -322,7 +337,7 @@ enum JourneyEngine {
         trip.record(OriginalJournalRules.decision(.crossing(OriginalRiverRules.methodRaw(method))))
         var random = OriginalRandom(seed: trip.randomState)
         let outcome = OriginalRiverRules.choose(method: method, destination: destination,
-            dimensions: dimensions, rain: trip.original!.weather.rain) {
+            dimensions: dimensions, rain: trip.original!.weather.rain, edition: trip.gameEdition) {
                 bound, _ in random.bounded(bound)
             }
         trip.randomState = random.seed
@@ -340,8 +355,9 @@ enum JourneyEngine {
         var random = OriginalRandom(seed: trip.randomState)
         let result = OriginalRiverRules.prepareResult(choice,
             destination: OriginalRiverRules.destinationIndex(trip), dimensions: OriginalRiverRules.dimensions(in: trip),
-            rain: trip.original!.weather.rain, inventory: Supply.allCases.map { trip.inventory[$0] },
-            living: trip.members.map(\.alive)) { bound, _ in random.bounded(bound) }
+            rain: trip.original!.weather.rain, inventory: trip.inventory.rawQuantities(for: trip.gameEdition),
+            living: trip.members.map(\.alive), edition: trip.gameEdition,
+            wagonWeight: trip.original?.cdWagonWeight ?? trip.inventory.cdWagonWeight) { bound, _ in random.bounded(bound) }
         trip.randomState = random.seed
         trip.originalRiverOutcome = result
         return result
@@ -356,8 +372,8 @@ enum JourneyEngine {
         trip.originalMapSuppressedLandmarkID = trip.locationID
         // CODE16:12f2–143e applies the completed loss record, not per-person
         // illness death handling: river deaths do not lower shared badness to105.
-        for (index, item) in Supply.allCases.enumerated() {
-            trip.inventory[item] = max(0, trip.inventory[item] - outcome.losses[index])
+        for index in outcome.losses.indices {
+            trip.inventory[originalIndex: index] = max(0, trip.inventory[originalIndex: index] - outcome.losses[index])
         }
         if outcome.losses.contains(where: { $0 != 0 }) {
             OriginalTrailEvents.record(66, quantities: outcome.losses, in: &trip)
@@ -392,31 +408,41 @@ enum JourneyEngine {
         trip.phase = .hunting
     }
 
+    /// Native recovery when the selected installation cannot supply its hunt assets.
+    /// Returning from the error pane does not submit a hunting result or charge rest.
+    static func cancelHunt(_ trip: inout Journey) throws {
+        guard trip.phase == .hunting else { throw GameRuleError("This hunt is not active.") }
+        trip.phase = trip.miniGameReturnPhase
+    }
+
     static func finishHunt(food: Int, shots: Int, in trip: inout Journey) throws {
         let input = OriginalHuntSession.Input(destination: 0, month: 1, weatherCategory: 0,
             snow: false, mileage: trip.miles, lastSuccessfulHuntMileage: trip.original?.lastSuccessfulHuntMileage ?? 0,
             ammunition: trip.inventory[.bullets], survivors: trip.livingMembers.count,
-            currentFood: trip.inventory[.food], foodCapacity: Supply.food.capacity,
+            currentFood: trip.huntingFood, foodCapacity: trip.huntingFoodCapacity,
             timeSetting: 3, originalDisplayFlag: true)
-        try finishHunt(result: OriginalHuntSession.settle(foodShot: food, shots: shots, input: input), in: &trip)
+        let result = trip.gameEdition == .macintoshCD12
+            ? CDHuntSession.settle(foodShot: food,shots: shots,input: input)
+            : OriginalHuntSession.settle(foodShot: food,shots: shots,input: input)
+        try finishHunt(result: result,in: &trip)
     }
 
     @discardableResult
     static func finishHunt(result: OriginalHuntSession.Result, in trip: inout Journey) throws -> OriginalHuntSession.Result {
         guard trip.phase == .hunting, result.foodShot >= 0, result.foodCarried >= 0,
               result.foodCarried <= result.foodShot,
-              [100, 200].contains(result.carryLimit),
+              (trip.gameEdition == .macintoshCD12 ? [125,250] : [100,200]).contains(result.carryLimit),
               result.foodCarried <= result.carryLimit,
               (0...min(20,trip.inventory[.bullets])).contains(result.shots)
         else { throw GameRuleError("This hunt is not active or its result is invalid.") }
         // CODE13:03b4 freezes carrying capacity at hunt startup;04c2/04cc
         // read live mileage and food after any interleaved resting days.
         let settled = OriginalHuntSession.Result(foodShot: result.foodShot,
-            foodCarried: min(result.foodShot, result.carryLimit, max(0, Supply.food.capacity - trip.inventory[.food])),
+            foodCarried: min(result.foodShot, result.carryLimit, max(0, trip.huntingFoodCapacity - trip.huntingFood)),
             shots: result.shots,
             lastSuccessfulHuntMileage: result.foodShot > 0 ? trip.miles : result.lastSuccessfulHuntMileage,
             carryLimit: result.carryLimit)
-        trip.inventory[.food] += settled.foodCarried
+        trip.huntingFood += settled.foodCarried
         trip.inventory[.bullets] -= settled.shots
         trip.phase = trip.miniGameReturnPhase
         trip.ensureOriginalState()
@@ -441,7 +467,7 @@ enum JourneyEngine {
         trip.ensureOriginalState()
         // CODE16:1146–11d0 commands10/11; CODE17:006a copies wagon before intro.
         trip.originalRaftState = .init(input: .init(
-            inventory: Supply.allCases.map { trip.inventory[$0] },living: trip.members.map(\.alive),
+            inventory: trip.inventory.rawQuantities(for: trip.gameEdition),living: trip.members.map(\.alive),
             names: trip.members.map(\.name),rain: Int(trip.original?.weather.rain ?? 0)))
         trip.destinationID = "oregon"
         trip.legDistance = 100
@@ -453,7 +479,7 @@ enum JourneyEngine {
 
     static func originalRaftInput(_ trip: Journey) -> OriginalRaftSession.Input {
         var input = trip.originalRaftState?.input ?? .init(
-            inventory: Supply.allCases.map { trip.inventory[$0] },living: trip.members.map(\.alive),
+            inventory: trip.inventory.rawQuantities(for: trip.gameEdition),living: trip.members.map(\.alive),
             names: trip.members.map(\.name),rain: Int(trip.original?.weather.rain ?? 0))
         // Rain is read at scene creation, after intro; inventory uses the earlier copy.
         input.rain = Int(trip.original?.weather.rain ?? 0)
@@ -472,7 +498,7 @@ enum JourneyEngine {
         }
         guard result.initialInventory == state.input.inventory,
               result.initialLiving == state.input.living,
-              result.remainingInventory.count == 7,
+              result.remainingInventory.count == Inventory.itemCount(for: trip.gameEdition),
               zip(result.remainingInventory,result.initialInventory).allSatisfy({ $0 >= 0 && $0 <= $1 }),
               Set(result.drownedMembers).count == result.drownedMembers.count,
               result.drownedMembers.allSatisfy({ state.input.living.indices.contains($0) && state.input.living[$0] })
@@ -480,8 +506,8 @@ enum JourneyEngine {
         state.preparedResult = result
         // Signed subtraction at CODE3:1ecc–1eee uses LIVE inventory, not startup copy.
         // Food consumed while rafting can therefore produce a negative loss word.
-        state.commandQuantities = Supply.allCases.enumerated().map { index,item in
-            Int(Int16(truncatingIfNeeded: trip.inventory[item]-result.remainingInventory[index]))
+        state.commandQuantities = result.remainingInventory.indices.map { index in
+            Int(Int16(truncatingIfNeeded: trip.inventory[originalIndex: index]-result.remainingInventory[index]))
         }
         trip.originalRaftState = state
     }
@@ -500,8 +526,8 @@ enum JourneyEngine {
         trip.originalRaftState = state
         // CODE16:146a–148a subtracts the earlier signed packet from CURRENT quantities.
         // Rest during the onshore wait is retained; rest before packet creation may be restored.
-        for (index,item) in Supply.allCases.enumerated() {
-            trip.inventory[item] = max(0,trip.inventory[item]-quantities[index])
+        for index in quantities.indices {
+            trip.inventory[originalIndex: index] = max(0,trip.inventory[originalIndex: index]-quantities[index])
         }
         if quantities.contains(where: { $0 != 0 }) { OriginalTrailEvents.record(66,quantities: quantities,in: &trip) }
         for member in result.drownedMembers.sorted() where trip.members[member].alive {
@@ -554,16 +580,20 @@ enum JourneyEngine {
 
     static func scoreLines(_ trip: Journey) -> [ScoreLine] {
         guard trip.won else { return [] }
-        return [
+        var lines = [
             ScoreLine(id: "People arriving", points: trip.livingMembers.count * OriginalHealth.scorePerSurvivor(badness: trip.healthBadness)),
             ScoreLine(id: "Wagon", points: 50),
             ScoreLine(id: "Oxen", points: ((trip.inventory[.oxen] + 1) / 2) * 4),
             ScoreLine(id: "Spare wagon parts", points: (trip.inventory[.wheels] + trip.inventory[.axles] + trip.inventory[.tongues]) * 2),
             ScoreLine(id: "Clothing", points: trip.inventory[.clothing] * 2),
             ScoreLine(id: "Bullets", points: trip.inventory[.bullets] / 50),
-            ScoreLine(id: "Food", points: trip.inventory[.food] / 25),
-            ScoreLine(id: "Money", points: trip.cash / 500)
+            ScoreLine(id: trip.gameEdition == .macintoshCD12 ? "Non-perishable food" : "Food", points: trip.inventory[.food] / 25)
         ]
+        if trip.gameEdition == .macintoshCD12 {
+            lines.append(ScoreLine(id: "Perishable food", points: trip.inventory.perishableFood / 25))
+        }
+        lines.append(ScoreLine(id: "Money", points: trip.cash / 500))
+        return lines
     }
 
     // CODE 10: multiply subtotal by the occupation's half-unit factor, then round up.

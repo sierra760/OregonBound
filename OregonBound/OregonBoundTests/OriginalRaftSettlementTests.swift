@@ -112,4 +112,27 @@ struct OriginalRaftSettlementTests {
         #expect(value.phase == .rafting)
     }
 
+    @Test func cdRaftCarriesBothPoolsAndSettlesPerishableLossOnce() throws {
+        var value = Journey(profession: .banker, difficulty: .greenhorn, names: ["A"], seed: 42, edition: .macintoshCD12)
+        value.locationID = "dalles"; value.phase = .fork
+        value.inventory[.food] = 1000; value.inventory.perishableFood = 100
+        try JourneyEngine.beginRaft(&value)
+        let input = JourneyEngine.originalRaftInput(value)
+        #expect(input.inventory == [0, 0, 0, 0, 0, 0, 1000, 100])
+        guard input.inventory.count == 8 else { return }
+        var remaining = input.inventory; remaining[7] = 40
+        let result = OriginalRaftSession.Result(initialInventory: input.inventory, remainingInventory: remaining,
+                                               initialLiving: input.living, drownedMembers: [])
+        try JourneyEngine.prepareRaftLanding(result: result, in: &value)
+        value.inventory.perishableFood = 90
+        #expect(try JourneyEngine.applyRaftLosses(result: result, in: &value))
+        #expect(value.inventory[.food] == 1000)
+        #expect(value.inventory.perishableFood == 30)
+        #expect(value.journal.last?.text.contains("60 pounds of perishable food") == true)
+        #expect(try !JourneyEngine.applyRaftLosses(result: result, in: &value))
+        #expect(value.inventory.perishableFood == 30)
+        try JourneyEngine.completeRaftLanding(in: &value)
+        try JourneyStore(edition: .macintoshCD12).validate(value)
+    }
+
 }

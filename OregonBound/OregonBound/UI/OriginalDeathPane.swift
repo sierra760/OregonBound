@@ -17,7 +17,7 @@ struct OriginalDeathPane: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             originalPaper
-            PixelArtwork(resource: OriginalDeathPresentationRules.imageResource)
+            PixelArtwork(resource: OriginalDeathPresentationRules.imageResource, monochromeResource: 9150)
                 .frame(width: 262, height: 155)
                 .contentShape(Rectangle()).onTapGesture { finish() }
                 .accessibilityLabel("Memorial").accessibilityAction { finish() }

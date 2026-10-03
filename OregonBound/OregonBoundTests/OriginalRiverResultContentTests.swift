@@ -67,3 +67,21 @@ struct OriginalRiverResultContentTests {
         ])
     }
 }
+
+struct CDRiverResultContentTests {
+    @Test func eightSlotLabelsUseTheCDSingularOffsetAndKeepRowOrder() {
+        let outcome = OriginalRiverRules.Outcome(requestedMethodRaw: 1, animationMethodRaw: 1,
+            failureKind: 1, status: 1, currentFactor: 0, losses: [2,2,0,0,0,0,1,1])
+        let content = OriginalRiverResultContent(outcome: outcome, names: [], edition: .macintoshCD12) { id in
+            if id == 3011 { return (0..<8).map { "plural\($0)" } + (0..<8).map { "singular\($0)" } }
+            return ["safe", "mud", "wet", "crossing", "none1", "none2", "Lost:", " drowned"]
+        }
+        #expect(content.lossRuns == [
+            .init(text: "Lost:", x: 10, y: 30),
+            .init(text: "1 singular0", x: 60, y: 30),
+            .init(text: "2 plural1", x: 60, y: 42),
+            .init(text: "1 singular6", x: 60, y: 54),
+            .init(text: "1 singular7", x: 60, y: 66)
+        ])
+    }
+}

@@ -343,6 +343,15 @@ def fun_000018e4(row_buf: bytes, comp_w: int, ivar5: bytes, depth: int) -> tuple
 # Frame decoder  — FUN_00000002
 # ---------------------------------------------------------------------------
 
+def _checked_compressed_row(data: bytes, start: int, target: int, variant: int) -> tuple[bytes, int]:
+    # Keep legal pattern overshoot for bit lookahead, but reject missing bytes.
+    decoded, consumed = (fun_00000aba(data, start, target) if variant == 7
+                         else mecc_rle(data, start, target, pattern_len=variant))
+    if len(decoded) < target or consumed > len(data) - start:
+        raise ValueError("Truncated Imag compressed row")
+    return decoded, consumed
+
+
 def decode_frame(
     data: bytes,
     start: int,
@@ -469,12 +478,12 @@ def decode_frame(
                 # 8-bit palette indices (no bit expansion, no ivar5 remap at this level).
                 if low == 7:
                     # FUN_00000aba decompresses to 8-bit palette indices directly
-                    decoded, consumed = fun_00000aba(data, ptr, comp_w)
+                    decoded, consumed = _checked_compressed_row(data, ptr, comp_w, low)
                     output[row_off : row_off + comp_w] = decoded[:comp_w]
                     ptr += consumed
                 else:
                     # MECC_RLE: A5+0x132 writes comp_w bytes as 8-bit indices
-                    decoded, consumed = mecc_rle(data, ptr, comp_w, pattern_len=low)
+                    decoded, consumed = _checked_compressed_row(data, ptr, comp_w, low)
                     output[row_off : row_off + comp_w] = decoded[:comp_w]
                     ptr += consumed
                 row += 1
@@ -528,7 +537,7 @@ def decode_frame(
 
             if low == 7:
                 # FUN_00000aba to expand_buf, then FUN_00000896 to row_buf
-                decoded, consumed = fun_00000aba(data, ptr, target_bytes)
+                decoded, consumed = _checked_compressed_row(data, ptr, target_bytes, low)
                 ptr += consumed
                 row_buf = expand_bits(decoded, depth, pixel_count)
             elif low == 0:
@@ -540,7 +549,7 @@ def decode_frame(
             else:
                 # A5+0x132 MECC_RLE decompresses to packed N-bit data,
                 # then FUN_00000896 expands to 8-bit row_buf
-                decoded, consumed = mecc_rle(data, ptr, target_bytes, pattern_len=low)
+                decoded, consumed = _checked_compressed_row(data, ptr, target_bytes, low)
                 ptr += consumed
                 row_buf = expand_bits(decoded, depth, pixel_count)
 
@@ -576,7 +585,7 @@ def decode_frame(
 
             if low == 7:
                 # FUN_00000aba decompresses to expand_buf, then FUN_00000896 expands
-                decoded, consumed = fun_00000aba(data, ptr + 2, target_bytes)
+                decoded, consumed = _checked_compressed_row(data, ptr + 2, target_bytes, low)
                 ptr += 2 + consumed
                 row_buf_signed = expand_bits_signed(decoded, depth, pixel_count + 1)
             elif low == 0:
@@ -589,7 +598,7 @@ def decode_frame(
             else:
                 # A5+0x132 MECC_RLE decompresses to packed N-bit data,
                 # then FUN_00000896 expands to signed values for FUN_000009cc
-                decoded, consumed = mecc_rle(data, ptr + 2, target_bytes, pattern_len=low)
+                decoded, consumed = _checked_compressed_row(data, ptr + 2, target_bytes, low)
                 ptr += 2 + consumed
                 row_buf_signed = expand_bits_signed(decoded, depth, pixel_count + 1)
 
@@ -611,14 +620,14 @@ def decode_frame(
             target_bytes = (pixel_count * depth + 7) // 8
 
             if low == 7:
-                decoded, consumed = fun_00000aba(data, ptr + 2, target_bytes)
+                decoded, consumed = _checked_compressed_row(data, ptr + 2, target_bytes, low)
                 ptr += 2 + consumed
                 row_buf = expand_bits(decoded, depth, pixel_count + 1)
             elif low == 0:
                 row_buf = expand_bits(data[ptr + 2 :], depth, pixel_count + 1)
                 ptr += 2 + target_bytes
             else:
-                decoded, consumed = mecc_rle(data, ptr + 2, target_bytes, pattern_len=low)
+                decoded, consumed = _checked_compressed_row(data, ptr + 2, target_bytes, low)
                 ptr += 2 + consumed
                 row_buf = expand_bits(decoded, depth, pixel_count + 1)
 
@@ -666,3 +675,47 @@ def find_all_sentinels(pixel_data: bytes) -> list[int]:
         positions.append(idx)
         pos = idx + 1          # allow overlapping (shouldn't happen, but safe)
     return positions
+
+
+def decode_bitmap_columns(data: bytes, start: int, row_bytes: int, height: int) -> tuple[bytes, int]:
+    """CD Display column codec: literals, byte runs and two-byte pattern runs.
+
+    The caller bounds data to the declared frame. Positive controls copy that
+    many bytes (not control + 1); zero consumes a control without emitting data.
+    Returns the packed one-bit backing store and absolute end offset.
+    """
+    if row_bytes <= 0 or height <= 0 or row_bytes * height > 64 * 1024 * 1024:
+        raise ValueError("Invalid bitmap backing store")
+    pixels = bytearray(row_bytes * height)
+    offset = start
+    for column in range(row_bytes):
+        row = 0
+        while row < height:
+            if offset < 0 or offset >= len(data):
+                raise ValueError("Truncated bitmap control")
+            control = data[offset]
+            control = control if control < 128 else control - 256
+            offset += 1
+            if control >= 0:
+                size, repeats = control, 1
+            elif control >= -64:
+                size, repeats = 1, -control
+            else:
+                size, repeats = 2, -control - 64
+            count = size * repeats
+            if row + count > height:
+                raise ValueError("Bitmap command exceeds column height")
+            if offset + size > len(data):
+                raise ValueError("Truncated bitmap pattern")
+            pattern = data[offset:offset + size]
+            offset += size
+            for value in pattern * repeats:
+                pixels[row * row_bytes + column] = value
+                row += 1
+    return bytes(pixels), offset
+
+
+def expand_bitmap(pixels: bytes, width: int, height: int, row_bytes: int) -> bytes:
+    """QuickDraw bits are MSB-first: one is black, zero is white."""
+    return bytes(0 if pixels[y * row_bytes + x // 8] & (0x80 >> (x % 8)) else 255
+                 for y in range(height) for x in range(width))

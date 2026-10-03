@@ -26,6 +26,12 @@ enum OriginalPreferences {
         private(set) var password = "boom"
         private(set) var hint = "See the Oregon Trail User’s Guide."
         init() {}
+        init(defaults: ConfigurationExtractor.Defaults) {
+            // Defaults validates these raw values at both source and JSON boundaries.
+            timing = Timing(speed: Speed(rawValue: defaults.speed)!, huntTime: HuntTime(rawValue: defaults.huntTime)!)
+            password = defaults.password
+            hint = defaults.hint
+        }
         /// CODE16 snapshots these values only when initializing a new world.
         func beginJourney() -> Timing { timing }
         func accepts(password candidate: String) -> Bool {

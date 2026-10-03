@@ -10,7 +10,8 @@ struct OriginalRandom: Sendable {
     }
 
     mutating func bounded(_ bound: Int) -> Int {
-        guard bound > 1 else { return 0 }
+        // Both CODE1 wrappers consume QuickDraw Random for span1 as well.
+        guard bound > 0 else { return 0 }
         let value = next()
         if bound == 2 { return value & 1 }
         return abs(value) % bound

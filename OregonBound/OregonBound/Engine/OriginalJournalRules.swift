@@ -29,8 +29,8 @@ enum OriginalJournalRules {
 
     /// Input uses raw inventory units. CODE16:283e packs byte/word journal fields;
     /// CODE14:25b6–2694 omits nonpositive signed words/cash, then formats in order.
-    static func supplyList(rawQuantities: [Int], cashCents: Int = 0) -> String {
-        precondition(rawQuantities.count == 7)
+    static func supplyList(rawQuantities: [Int], cashCents: Int = 0, edition: GameEdition = .macintosh11) -> String {
+        precondition(rawQuantities.count == Inventory.itemCount(for: edition))
         let bytes = Set([0,1,3,4,5])
         let quantities = rawQuantities.enumerated().map { index, value in
             bytes.contains(index) ? Int(UInt8(truncatingIfNeeded: value)) : Int(Int16(truncatingIfNeeded: value))
@@ -38,7 +38,8 @@ enum OriginalJournalRules {
         var parts: [String] = []
         for (index, raw) in quantities.enumerated() where raw > 0 {
             let count = index == 0 ? (raw+1)/2 : raw
-            let noun = string(3011,count == 1 ? index+8 : index+1)
+            let noun = index == 7 ? (count == 1 ? "pound of perishable food" : "pounds of perishable food")
+                : string(3011,count == 1 ? index+8 : index+1)
             parts.append(number(count) + " " + noun)
         }
         let cents = Int(Int32(truncatingIfNeeded: cashCents))
@@ -52,16 +53,18 @@ enum OriginalJournalRules {
         return parts.dropLast().joined(separator: ", ") + ", and " + parts.last!
     }
 
-    static func supplyEvent(id: Int, rawQuantities: [Int], cashCents: Int = 0) -> String? {
-        guard (63...68).contains(id) else { return nil }
-        let supplies = supplyList(rawQuantities: rawQuantities,cashCents: cashCents)
+    static func supplyEvent(id: Int, rawQuantities: [Int], cashCents: Int = 0, edition: GameEdition = .macintosh11) -> String? {
+        guard (63...(edition == .macintoshCD12 ? 69 : 68)).contains(id) else { return nil }
+        let supplies = supplyList(rawQuantities: rawQuantities,cashCents: cashCents,edition: edition)
+        if id == 69 { return finishSentence("You lost \(supplies) due to spoilage.") }
         // CODE14:26ec–2746 selects the no-supplies form only for63 and66.
         let template = supplies.isEmpty && (id == 63 || id == 66)
             ? string(1523,id-62) : string(1503,id-62)
         return finishSentence(template.replacingOccurrences(of: "^2",with: supplies))
     }
 
-    static func weatherEvent(_ id: Int) -> String? {
+    static func weatherEvent(_ id: Int, edition: GameEdition = .macintosh11) -> String? {
+        if id == 13 && edition == .macintoshCD12 { return finishSentence("Dust Storm") }
         guard (0...12).contains(id) else { return nil }
         return finishSentence(string(1501,id+1))
     }

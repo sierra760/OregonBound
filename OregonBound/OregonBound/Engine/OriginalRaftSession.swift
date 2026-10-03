@@ -46,6 +46,7 @@ struct OriginalRaftSession {
     }
     enum Event: Equatable { case collision(Collision), finished(Result) }
     let input: Input
+    let edition: GameEdition
     private(set) var inventory: [Int]
     private(set) var living: [Bool]
     private(set) var drownedMembers: [Int] = []
@@ -70,9 +71,10 @@ struct OriginalRaftSession {
     var isComplete: Bool { result != nil }
     var maximumRocks: Int { min(3,max(1,4-(input.rain-400)/150)) }
 
-    init(input: Input, startTick: Int, random: (Int)->Int) {
-        precondition(input.inventory.count == 7 && (1...5).contains(input.living.count))
+    init(input: Input, startTick: Int, edition: GameEdition = .macintosh11, random: (Int)->Int) {
+        precondition(input.inventory.count == Inventory.itemCount(for: edition) && (1...5).contains(input.living.count))
         precondition(input.names.count == input.living.count && input.inventory.allSatisfy { $0 >= 0 })
+        self.edition = edition
         self.input = input; inventory = input.inventory; living = input.living; nextTick = startTick
         spawn(random: random)
         previousLane = -999 // CODE17:04ce follows initial creation at0412.
@@ -147,8 +149,8 @@ struct OriginalRaftSession {
         rocks.append(Rock(id: nextID,slot: slot,lane: lane,x: 189+2*lane)); nextID += 1
     }
     private mutating func resolveCollision(random: (Int)->Int) -> Collision {
-        var losses = Array(repeating: 0,count: 7)
-        for i in 1..<7 where inventory[i] != 0 {
+        var losses = Array(repeating: 0,count: inventory.count)
+        for i in 1..<inventory.count where inventory[i] != 0 {
             if random(100) < 50 { losses[i] = random(inventory[i]+1) }
         }
         for _ in 0..<((inventory[0]+1)/2) { if random(100) < 40 { losses[0] += 2 } }
@@ -198,16 +200,34 @@ struct OriginalRaftSession {
     }
     /// CODE5 paints the object list in reverse. Map is created last and painted first.
     var drawCommands: [DrawCommand] {
-        var commands = [DrawCommand(id: -10,resource: 19200,frame: 0,x: 416,y: 8,width: 88,height: 306),
-                        DrawCommand(id: -2,resource: 19201,frame: shoreFrame,x: 327,y: 9,width: 87,height: 111),
-                        DrawCommand(id: -1,resource: 19201,frame: shoreFrame,x: 7,y: 9,width: 87,height: 111,mirrored: true),
-                        DrawCommand(id: -4,resource: 19200,frame: 1,x: markerX,y: markerY,width: 11,height: 11),
-                        DrawCommand(id: -3,resource: 19200,frame: direction+3,x: raftSpriteLeft,y: 210,width: 63,height: 52,masked: true)]
+        let monochrome = edition == .macintoshCD12 && input.pixelDepth == 1
+        let artwork = edition == .macintoshCD12 ? (monochrome ? 10000 : 20000) : 19200
+        let shore = edition == .macintoshCD12 ? (monochrome ? 10001 : 20001) : 19201
+        var commands = [DrawCommand(id: -10,resource: artwork,frame: 0,x: 416,y: 8,width: 88,height: 306),
+                        DrawCommand(id: -2,resource: shore,frame: shoreFrame,x: 327,y: 9,width: 87,height: 111),
+                        DrawCommand(id: -1,resource: shore,frame: shoreFrame,x: 7,y: 9,width: 87,height: 111,mirrored: true),
+                        DrawCommand(id: -4,resource: artwork,frame: 1,x: markerX,y: markerY,width: 11,height: 11),
+                        DrawCommand(id: -3,resource: artwork,frame: direction+3,x: raftSpriteLeft,y: 210,width: 63,height: monochrome ? 51 : 52,masked: true)]
         let sizes = [(56,32),(53,29),(49,26),(45,24),(42,23),(40,20)]
         commands += rocks.reversed().map {
             let size = sizes[$0.frame-5]
-            return DrawCommand(id: $0.id,resource: 19200,frame: $0.frame,x: $0.x,y: $0.y,width: size.0,height: size.1,masked: true)
+            return DrawCommand(id: $0.id,resource: artwork,frame: $0.frame,x: $0.x,y: $0.y,width: size.0,height: size.1,masked: true)
         }
         return commands
+    }
+}
+
+/// CD CODE18:04a4–04e0 precedes the movement deadline. A collision's loss
+/// panel is first redrawn on the following idle, when pauseSteps is still100.
+enum CDRaftAudio {
+    static let collision: [OriginalAudioQueue.Command] = [.stop, .start(9006)]
+    static func idle(pauseSteps: Int, busy: Bool, hasDrowned: Bool) -> [OriginalAudioQueue.Command] {
+        if pauseSteps == 0 && !busy { return [.start(4006)] }
+        if pauseSteps == 100 { return redrawLoss(hasDrowned: hasDrowned) }
+        return []
+    }
+    /// CODE18:1cd8–1ce4, once per explicit loss-panel redraw, not per GPU frame.
+    static func redrawLoss(hasDrowned: Bool) -> [OriginalAudioQueue.Command] {
+        hasDrowned ? [.start(4001)] : []
     }
 }

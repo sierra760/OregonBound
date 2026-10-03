@@ -17,13 +17,18 @@ struct OriginalRaftArtwork: View {
             .onAppear { visible = true; scene.setModalDispatchBlocked(modalBlocked); scene.setActive(scenePhase == .active) }
             .onChange(of: scenePhase) { phase in scene.setActive(visible && phase == .active) }
             .onChange(of: modalBlocked) { value in scene.setModalDispatchBlocked(value) }
-            .onDisappear { visible = false; scene.setActive(false) }
+            .onDisappear { visible = false; scene.viewDidDisappear() }
     }
 }
 
 @MainActor final class OriginalRaftScene: SKScene {
     private(set) var session: OriginalRaftSession
     private let random: OriginalRandomStream
+    private let audio: GameAudio
+    private let clock: () -> Int
+    private let scheduleCompletion: (@escaping () -> Void) -> Void
+    private var ownsAudio: Bool
+    private var closed = false
     private let completion: (OriginalRaftSession.Result)->Void
     private var active = false
     private var modalDispatchBlocked = false
@@ -42,14 +47,29 @@ struct OriginalRaftArtwork: View {
     private var textures: [String:SKTexture] = [:]
     private var colorSpaceID: String?
     private var observers: [NSObjectProtocol] = []
-    private static var tick: Int { Int(ProcessInfo.processInfo.systemUptime*60) }
 
-    init(input: OriginalRaftSession.Input, random: OriginalRandomStream,
+    convenience init(input: OriginalRaftSession.Input, random: OriginalRandomStream, audio: GameAudio = .shared,
          onFinish: @escaping (OriginalRaftSession.Result) -> Void) {
-        let tick = Self.tick
-        session = OriginalRaftSession(input: input,startTick: tick) { random.bounded($0) }
-        session.setPaused(true,at: tick)
+        let tick = Int(ProcessInfo.processInfo.systemUptime * 60)
+        var displayInput = input
+        if GameData.edition == .macintoshCD12 {
+            displayInput.pixelDepth = OriginalResources.colorMode.imageDepth.rawValue
+        }
+        let session = OriginalRaftSession(input: displayInput, startTick: tick, edition: GameData.edition) { random.bounded($0) }
+        self.init(session: session, random: random, audio: audio, onFinish: onFinish)
+    }
+
+    init(session: OriginalRaftSession, random: OriginalRandomStream, audio: GameAudio,
+         clock: @escaping () -> Int = { Int(ProcessInfo.processInfo.systemUptime * 60) },
+         scheduleCompletion: @escaping (@escaping () -> Void) -> Void = { action in DispatchQueue.main.async { action() } },
+         onFinish: @escaping (OriginalRaftSession.Result) -> Void) {
+        self.session = session
+        self.session.setPaused(true, at: clock())
         self.random = random
+        self.audio = audio
+        self.clock = clock
+        self.scheduleCompletion = scheduleCompletion
+        ownsAudio = session.edition == .macintoshCD12
         completion = onFinish
         super.init(size: CGSize(width: 512,height: 322))
         scaleMode = .fill; backgroundColor = .black; isUserInteractionEnabled = true
@@ -71,19 +91,24 @@ struct OriginalRaftArtwork: View {
     }
     /// Unlike native application suspension, a classic modal only skips idle calls.
     func setModalDispatchBlocked(_ value: Bool) {
+        let wasBlocked = modalDispatchBlocked
         modalDispatchBlocked = value
         isPaused = !active || value
+        if wasBlocked && !value && active { redraw() }
     }
     func setActive(_ value: Bool) {
-        active = value; session.setPaused(!value,at: Self.tick); isPaused = !value || modalDispatchBlocked
+        guard !closed else { return }
+        let wasActive = active
+        active = value; session.setPaused(!value,at: clock()); isPaused = !value || modalDispatchBlocked
+        if value && !wasActive { redraw() }
     }
     override func didMove(to view: SKView) {
         observers.forEach(NotificationCenter.default.removeObserver)
-        observers = TextureLoader.observeRenderingColorSpace(in: view) { [weak self] in self?.render() }
+        observers = TextureLoader.observeRenderingColorSpace(in: view) { [weak self] in self?.redraw() }
         #if os(macOS)
         installMouseEvents(in: view)
         #endif
-        render(); isPaused = !active || modalDispatchBlocked
+        redraw(); isPaused = !active || modalDispatchBlocked
     }
     override func willMove(from view: SKView) {
         observers.forEach(NotificationCenter.default.removeObserver); observers.removeAll(); setActive(false)
@@ -95,7 +120,7 @@ struct OriginalRaftArtwork: View {
         guard active, !modalDispatchBlocked else { return }
         deliverPendingCompletion()
         guard !completed else { return }
-        let tick = Self.tick
+        let tick = clock()
         var x = touchX
         #if os(macOS)
         guard let view, let window = view.window, window.isVisible, window.occlusionState.contains(.visible) else {
@@ -114,25 +139,77 @@ struct OriginalRaftArtwork: View {
         }
         #endif
         session.setPaused(false,at: tick)
-        let stream = random
-        session.advance(to: tick,mouseX: x) { stream.bounded($0) }
+        advance(to: tick, mouseX: x)
         render()
+    }
+
+    /// One eligible idle, including audio before the session's movement deadline.
+    func advance(to tick: Int, mouseX: Int?) {
+        guard active, !modalDispatchBlocked, !closed else { return }
+        deliverPendingCompletion()
+        guard !completed else { return }
+        if session.edition == .macintoshCD12 {
+            apply(CDRaftAudio.idle(pauseSteps: session.pauseSteps, busy: audio.isPlaying,
+                                  hasDrowned: !(session.collision?.drownedMembers.isEmpty ?? true)))
+        }
+        let stream = random
+        session.advance(to: tick, mouseX: mouseX) { stream.bounded($0) }
         for event in session.takeEvents() {
             switch event {
             case .collision(let collision):
-                GameAudio.shared.clear(); GameAudio.shared.request(9006)
-                if !collision.drownedMembers.isEmpty { GameAudio.shared.request(9001) }
+                if session.edition == .macintoshCD12 { apply(CDRaftAudio.collision) }
+                else {
+                    audio.clear(); audio.request(9006)
+                    if !collision.drownedMembers.isEmpty { audio.request(9001) }
+                }
             case .finished(let result):
                 completed = true
-                DispatchQueue.main.async { [weak self] in
-                    self?.pendingCompletion = result
-                    self?.deliverPendingCompletion()
+                releaseAudio()
+                scheduleCompletion { [weak self] in
+                    guard let self, !self.closed else { return }
+                    self.pendingCompletion = result
+                    self.deliverPendingCompletion()
                 }
             }
         }
     }
+
+    /// An original draw event may replay the loss narration. Normal frame
+    /// rendering must not: it runs much more often than those logical redraws.
+    func redraw() {
+        if ownsAudio, active, !modalDispatchBlocked, !closed, session.pauseSteps > 0 {
+            apply(CDRaftAudio.redrawLoss(hasDrowned: !(session.collision?.drownedMembers.isEmpty ?? true)))
+        }
+        render()
+    }
+
+    /// SwiftUI may retain this scene across temporary view disappearance.
+    /// Only the owning journey's teardown or completion is terminal.
+    func viewDidDisappear() {
+        setActive(false)
+    }
+
+    func close() {
+        guard !closed else { return }
+        closed = true
+        active = false
+        isPaused = true
+        pendingCompletion = nil
+        releaseAudio()
+    }
+    private func releaseAudio() {
+        if ownsAudio { ownsAudio = false; audio.clear() }
+    }
+    private func apply(_ commands: [OriginalAudioQueue.Command]) {
+        for command in commands {
+            switch command {
+            case .stop: audio.clear()
+            case .start(let id): audio.request(id)
+            }
+        }
+    }
     private func deliverPendingCompletion() {
-        guard active, !modalDispatchBlocked, let result = pendingCompletion else { return }
+        guard active, !modalDispatchBlocked, !closed, let result = pendingCompletion else { return }
         pendingCompletion = nil
         completion(result)
     }
@@ -182,14 +259,25 @@ struct OriginalRaftArtwork: View {
         node.anchorPoint = CGPoint(x: 0,y: 1); node.position = CGPoint(x: rect.minX,y: 322-rect.minY)
         node.size = rect.size; node.blendMode = .replace; parent.addChild(node)
     }
+    private var monochrome: Bool { session.edition == .macintoshCD12 && session.input.pixelDepth == 1 }
+    private func patternedWater() {
+        let key = "monochrome-water"
+        if textures[key] == nil, let image = TextureLoader.quickDrawGray(width: 405, height: 277, originX: 9, originY: 36) {
+            textures[key] = TextureLoader.texture(cgImage: image, renderingIn: view)
+        }
+        let node = SKSpriteNode(texture: textures[key])
+        node.anchorPoint = CGPoint(x: 0, y: 1); node.position = CGPoint(x: 9, y: 322 - 36)
+        node.size = CGSize(width: 405, height: 277); node.blendMode = .replace; artwork.addChild(node)
+    }
     private func render() {
         let profile = TextureLoader.renderingColorSpaceID(for: view)
         if profile != colorSpaceID { colorSpaceID = profile; textures.removeAll() }
         artwork.removeAllChildren(); lossPanel.removeAllChildren()
-        // CODE17:173a–1838; literal RGBColor globals from CODE21.
-        rectangle(CGRect(x: 88,y: 9,width: 239,height: 27),rgb: [9728,51456,65280],in: artwork)
-        rectangle(CGRect(x: 9,y: 36,width: 405,height: 277),rgb: [0,0,65280],in: artwork)
-        rectangle(CGRect(x: 415,y: 9,width: 1,height: 304),rgb: [65280,63085,35223],in: artwork)
+        // Classic CODE17:173a / CD CODE18:179c. Depth1 uses qd.white/qd.gray.
+        rectangle(CGRect(x: 88,y: 9,width: 239,height: 27),rgb: monochrome ? [65535,65535,65535] : [9728,51456,65280],in: artwork)
+        if monochrome { patternedWater() }
+        else { rectangle(CGRect(x: 9,y: 36,width: 405,height: 277),rgb: [0,0,65280],in: artwork) }
+        rectangle(CGRect(x: 415,y: 9,width: 1,height: 304),rgb: monochrome ? [65535,65535,65535] : [65280,63085,35223],in: artwork)
         rectangle(CGRect(x: 414,y: 9,width: 1,height: 304),rgb: [0,0,0],in: artwork)
         for command in session.drawCommands {
             let node = SKSpriteNode(texture: texture(command))
@@ -205,8 +293,8 @@ struct OriginalRaftArtwork: View {
     private func texture(_ command: OriginalRaftSession.DrawCommand) -> SKTexture? {
         let key = "\(command.resource):\(command.frame):\(command.masked)"
         if let cached = textures[key] { return cached }
-        guard let entry = OriginalResources.manifest?.images(forResourceId: command.resource)
-            .first(where: { $0.resource.type == "Imag" && $0.frame_index == command.frame }),
+        guard let entry = OriginalResources.frames(command.resource)
+            .first(where: { $0.frame_index == command.frame }),
               let url = GameData.resourceURL(entry.image_path),
               let source = CGImageSourceCreateWithURL(url as CFURL,nil),
               let image = CGImageSourceCreateImageAtIndex(source,0,nil),
@@ -223,8 +311,8 @@ struct OriginalRaftArtwork: View {
         }
     }
     /// CODE17:19a6. Both borders and all text are original integer coordinates.
-    private func drawLoss(_ collision: OriginalRaftSession.Collision) {
-        let paper = [65280,63085,35223]
+    func drawLoss(_ collision: OriginalRaftSession.Collision) {
+        let paper = monochrome ? [65535,65535,65535] : [65280,63085,35223]
         rectangle(CGRect(x: 9,y: 150,width: 405,height: 150),rgb: [0,0,0],in: lossPanel)
         rectangle(CGRect(x: 10,y: 151,width: 403,height: 148),rgb: paper,in: lossPanel)
         rectangle(CGRect(x: 12,y: 153,width: 399,height: 144),rgb: [0,0,0],in: lossPanel)
@@ -241,9 +329,10 @@ struct OriginalRaftArtwork: View {
         text(strings[6],x: 25,baseline: baseline,font: font)
         let labels = OriginalResources.strings(3011)
         var lines: [String] = []
-        for (i,raw) in collision.losses.enumerated() where raw != 0 && labels.count >= 14 {
+        let itemCount = Inventory.itemCount(for: session.edition)
+        for (i,raw) in collision.losses.enumerated() where raw != 0 && labels.count >= itemCount * 2 {
             let quantity = i == 0 ? (raw+1)/2 : raw
-            lines.append("\(quantity) \(labels[i+(quantity == 1 ? 7 : 0)])")
+            lines.append("\(quantity) \(labels[i+(quantity == 1 ? itemCount : 0)])")
         }
         // Display leader first even though the random helper tests the leader last.
         for member in collision.drownedMembers.sorted() {

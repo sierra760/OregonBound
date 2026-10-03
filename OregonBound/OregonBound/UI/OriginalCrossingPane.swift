@@ -5,6 +5,7 @@ import Combine
 struct OriginalCrossingPane: View {
     let trip: Journey
     let outcome: OriginalRiverRules.Outcome
+    var audio: GameAudio = .shared
     let prepareResult: () -> Void
     let complete: () -> Void
     @State private var presentation: OriginalRiverResultPresentation?
@@ -21,14 +22,16 @@ struct OriginalCrossingPane: View {
     var body: some View {
         Group {
             if outcome.isPrepared {
-                OriginalRiverResultPane(content: .init(outcome: outcome, names: trip.members.map(\.name))) {
+                OriginalRiverResultPane(content: .init(outcome: outcome, names: trip.members.map(\.name), edition: trip.gameEdition)) {
                     // Event2 installs a zero-interval timer. It does not apply
                     // losses synchronously inside a button or keyboard callback.
                     presentation?.requestDismissal(active: visible && scenePhase == .active,
                                                    modalBlocked: modalBlocked)
                 }
             } else {
-                OriginalCrossingAnimationPane(method: method, outcome: outcome.failureKind == 0 ? .success : .failure) {
+                OriginalCrossingAnimationPane(method: method, outcome: outcome.failureKind == 0 ? .success : .failure,
+                                              snow: (trip.original?.weather.snow ?? 0) > 0,
+                                              failureKind: outcome.failureKind, audio: audio) {
                     guard !outcome.isPrepared, !completed else { return }
                     prepareResult()
                 }

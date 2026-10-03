@@ -4,6 +4,7 @@ struct SavedJourney: Codable {
     let format: String
     let version: Int
     let journey: Journey
+    var edition: GameEdition? = nil
 }
 
 struct HighScore: Codable, Equatable, Identifiable {
@@ -17,50 +18,112 @@ struct HighScore: Codable, Equatable, Identifiable {
 
 struct JourneyStore {
     let directory: URL
-    init(directory: URL? = nil) {
-        if let directory { self.directory = directory; return }
+    let edition: GameEdition
+    private let defaultPreferences: OriginalPreferences.Configuration?
+    init(directory: URL? = nil, edition: GameEdition = GameData.edition,
+         defaultPreferences: OriginalPreferences.Configuration? = nil,
+         session: PreparedGameSession? = GameData.preparedSession) {
+        self.edition = edition
+        if let defaultPreferences {
+            self.defaultPreferences = defaultPreferences
+        } else if let session, session.edition == edition {
+            self.defaultPreferences = OriginalPreferences.Configuration(defaults: session.preferenceDefaults)
+        } else if edition == .macintosh11 {
+            self.defaultPreferences = OriginalPreferences.Configuration()
+        } else {
+            self.defaultPreferences = nil
+        }
+
+        if let directory { self.directory = Self.directory(for: edition, base: directory); return }
         #if DEBUG
         // UI fidelity fixtures must never replace a player's persistent save.
         let arguments = ProcessInfo.processInfo.arguments
         if let index = arguments.firstIndex(of: "--test-save-directory"),
            arguments.indices.contains(index + 1), arguments[index + 1].hasPrefix("/") {
-            self.directory = URL(fileURLWithPath: arguments[index + 1], isDirectory: true)
+            self.directory = Self.directory(for: edition, base: URL(fileURLWithPath: arguments[index + 1], isDirectory: true))
             return
         }
         #endif
-        self.directory = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("OregonBound", isDirectory: true)
+        self.directory = Self.directory(for: edition, base: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("OregonBound", isDirectory: true))
     }
+    /// Classic retains its historical location; no player files are moved.
+    /// An injected directory is the shared base, not a namespace override.
+    private static func directory(for edition: GameEdition, base: URL) -> URL {
+        edition == .macintosh11 ? base : base.appendingPathComponent("editions/\(edition.rawValue)", isDirectory: true)
+    }
+
+    private struct PreferencesArchive: Codable {
+        let format: String
+        let version: Int
+        let edition: GameEdition
+        let configuration: OriginalPreferences.Configuration
+    }
+    private func initialPreferences() throws -> OriginalPreferences.Configuration {
+        guard let defaultPreferences else { throw GameRuleError("The preference defaults for this edition have not been loaded.") }
+        return defaultPreferences
+    }
+
     var saveURL: URL { directory.appendingPathComponent("journey.json") }
     var hasSave: Bool { FileManager.default.fileExists(atPath: saveURL.path) }
     private var scoresURL: URL { directory.appendingPathComponent("hall-of-fame.json") }
 
     private var preferencesURL: URL { directory.appendingPathComponent("preferences.json") }
     func preferences() throws -> OriginalPreferences.Configuration {
-        guard FileManager.default.fileExists(atPath: preferencesURL.path) else { return .init() }
+        guard FileManager.default.fileExists(atPath: preferencesURL.path) else { return try initialPreferences() }
         let data = try limitedData(preferencesURL)
-        return (try? JSONDecoder().decode(OriginalPreferences.Configuration.self, from: data)) ?? .init()
+        let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any]
+        if object?["format"] != nil || object?["edition"] != nil || object?["version"] != nil {
+            let archive: PreferencesArchive
+            do { archive = try JSONDecoder().decode(PreferencesArchive.self, from: data) }
+            catch { throw GameRuleError("The saved preferences use an unsupported format or edition.") }
+            guard archive.format == "OregonBoundPreferences", archive.version == 1, archive.edition == edition else {
+                throw GameRuleError("The saved preferences belong to another edition or use an unsupported format.")
+            }
+            return archive.configuration
+        }
+        guard edition == .macintosh11 else { throw GameRuleError("Preferences without edition information belong to Macintosh 1.1.") }
+        if let legacy = try? JSONDecoder().decode(OriginalPreferences.Configuration.self, from: data) { return legacy }
+        return try initialPreferences()
     }
     func savePreferences(_ configuration: OriginalPreferences.Configuration) throws {
-        try write(configuration, to: preferencesURL)
+        try write(PreferencesArchive(format: "OregonBoundPreferences", version: 1, edition: edition,
+                                     configuration: configuration), to: preferencesURL)
     }
 
     func save(_ journey: Journey, to destination: URL? = nil) throws {
         try validate(journey)
         guard journey.canSave else { throw GameRuleError("Finish the hunt or river run before saving.") }
-        try write(SavedJourney(format: "OregonBound", version: 1, journey: journey), to: destination ?? saveURL)
+        try write(SavedJourney(format: "OregonBound", version: 2, journey: journey, edition: edition), to: destination ?? saveURL)
     }
 
     func load(from source: URL? = nil) throws -> Journey {
         do {
             let saved = try JSONDecoder().decode(SavedJourney.self, from: limitedData(source ?? saveURL))
-            guard saved.format == "OregonBound", saved.version == 1 else { throw GameRuleError("This saved game uses an unsupported format.") }
+            guard saved.format == "OregonBound" else { throw GameRuleError("This saved game uses an unsupported format.") }
+            let savedEdition: GameEdition
+            switch saved.version {
+            case 1 where saved.edition == nil: savedEdition = .macintosh11
+            case 2:
+                guard let explicit = saved.edition else { throw GameRuleError("This saved game is missing its edition.") }
+                savedEdition = explicit
+            default: throw GameRuleError("This saved game uses an unsupported format.")
+            }
+            guard savedEdition == edition, saved.journey.gameEdition == savedEdition else {
+                throw GameRuleError("This saved game belongs to a different Oregon Trail edition.")
+            }
             var journey = saved.journey
+            journey.edition = savedEdition
             // Validate the arithmetic migration inputs before multiplying them.
             guard journey.inventory.valid,
                   journey.inventoryUnitsVersion != nil || journey.inventory[.oxen] <= 40 else {
                 throw GameRuleError("The saved game contains invalid inventory data.")
             }
             journey.ensureOriginalState()
+            // Earlier CD saves used seven slots; their completed outcome did not
+            // lose perishables. Preserve those losses without drawing again.
+            if savedEdition == .macintoshCD12 && journey.originalRiverOutcome?.losses.count == 7 {
+                journey.originalRiverOutcome?.losses.append(0)
+            }
             try validate(journey)
             guard journey.canSave else { throw GameRuleError("This save was interrupted during a minigame.") }
             return journey
@@ -75,16 +138,18 @@ struct JourneyStore {
         let version: Int
         var players: [HighScore]
         var legends: [OriginalEndingPresentation.Legend]
+        var edition: GameEdition? = nil
     }
 
     private func scoreArchive() throws -> LegendsArchive {
         guard FileManager.default.fileExists(atPath: scoresURL.path) else {
-            return .init(format: "OregonBoundLegends", version: 2, players: [],
-                         legends: OriginalEndingPresentation.initialLegends)
+            return .init(format: "OregonBoundLegends", version: 3, players: [],
+                         legends: OriginalEndingPresentation.initialLegends, edition: edition)
         }
         let data = try limitedData(scoresURL)
         let archive: LegendsArchive
         if let old = try? JSONDecoder().decode([HighScore].self, from: data) {
+            guard edition == .macintosh11 else { throw GameRuleError("A legacy score table belongs to Macintosh 1.1.") }
             let players = old.enumerated().sorted {
                 $0.element.score == $1.element.score ? $0.offset < $1.offset : $0.element.score > $1.element.score
             }.map(\.element)
@@ -93,7 +158,9 @@ struct JourneyStore {
         } else {
             archive = try JSONDecoder().decode(LegendsArchive.self, from: data)
         }
-        guard archive.format == "OregonBoundLegends", archive.version == 2,
+        let legacyClassic = archive.version == 2 && archive.edition == nil && edition == .macintosh11
+        guard archive.format == "OregonBoundLegends",
+              legacyClassic || (archive.version == 3 && archive.edition == edition),
               archive.players.count <= 10, archive.legends.count <= 10,
               Set(archive.players.map(\.id)).count == archive.players.count,
               Set(archive.legends.map(\.id)).count == archive.legends.count,
@@ -102,7 +169,8 @@ struct JourneyStore {
               zip(archive.legends, archive.legends.dropFirst()).allSatisfy({ $0.score >= $1.score }) else {
             throw GameRuleError("The saved List of Legends is invalid.")
         }
-        return archive
+        return .init(format: "OregonBoundLegends", version: 3, players: archive.players,
+                     legends: archive.legends, edition: edition)
     }
 
     /// Compatibility metadata API. Original presentation must use legends().
@@ -130,11 +198,12 @@ struct JourneyStore {
     /// Original+Yes restores the authored table immediately, rather than making
     /// it empty. Done has separate pending removals in the editor session.
     func restoreOriginalLegends() throws {
-        try write(LegendsArchive(format: "OregonBoundLegends", version: 2, players: [],
-                                 legends: OriginalEndingPresentation.initialLegends), to: scoresURL)
+        try write(LegendsArchive(format: "OregonBoundLegends", version: 3, players: [],
+                                 legends: OriginalEndingPresentation.initialLegends, edition: edition), to: scoresURL)
     }
 
     func recordScore(_ trip: Journey, name: String? = nil) throws {
+        guard trip.gameEdition == edition else { throw GameRuleError("The journey belongs to a different Oregon Trail edition.") }
         guard trip.phase == .finished, trip.won else { return }
         var archive = try scoreArchive()
         guard !archive.players.contains(where: { $0.id == trip.id }),
@@ -169,12 +238,14 @@ struct JourneyStore {
     }
 
     func validate(_ trip: Journey) throws {
+        guard trip.gameEdition == edition else { throw GameRuleError("The journey belongs to a different Oregon Trail edition.") }
         guard trip.inventoryUnitsVersion == nil || trip.inventoryUnitsVersion == 1,
               TrailCatalog.contains(trip.locationID), trip.destinationID.map(TrailCatalog.contains) ?? true,
               (1...5).contains(trip.members.count), Set(trip.members.map(\.id)).count == trip.members.count,
               trip.members.allSatisfy({ $0.health.isFinite && (0...100).contains($0.health) && (0...255).contains($0.sickDays) && !$0.name.isEmpty && $0.name.count <= 24 }),
               (3...8).contains(trip.departureMonth), (0...(65_536 * 366)).contains(trip.daysElapsed),
               ((trip.originalCashOverdraft == true ? -990_000 : 0)...1_000_000).contains(trip.cash), trip.inventory.valid,
+              trip.gameEdition == .macintoshCD12 || trip.inventory.perishableFood == 0,
               trip.legacyOxenLimit.map({ (40...80).contains($0) }) ?? true,
               trip.inventory[.oxen] <= (trip.legacyOxenLimit ?? Supply.oxen.capacity),
               (0...4000).contains(trip.miles), (0...500).contains(trip.legDistance), (0...trip.legDistance).contains(trip.legProgress),
@@ -198,9 +269,10 @@ struct JourneyStore {
         if let outcome = trip.originalRiverOutcome {
             guard trip.phase == .river, (1...4).contains(outcome.requestedMethodRaw), (1...3).contains(outcome.animationMethodRaw),
                   (0...2).contains(outcome.failureKind), (0...4).contains(outcome.status),
-                  (-328...983).contains(outcome.currentFactor), outcome.losses.count == 7,
-                  zip(Supply.allCases, outcome.losses).allSatisfy({ item, loss in
-                      (0...(item == .oxen ? 80 : item.capacity)).contains(loss)
+                  (-328...983).contains(outcome.currentFactor), outcome.losses.count == Inventory.itemCount(for: trip.gameEdition),
+                  outcome.losses.enumerated().allSatisfy({ index, loss in
+                      let limit = index == 0 ? 80 : index == 7 ? Inventory.perishableFoodCapacity : Supply.allCases[index].capacity
+                      return (0...limit).contains(loss)
                   }), Set(outcome.drownedMembers).count == outcome.drownedMembers.count,
                   outcome.drownedMembers.allSatisfy(trip.members.indices.contains),
                   outcome.presentationRandomTicks.map({ (0..<180).contains($0) }) ?? true else {
@@ -219,13 +291,14 @@ struct JourneyStore {
         }
         if let state = trip.original {
             guard state.badness <= 139, state.flags & 0xf1 == 0,
+                  state.cdWagonWeight.map({ trip.gameEdition == .macintoshCD12 && (0...4328).contains($0) }) ?? true,
                   state.weather.region < 6, state.weather.temperature <= 5,
-                  (state.weather.category & 127) <= 9 else {
+                  (state.weather.category & 127) <= (trip.gameEdition == .macintoshCD12 ? 10 : 9) else {
                 throw GameRuleError("The saved game contains invalid original simulation state.")
             }
         }
         if let session = trip.originalTradeSession {
-            guard session.isValid, [.travel, .landmark, .river, .fork].contains(trip.phase),
+            guard session.isValid(in: trip.gameEdition), [.travel, .landmark, .river, .fork].contains(trip.phase),
                   trip.originalRiverOutcome == nil else {
                 throw GameRuleError("The saved trade offer is invalid.")
             }

@@ -7,7 +7,7 @@ import Foundation
 /// ORGN → metadata/orgn.json.
 ///
 /// Port of scripts/extract_str.py, extract_wst.py, extract_ditl.py and extract_hvof.py,
-/// including their tolerance of short resources (a truncated list simply ends early).
+/// WST# entries use checked lengths; the other list formats retain their reference tolerance.
 enum TextResourceExtractors {
     enum Failure: Error, CustomStringConvertible {
         case noOriginResource
@@ -37,23 +37,23 @@ enum TextResourceExtractors {
 
     // MARK: WST#
 
-    /// MECC guidebook text: 2-byte declared count, then 0x01-delimited entries of
-    /// one style byte plus Mac Roman text; trailing NULs are stripped and empty
-    /// entries skipped. `entry_count` is the number of entries actually found.
-    static func parseWST(_ data: Data, resourceID: Int, name: String?) -> JSONValue {
-        let nameValue: JSONValue = name.map { .string($0) } ?? .null
-        let bytes = [UInt8](data)
-        guard bytes.count >= 2 else { return ["id": .int(resourceID), "name": nameValue, "entry_count": 0, "entries": []] }
+    /// Counted, word-length-prefixed Mac Roman strings. Each length is aligned
+    /// to an even offset; empty slots retain their indices. CD CODE4:0b36–0bd0.
+    static func parseWST(_ data: Data, resourceID: Int, name: String?) throws -> JSONValue {
+        let reader = BinaryReader(data)
+        let count = Int(try reader.u16(0))
+        var position = 2
         var entries: [JSONValue] = []
-        for part in bytes[2...].split(separator: 0x01, omittingEmptySubsequences: true) {
-            var text = part.dropFirst()
-            while text.last == 0 { text = text.dropLast() }
-            guard !text.isEmpty else { continue }
-            let decoded = MacRoman.decode(text)
-            guard !decoded.isEmpty else { continue }
-            entries.append(["index": .int(entries.count), "text": .string(decoded)])
+        for index in 0..<count {
+            position += position % 2
+            let length = Int(try reader.u16(position))
+            position += 2
+            let text = MacRoman.decode(try reader.slice(position, length))
+            entries.append(["index": .int(index), "text": .string(text)])
+            position += length
         }
-        return ["id": .int(resourceID), "name": nameValue, "entry_count": .int(entries.count), "entries": .array(entries)]
+        return ["id": .int(resourceID), "name": name.map { .string($0) } ?? .null,
+                "entry_count": .int(entries.count), "entries": .array(entries)]
     }
 
     // MARK: DITL
@@ -124,6 +124,12 @@ enum TextResourceExtractors {
         return ["id": .int(resourceID), "text": .string(trimmed), "source_file": .string(sourceFile)]
     }
 
+    /// CD 1.2 OTCD metadata is a Pascal string, not the plain-text ORGN layout.
+    static func parseOTCD(_ data: Data, resourceID: Int, sourceFile: String) throws -> JSONValue {
+        let text = try BinaryReader(data).pascalString(0).text
+        return ["id": .int(resourceID), "text": .string(text), "source_file": .string(sourceFile), "source_type": "OTCD"]
+    }
+
     private static func isPythonWhitespace(_ character: Character) -> Bool {
         guard let scalar = character.unicodeScalars.first, character.unicodeScalars.count == 1 else { return false }
         switch scalar.value {
@@ -131,6 +137,38 @@ enum TextResourceExtractors {
             return true
         default:
             return false
+        }
+    }
+
+    /// Preparation validates complete list records before tolerant legacy writers run.
+    static func validate(_ fork: MacResourceFork) throws {
+        for resource in fork.resources {
+            let reader = BinaryReader(resource.data)
+            switch resource.type {
+            case "STR#":
+                let count = Int(try reader.u16(0))
+                var position = 2
+                for _ in 0..<count { position += try reader.pascalString(position).length }
+            case "WST#":
+                _ = try parseWST(resource.data, resourceID: resource.id, name: resource.name)
+            case "DITL":
+                let countField = try reader.u16(0)
+                let count = countField == 0xffff ? 0 : Int(countField) + 1
+                var position = 2
+                for _ in 0..<count {
+                    _ = try reader.slice(position, 14)
+                    let type = Int(try reader.u8(position + 12)) & 0x7f
+                    let length = Int(try reader.u8(position + 13))
+                    if resourceIDItemTypes.contains(type) && length != 2 {
+                        throw ReferenceDecodeError.value("Invalid DITL resource ID field in \(resource.id)")
+                    }
+                    _ = try reader.slice(position + 14, length)
+                    position += 14 + length + length % 2
+                }
+            case "HVof":
+                if reader.count % 2 != 0 { throw ReferenceDecodeError.value("Odd HVof byte count in \(resource.id)") }
+            default: break
+            }
         }
     }
 
@@ -165,18 +203,23 @@ enum TextResourceExtractors {
     /// Writes metadata/orgn.json from the first ORGN resource. `sourceFile` is the
     /// recorded provenance string; the reference pipeline wrote "raw/oregon_trail.rsrc".
     static func extractOrigin(trailFork: MacResourceFork, into output: ExtractionOutput,
-                              sourceFile: String = "raw/oregon_trail.rsrc") throws {
+                              sourceFile: String = "raw/oregon_trail.rsrc", edition: GameEdition = .macintosh11) throws {
+        if edition == .macintoshCD12 {
+            guard let resource = trailFork["OTCD", 0] else { throw Failure.noOriginResource }
+            try output.writeJSON(parseOTCD(resource.data, resourceID: resource.id, sourceFile: sourceFile), to: "metadata/orgn.json")
+            return
+        }
         guard let resource = trailFork.resources.first(where: { $0.type == "ORGN" }) else { throw Failure.noOriginResource }
         try output.writeJSON(parseORGN(resource.data, resourceID: resource.id, sourceFile: sourceFile), to: "metadata/orgn.json")
     }
 
     /// Runs every text extractor above.
     static func extractAll(trailFork: MacResourceFork, into output: ExtractionOutput,
-                           originSourceFile: String = "raw/oregon_trail.rsrc") throws {
+                           originSourceFile: String = "raw/oregon_trail.rsrc", edition: GameEdition = .macintosh11) throws {
         try extractStrings(trailFork: trailFork, into: output)
         try extractGuidebook(trailFork: trailFork, into: output)
         try extractDialogs(trailFork: trailFork, into: output)
         try extractMapViewports(trailFork: trailFork, into: output)
-        try extractOrigin(trailFork: trailFork, into: output, sourceFile: originSourceFile)
+        try extractOrigin(trailFork: trailFork, into: output, sourceFile: originSourceFile, edition: edition)
     }
 }

@@ -48,7 +48,7 @@ struct TrailView: View {
                     value("Pace", trip.pace.rawValue)
                     value("Rations", trip.rations.rawValue)
                     Divider()
-                    value("Food", "\(trip.inventory[.food]) lbs")
+                    value("Food", "\(trip.totalFood) lbs")
                     value("Money", dollars(trip.cash))
                     value("Miles traveled", "\(trip.miles)")
                     if trip.phase == .travel { value("To next stop", "\(trip.milesToNext) mi") }

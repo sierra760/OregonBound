@@ -53,6 +53,9 @@ enum BitmapFontExtractor {
         let code: Int?
         let missing: Bool
         let advance: Int?
+        let bearingX: Int?
+        let atlasX: Int
+        let width: Int
     }
 
     /// A decoded strike: the JSON record (minus `family_associations`) and its atlas.
@@ -63,6 +66,7 @@ enum BitmapFontExtractor {
         let firstChar: Int
         let lastChar: Int
         let missingGlyphIndex: Int
+        let ascent: Int
         let glyphs: [Glyph]
         var record: [String: JSONValue]
         /// Grayscale atlas, 255 = ink.
@@ -180,7 +184,9 @@ enum BitmapFontExtractor {
             let word = widths[index]
             let missing = word == 0xffff
             let advance: Int? = missing ? nil : word & 255
-            glyphs.append(Glyph(index: index, code: code, missing: missing, advance: advance))
+            glyphs.append(Glyph(index: index, code: code, missing: missing, advance: advance,
+                bearingX: missing ? nil : (word >> 8) + kernMax,
+                atlasX: locations[index], width: locations[index + 1] - locations[index]))
             var record: [String: JSONValue] = [
                 "index": .int(index),
                 "code": code.map { .int($0) } ?? .null,
@@ -218,7 +224,7 @@ enum BitmapFontExtractor {
             "trailing_bytes_hex": .string(Data(reader.bytes[min(tableEnd, reader.count)...]).hexDigest),
         ]
         return Strike(resourceID: resourceID, sourceSHA256: sha, sourceLength: reader.count, firstChar: first, lastChar: last,
-                      missingGlyphIndex: count, glyphs: glyphs, record: record, atlas: atlas)
+                      missingGlyphIndex: count, ascent: ascent, glyphs: glyphs, record: record, atlas: atlas)
     }
 
     /// Decodes the 52-byte FamRec and its required font association table.
@@ -307,16 +313,21 @@ enum BitmapFontExtractor {
                         expectedSHA256: "1ae070fb30e3f9912eec605f023db2ca5919624ad898570d8aa12b3e65fec916"),
     ]
 
+    static let cdCreditsSelection = SystemSelection(familyID: 21, familyName: "Helvetica", size: 12,
+        expectedSHA256: "304e64e68b41e0aecb07173665b613867f8ecf6f9ef1609b329881aa84ec565e")
+
     /// Writes Chicago 12, Geneva 9 and Geneva 12 (fonts/nfnt_<id>.json/.png) and
     /// fonts/system_font_manifest.json from a System 7.0 System file's resource fork.
+    /// CD imports additionally need Helvetica12 for their styled credits.
     @discardableResult
     static func extractSystemFonts(systemFork: MacResourceFork, into output: ExtractionOutput,
-                                   resourceForkSHA256: String = System7Reference.resourceForkSHA256) throws -> JSONValue {
+                                   resourceForkSHA256: String = System7Reference.resourceForkSHA256,
+                                   includeCDCredits: Bool = false) throws -> JSONValue {
         let source = "The System file"
         var familyOrder: [Int] = []
         var families: [Int: Family] = [:]
         var fonts: [JSONValue] = []
-        for selection in systemSelections {
+        for selection in systemSelections + (includeCDCredits ? [cdCreditsSelection] : []) {
             let familyResource = try systemFork.require("FOND", selection.familyID, from: source)
             let family = try parseFOND(try SystemResourceDecompressor.expand(familyResource),
                                        resourceID: selection.familyID, name: selection.familyName)

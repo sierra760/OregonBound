@@ -62,14 +62,79 @@ struct OriginalIconChoice: View {
     let width: CGFloat
     let action: () -> Void
     var body: some View {
-        Button(action: action) {
-            HStack(spacing: 5) {
-                ZStack {
-                    PixelArtwork(resource: 10129).frame(width: 42, height: 46)
-                    PixelArtwork(resource: icon).frame(width: 32, height: 32)
+        if GameData.edition == .macintoshCD12 {
+            Button(action: action) { Color.clear.frame(width: width, height: 46) }
+                .buttonStyle(CDIconControlStyle(resource: icon, title: title, width: width))
+                .accessibilityLabel(title)
+        } else {
+            Button(action: action) {
+                HStack(spacing: 5) {
+                    ZStack {
+                        PixelArtwork(resource: 10129, monochromeResource: 129).frame(width: 42, height: 46)
+                        PixelArtwork(resource: icon, type: OriginalResources.iconType).frame(width: 32, height: 32)
+                    }
+                    if !title.isEmpty { OriginalText(text: title) }
+                }.frame(width: width, height: 46, alignment: .leading).contentShape(Rectangle())
+            }.buttonStyle(.plain)
+        }
+    }
+}
+
+private struct CDIconControlStyle: ButtonStyle {
+    let resource: Int
+    let title: String
+    let width: CGFloat
+    @Environment(\.isEnabled) private var enabled
+    func makeBody(configuration: Configuration) -> some View {
+        CDIconControlArtwork(resource: resource, title: title, width: width,
+                             pressed: configuration.isPressed, enabled: enabled).contentShape(Rectangle())
+    }
+}
+
+/// CDEF10:0280–0374 and CODE1:28a6–2994 share the oval and icon geometry.
+struct CDIconControlArtwork: View {
+    let resource: Int
+    var title = ""
+    var width: CGFloat = 42
+    var pressed = false
+    var enabled = true
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            PixelArtwork(resource: 10129, monochromeResource: 129, frame: pressed && enabled ? 1 : 0,
+                         type: OriginalResources.imageType).frame(width: 42, height: 46)
+            if enabled {
+                PixelArtwork(resource: resource, type: OriginalResources.iconType)
+                    .frame(width: 32, height: 32).offset(x: pressed ? 8 : 4, y: 7)
+            }
+            if !title.isEmpty, width > 47 {
+                let textHeight = Int(BitmapFont.bold14?.layout(title).size.height ?? 18)
+                // CDEF10:01b0–01e6 starts at the last baseline, so an odd
+                // positive gap leaves the extra pixel above the text.
+                let top = 46 - textHeight - (46 - textHeight) / 2
+                OriginalText(text: title).offset(x: 47, y: CGFloat(top))
+                if !enabled {
+                    CDDisabledControlTextPattern().frame(width: width - 47, height: 46).offset(x: 47)
                 }
-                if !title.isEmpty { OriginalText(text: title) }
-            }.frame(width: width, height: 46, alignment: .leading).contentShape(Rectangle())
-        }.buttonStyle(.plain)
+            }
+        }.frame(width: width, height: 46, alignment: .topLeading).clipped()
+    }
+}
+
+/// CDEF10:0234–0256: AA55 patBic removes alternate label pixels at port phase.
+struct CDDisabledControlTextPattern: View {
+    var paper: Color = originalPaper
+    var body: some View {
+        GeometryReader { geometry in
+            let origin = geometry.frame(in: .named(OriginalWindowLayout.portSpace)).origin
+            Canvas { context, size in
+                let phase = (Int(origin.x) & 1) ^ (Int(origin.y) & 1)
+                for y in 0..<max(0, Int(size.height)) {
+                    for x in stride(from: (y & 1) ^ phase, to: max(0, Int(size.width)), by: 2) {
+                        context.fill(Path(CGRect(x: x, y: y, width: 1, height: 1)),
+                                     with: .color(paper), style: FillStyle(antialiased: false))
+                    }
+                }
+            }
+        }.allowsHitTesting(false).accessibilityHidden(true)
     }
 }

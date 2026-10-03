@@ -6,15 +6,33 @@ enum OriginalStoreRules {
     static let basePrices = [2000, 1000, 200, 1000, 1000, 1000, 20]
     static let capacities = [40, 50, 1980, 3, 3, 3, 2000]
     static let inputDigits = [2, 2, 2, 1, 1, 1, 4]
+    /// CD CODE8:0182–01c6 selects the later store's regional backdrop.
+    /// Initial outfitting uses the separate view and always selects base0.
+    static func artworkResource(in trip: Journey) -> Int {
+        guard trip.edition == .macintoshCD12,
+              let index = TrailCatalog.stops.firstIndex(where: { $0.id == trip.locationID }) else { return 19030 }
+        let destination = index - 1
+        let variant: Int
+        switch destination {
+        case -1: variant = 0
+        case ..<3: variant = 4
+        case ..<5: variant = 2
+        case ..<11: variant = 3
+        case ..<13: variant = 1
+        default: variant = 5
+        }
+        return 19030 + variant
+    }
     private static let entryLimits = [99, 99, 99, 9, 9, 9, 9999]
     private static let storeIDs: Set<String> = ["independence", "kearney", "laramie", "bridger", "hall", "boise", "walla"]
 
     enum Rejection: Error, Equatable, LocalizedError {
-        case unavailable, invalidQuantity, insufficientMoney
+        case unavailable, invalidQuantity, insufficientMoney, missingStartingSupplies
         case capacity(item: Int, quantity: Int)
         var errorDescription: String? {
             switch self {
             case .unavailable: return "You can only buy supplies at forts."
+            case .missingStartingSupplies: return "Matt says: You can’t set off on the trail without any oxen or food."
             case .invalidQuantity: return "Enter a valid quantity for each item."
             case .insufficientMoney: return "I’m afraid you don’t have enough money to pay for all those things you’re trying to buy.  You’ll have to go back and buy less."
             case .capacity(let item, let quantity):
@@ -77,18 +95,33 @@ enum OriginalStoreRules {
 
     static func quote(_ counts: [Int], in trip: Journey) throws -> Purchase {
         guard isAvailable(in: trip) else { throw Rejection.unavailable }
+        return try quote(counts, in: trip, outfitting: false)
+    }
+
+    /// CODE8:03c8–050a (classic CODE7:0396–04e4). Initial purchases use
+    /// base prices, no existing inventory, and require both oxen and stored food.
+    static func quoteOutfitting(_ counts: [Int], in trip: Journey) throws -> Purchase {
+        guard trip.phase == .outfitting else { throw Rejection.unavailable }
+        return try quote(counts, in: trip, outfitting: true)
+    }
+
+    private static func quote(_ counts: [Int], in trip: Journey, outfitting: Bool) throws -> Purchase {
         guard counts.count == 7, counts.enumerated().allSatisfy({ (0...entryLimits[$0.offset]).contains($0.element) }) else {
             throw Rejection.invalidQuantity
         }
         var remaining = trip.cash
         var costs: [Int] = [], raw: [Int] = []
         for item in 0..<7 {
-            let cost = rowCost(item: item, count: counts[item], in: trip)
+            let cost = outfitting ? basePrices[item] * counts[item] : rowCost(item: item, count: counts[item], in: trip)
             remaining -= cost
-            // CODE7:0416 checks cumulative payment BEFORE this row's capacity.
+            // Required supplies are checked at their row, before cash/capacity.
+            if outfitting && (item == 0 || item == 6) && counts[item] == 0 {
+                throw Rejection.missingStartingSupplies
+            }
+            // CODE8:0444 / CODE7:0416: cumulative payment precedes row capacity.
             guard remaining >= 0 else { throw Rejection.insufficientMoney }
             let addition = rawQuantity(item: item, count: counts[item])
-            var current = trip.inventory[Supply.allCases[item]]
+            var current = outfitting ? 0 : trip.inventory[Supply.allCases[item]]
             if item == 0 && trip.inventoryUnitsVersion == nil { current *= 2 }
             guard current <= capacities[item] - addition else {
                 throw Rejection.capacity(item: item, quantity: item == 0 ? counts[item] : addition)

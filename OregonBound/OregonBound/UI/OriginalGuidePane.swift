@@ -46,14 +46,18 @@ private struct GuideScrollPosition: NSViewRepresentable {
 /// DITL6020/6170, CODE3:0234–0b98, and the original CDEF8/14 controls.
 struct OriginalGuidePane: View {
     @State private var guide: OriginalGuide
+    let audio: GameAudio
 
-    init(trip: Journey) { _guide = State(initialValue: OriginalGuide(locationID: trip.locationID)) }
+    init(trip: Journey, audio: GameAudio = .shared, initialPage: Int? = nil) {
+        self.audio = audio
+        _guide = State(initialValue: OriginalGuide(locationID: trip.locationID, edition: GameData.edition, initialPage: initialPage))
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
             originalPaper
             if guide.showingIndex {
-                OriginalGuideIndex(selection: guide.selection, initialRow: guide.initialIndexRow,
+                OriginalGuideIndex(selection: guide.selection, initialRow: guide.initialIndexRow, pageCount: guide.pageCount,
                                    select: { guide.select($0) },
                                    accept: { guide.closeIndex(accept: true) },
                                    cancel: { guide.closeIndex(accept: false) })
@@ -61,23 +65,34 @@ struct OriginalGuidePane: View {
                 page
             }
         }.frame(width: 262, height: 199).clipped()
+
     }
 
     private var page: some View {
         ZStack(alignment: .topLeading) {
-            PixelArtwork(resource: 16010).frame(width: 23, height: 199).offset(x: 239)
+            PixelArtwork(resource: 16010, monochromeResource: 6010).frame(width: 23, height: 199).offset(x: 239)
             if let entry = OriginalResources.guide.first(where: { $0.id == guide.page - 1 }) {
                 OriginalText(text: entry.title, font: .bold14)
                     .frame(width: 198, height: 18, alignment: .topLeading).clipped().offset(x: 6, y: 10)
                 // CODE3:07f4 uses TETextBox with a 230×160 rectangle. The authored
                 // text fits the DITL item; neither scroll bars nor repagination occur.
                 OriginalText(text: entry.text, font: .plain12, width: 230)
-                    .frame(width: 230, height: 142, alignment: .topLeading).clipped().offset(x: 6, y: 39)
+                    .frame(width: guide.hasNarration ? 231 : 230, height: guide.hasNarration ? 143 : 142, alignment: .topLeading).clipped().offset(x: 6, y: 39)
             }
             Rectangle().fill(.black).frame(width: 198, height: 1).offset(x: 6, y: 32)
             OriginalText(text: guide.pageLabel, font: .plain12).offset(x: 93, y: 186)
-            OriginalGuideFold { guide.turn(forward: $0) }.offset(x: 208)
-            OriginalGuideIndexTab { guide.openIndex() }.offset(x: 241, y: 126)
+            OriginalGuideFold { audio.perform(guide.turn(forward: $0)) }.offset(x: 208)
+            OriginalGuideIndexTab { audio.perform(guide.openIndex()) }.offset(x: 241, y: 126)
+            if guide.hasNarration {
+                Button {
+                    audio.perform(guide.toggleNarration(isAudioPlaying: audio.isPlaying))
+                } label: {
+                    // DITL6020 item8 stretches cicn6003 into its 32×30 item rect.
+                    OriginalResources.image(6003, type: OriginalResources.iconType)?
+                        .resizable().interpolation(.none).frame(width: 32, height: 30)
+                }.buttonStyle(.plain).accessibilityLabel("Play or stop guide narration")
+                    .offset(x: 205, y: 169)
+            }
         }.frame(width: 262, height: 199, alignment: .topLeading)
     }
 }
@@ -176,6 +191,8 @@ private struct GuideIndexOffset: PreferenceKey {
 struct OriginalGuideIndex: View {
     let selection: Int
     let initialRow: Int
+    var pageCount = 61
+    private var maximumRow: Int { max(0, pageCount - OriginalGuide.visibleIndexRows) }
     let select: (Int) -> Void
     let accept: () -> Void
     let cancel: () -> Void
@@ -206,7 +223,7 @@ struct OriginalGuideIndex: View {
                         }
                         #if os(macOS)
                         .background(GuideScrollPosition { y in
-                            let row = min(50, max(0, y / rowHeight))
+                            let row = min(CGFloat(maximumRow), max(0, y / rowHeight))
                             if topRow != row { topRow = row }
                         })
                         #else
@@ -218,10 +235,10 @@ struct OriginalGuideIndex: View {
                     }
                         .frame(width: 131, height: 165).offset(x: 1, y: 1)
                         #if !os(macOS)
-                        .onPreferenceChange(GuideIndexOffset.self) { topRow = min(50, max(0, $0)) }
+                        .onPreferenceChange(GuideIndexOffset.self) { topRow = min(CGFloat(maximumRow), max(0, $0)) }
                         #endif
-                    GuideIndexScrollBar(topRow: topRow) { row in
-                        proxy.scrollTo(min(50, max(0, row)), anchor: .top)
+                    GuideIndexScrollBar(topRow: topRow, pageCount: pageCount) { row in
+                        proxy.scrollTo(min(maximumRow, max(0, row)), anchor: .top)
                     }.offset(x: 132)
                     Rectangle().strokeBorder(.black, lineWidth: 1).allowsHitTesting(false)
                 }.frame(width: 148, height: 167).coordinateSpace(name: "guideIndex")
@@ -251,11 +268,12 @@ private struct GuideIndexButtonStyle: ButtonStyle {
 /// Original standard scrollbar proportions: 16px wide, 16px arrows and thumb.
 private struct GuideIndexScrollBar: View {
     let topRow: CGFloat
+    let pageCount: Int
     let scroll: (Int) -> Void
     @State private var dragOrigin: CGFloat?
     private var geometry: OriginalClassicScrollBar.Geometry {
         OriginalClassicScrollBar.geometry(bounds: .init(top: 0, left: 0, bottom: 167, right: 16),
-                                          maximum: 50, value: Int(topRow))
+                                          maximum: max(0, pageCount - OriginalGuide.visibleIndexRows), value: Int(topRow))
     }
     private var thumbY: CGFloat { CGFloat(geometry.thumbOrigin) }
     var body: some View {
@@ -290,7 +308,7 @@ private struct GuideIndexScrollBar: View {
                         scroll(OriginalClassicScrollBar.valueForThumbOrigin(origin, geometry: geometry))
                     }.onEnded { _ in dragOrigin = nil })
                 .accessibilityLabel("Guide index scroll position")
-                .accessibilityValue("\(Int(topRow) + 1) of 61")
+                .accessibilityValue("\(Int(topRow) + 1) of \(pageCount)")
                 .accessibilityAdjustableAction { direction in scroll(Int(topRow) + (direction == .increment ? 1 : -1)) }
         }.frame(width: 16, height: 167)
     }
