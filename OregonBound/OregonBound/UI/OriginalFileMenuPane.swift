@@ -91,7 +91,7 @@ struct OriginalAboutPane: View {
                             .offset(x: CGFloat(position.x), y: CGFloat(position.baseline - 10))
                     }
                 }
-            }.frame(width: 190, height: 115).clipped().offset(x: 10, y: 77)
+            }.frame(width: 190, height: 115, alignment: .topLeading).clipped().offset(x: 10, y: 77)
             OriginalManagementButton(title: "OK", width: 80, isDefault: true, action: done)
                 .offset(x: 270, y: 170).keyboardShortcut(.defaultAction)
         }.frame(width: 400, height: 200).clipped()
