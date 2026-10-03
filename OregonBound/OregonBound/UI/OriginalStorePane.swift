@@ -12,6 +12,12 @@ struct OriginalStorePane: View {
     private var amounts: [Int] { quantities.map { Int($0) ?? 0 } }
     private var costs: [Int] { (0..<7).map { OriginalStoreRules.rowCost(item: $0, count: amounts[$0], in: trip) } }
     private func money(_ cents: Int) -> String { OriginalStoreRules.money(cents) }
+    // Only the five regional 256-color CD images contain the fixed table text.
+    // Matt's, classic, 16-color and monochrome backgrounds have empty cells.
+    private var artworkContainsTableText: Bool {
+        trip.edition == .macintoshCD12 && OriginalResources.colorMode == .color256 &&
+        (19031...19035).contains(OriginalStoreRules.artworkResource(in: trip))
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -22,10 +28,10 @@ struct OriginalStorePane: View {
                     .frame(width: 494, height: 304, alignment: .topLeading)
                 label(OriginalStoreRules.storeName(in: trip), x: 168, y: 94, width: 321, font: .bold14, alignment: .center)
                 label("Have", x: 168, y: 120, width: 33, font: .bold12, alignment: .trailing)
-                label("Buy", x: 207, y: 120, width: 31, font: .bold12)
-                label("Item", x: 242, y: 120, width: 126, font: .bold12)
-                label("Unit Price", x: 370, y: 120, width: 63, font: .bold12, alignment: .trailing)
-                label("Cost", x: 435, y: 121, width: 51, font: .bold12, alignment: .trailing)
+                label("Buy", x: 207, y: 120, width: 31, font: .bold12, embeddedInArtwork: true)
+                label("Item", x: 242, y: 120, width: 126, font: .bold12, embeddedInArtwork: true)
+                label("Unit Price", x: 370, y: 120, width: 63, font: .bold12, alignment: .trailing, embeddedInArtwork: true)
+                label("Cost", x: 435, y: 121, width: 51, font: .bold12, alignment: .trailing, embeddedInArtwork: true)
                 ForEach(0..<7) { item in
                     label(String(OriginalStoreRules.have(in: trip)[item]), x: 168, y: 137 + item * 18, width: 33, alignment: .trailing)
                     OriginalTextEntry(label: labels[item], text: $quantities[item], font: .plain12)
@@ -34,12 +40,12 @@ struct OriginalStorePane: View {
                             let digits = String(value.filter { $0.isASCII && $0.isNumber }.prefix(OriginalStoreRules.inputDigits[item]))
                             if quantities[item] != digits { quantities[item] = digits }
                         }
-                    label(labels[item], x: 242, y: 137 + item * 18, width: 126)
+                    label(labels[item], x: 242, y: 137 + item * 18, width: 126, embeddedInArtwork: true)
                     label((item == 0 ? "$" : "") + money(OriginalStoreRules.rowCost(item: item, count: 1, in: trip)),
                           x: 370, y: 137 + item * 18, width: 62, alignment: .trailing)
                     label((item == 0 ? "$" : "") + money(costs[item]), x: 435, y: 137 + item * 18, width: 52, alignment: .trailing)
                 }
-                label("Total:", x: 395, y: 265, width: 37, font: .bold12)
+                label("Total:", x: 395, y: 265, width: 37, font: .bold12, embeddedInArtwork: true)
                 label("$" + money(costs.reduce(0, +)), x: 435, y: 263, width: 52, alignment: .trailing)
                 label("You have $" + money(trip.cash), x: 329, y: 287, width: 158, font: .bold12, alignment: .trailing)
                 OriginalButton(title: "Cancel") { game.panel = nil }
@@ -58,9 +64,18 @@ struct OriginalStorePane: View {
         }.frame(width: 494, height: 304).clipped()
     }
     private func label(_ text: String, x: Int, y: Int, width: Int, font: BitmapFont? = .plain12,
-                       alignment: Alignment = .leading) -> some View {
-        OriginalText(text: text, font: font).frame(width: CGFloat(width), alignment: alignment)
-            .offset(x: CGFloat(x), y: CGFloat(y))
+                       alignment: Alignment = .leading, embeddedInArtwork: Bool = false) -> some View {
+        Group {
+            if embeddedInArtwork && artworkContainsTableText {
+                // Keep the source pixels and expose their text to assistive tools.
+                Color.clear.frame(height: CGFloat(font?.lineHeight ?? 14))
+                    .accessibilityElement(children: .ignore).accessibilityLabel(text)
+                    .accessibilityAddTraits(.isStaticText)
+            } else {
+                OriginalText(text: text, font: font)
+            }
+        }.frame(width: CGFloat(width), alignment: alignment)
+         .offset(x: CGFloat(x), y: CGFloat(y))
     }
     private func purchase() {
         var purchased = false

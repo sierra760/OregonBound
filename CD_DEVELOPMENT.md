@@ -630,6 +630,17 @@ management. The native suite passes 790 test summaries with 74 skips and no
 failures; the iPad target builds. Foreground interaction remains overall-goal
 acceptance work.
 
+Foreground comparison at Fort Kearney found that the five regional 256-color
+images already contain the table headings, item names and Total label. Drawing
+those labels again produced overlapping text. The store now preserves the
+embedded pixels while exposing their labels to accessibility tools. Dynamic
+prices, quantities and controls retain their existing rendering. The rebuilt
+Mac app shows single labels and exposes the fixed text in its accessibility tree.
+Across 21 offscreen panes, all 18 checked regional text regions now match the
+source artwork; all 15 Matt's/16-color/monochrome panes remain pixel-identical to
+their previous renders. Mac and iPad builds pass, and focused review found no
+issues. Audible VoiceOver and iPad foreground behavior remain unverified.
+
 
 ### Starting purchases and route parity
 
