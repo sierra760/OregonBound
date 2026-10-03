@@ -24,9 +24,10 @@ families. Optional System resources are accounted for separately from game data.
 Ancillary accounting remains open. The application contains a second credits
 text/style pair (`PTHN`/`MNTY`) with 73 structurally valid style records; the
 implemented About flow uses `TEXT`/`styl`. Its original entry point is unverified.
-The meaning or runtime use of `DLGX`, the manual's `Crul`, and some classic help
-and control metadata still needs an explicit treatment. Scans found no literal
-references to those first three types in application/manual resource payloads
+The manual's `Crul` and exact classic help interaction remain unresolved.
+Uppercase `DLGX` is accounted for as Resorcerer dialog-editor metadata, as
+documented in the resource-family accounting below. Scans found no literal
+references to `PTHN`, `MNTY`, `DLGX`, or `Crul` in application/manual resource payloads
 or reconstructed game globals. This does not rule out constructed types or
 implicit operating-system loading. An empty `pendingResources` list does not
 close these inventory questions.
@@ -404,9 +405,10 @@ checks; no original-game foreground interaction is implied. The latest native ru
 unbundled originals or reference captures skip when those inputs are absent.
 The fresh review of the complete monochrome phase found no required fixes.
 
-The broader CD effort still requires the remaining ambient/effect audio use-site
-audit, standalone On-line User's Guide treatment, remaining feature audit,
-interactive original/macOS/iPad acceptance, and final public delivery review.
+Subsequent sections record the completed audio use-site audit and standalone
+On-line User's Guide implementation. The broader CD effort still requires the
+unresolved ancillary audit, interactive original/macOS/iPad acceptance, and
+final public delivery review.
 Original resources, private renders, and disk images are not included here.
 
 
